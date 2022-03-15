@@ -19,18 +19,18 @@
                 <f:if condition="{data}">
                     <div>
                         <button><f:translate key="detail.download" /></button>
-                        <div>
+                        <div class="download-links">
                             <div>
-                                xlf
+                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">xlf</f:link.action>
                             </div>
                             <div>
-                                xls
+                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">xls</f:link.action>
                             </div>
                             <div>
-                                csv
+                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">csv</f:link.action>
                             </div>
                             <div>
-                                json
+                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">json</f:link.action>
                             </div>
                         </div>
                     </div>

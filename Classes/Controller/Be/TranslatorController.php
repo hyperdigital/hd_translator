@@ -26,6 +26,8 @@ use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
 use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
 use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
 use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionController
 {
@@ -314,10 +316,104 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     /**
      * @param string $keyTranslation
      * @param string $languageTranslation
+     * @param string $format
      */
-    public function downloadAction($keyTranslation, $languageTranslation)
+    public function downloadAction($keyTranslation, $languageTranslation, $format)
     {
-        die('xxx');
+        $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
+        $this->languageService->init($languageTranslation);
+        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
+        $downloadFilename = explode('/', $originalLanguageFilePath);
+        $downloadFilename = explode('.', $downloadFilename[count($downloadFilename) - 1]);
+        unset($downloadFilename[count($downloadFilename) - 1]);
+        $downloadFilename = implode('.', $downloadFilename);
+        if ($languageTranslation != 'en' && $languageTranslation != 'default') {
+            $downloadFilename = $languageTranslation . '.' . $downloadFilename;
+        }
+
+        switch ($format) {
+            case 'xls':
+                $spreadsheet = new Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+
+                $iterator = 0;
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $iterator++;
+                    $sheet->setCellValue("A{$iterator}", $key);
+                    $sheet->setCellValue("B{$iterator}", $value[0]['source']);
+                    $sheet->setCellValue("C{$iterator}", $value[0]['target']);
+                }
+                $writer = new Xlsx($spreadsheet);
+
+                $downloadFilename = $downloadFilename . '.xlsx';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                $writer->save('php://output');
+                exit();
+                break;
+            case 'csv':
+                $realData = [];
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $tempData = [];
+                    $tempData[] = $key;
+                    $tempData[] = $value[0]['source'];
+                    $tempData[] = $value[0]['target'];
+                    $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
+                }
+
+                $downloadFilename = $downloadFilename . '.csv';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                echo implode(PHP_EOL, $realData);
+                exit();
+                break;
+            case 'json':
+                $downloadFilename = $downloadFilename . '.json';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                echo json_encode($data[$languageTranslation], JSON_PRETTY_PRINT);
+                exit();
+                break;
+            case 'xlf':
+                if ($languageTranslation == 'en' || $languageTranslation == 'default') {
+                    $filename = $keyTranslation . '.xlf';
+                } else {
+                    $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
+                }
+
+                $downloadFilename = $downloadFilename . '.xlf';
+
+                $absolutePath = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
+                if (file_exists($absolutePath)) {
+                    header('Content-Description: File Transfer');
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                    header('Content-Transfer-Encoding: binary');
+                    header('Expires: 0');
+                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Pragma: public');
+                    header('Content-Length: ' . filesize($absolutePath)); //Absolute URL
+                    ob_clean();
+                    flush();
+                    readfile($absolutePath); //Absolute URL
+                }
+                exit();
+        }
     }
 
     /**
