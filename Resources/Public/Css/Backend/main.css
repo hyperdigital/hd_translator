@@ -1,15 +1,60 @@
 :root {
-    --hdtranslator-font-size: 16px;
+    --hdtranslator-font-size: 14px;
+    --hdtranslator-gap-size: 32px;
+    --hdtranslator-main-color: #787575;
 }
-
+.hd-translator *{
+    color: var(--hdtranslator-main-color);
+}
 .hd-translator-detail-grid{
     display: grid;
-    grid-gap: 32px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-gap: calc(0.5 * var(--hdtranslator-gap-size)) var(--hdtranslator-gap-size);
+    grid-template-columns: repeat(1, minmax(0, 1fr));
     font-size: var(--hdtranslator-font-size);
+}
+.hd-translator-list-table{
+    width: 100%;
+}
+.hd-translator-list-table td{
+    vertical-align: top;
+}
+.hd-translator-list-table .hd-translator-list-table-label{
+}
+.hd-translator-list-table .hd-translator-list-table-flags{
+}
+.hd-translator-list-table .hd-translator-list-table-tools{
+}
+.hd-translator-list-flags-wrap{
+    display: flex;
+    margin-right: calc(-0.5 * var(--hdtranslator-gap-size))
+}
+.hd-translator-list-flags-wrap a{
+    margin-right: calc(0.5 * var(--hdtranslator-gap-size));
+}
+@media only screen and (min-width: 900px) {
+    .hd-translator-detail-grid{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media only screen and (min-width: 1250px) {
+    .hd-translator-detail-grid{
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+@media only screen and (min-width: 1440px) {
+    .hd-translator-detail-grid{
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+.hd-translator-key{
+    font-size: 0.95em;
+}
+.hd-translator-field{
+    margin: calc(0.5 * 0.75em) 0px;
 }
 .hd-translator-original{
     font-size: 0.75em;
+    font-weight: 800;
 }
 .hd-translator-field input{
     width: 100%;

@@ -10,7 +10,7 @@
 </f:section>
 
 <f:section name="content">
-    <div>
+    <div class="hd-translator">
         <f:if condition="{is_empty}">
             <f:then>
                 This language is not set
@@ -39,7 +39,7 @@
                             <f:for each="{data.{langaugeKey}}" key="key" as="value">
                                 <div class="hd-translator-detail-grid-item">
                                     <div class="hd-translator-key">{key}</div>
-                                    <div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" value="{value.0.target}" /></div>
+                                    <div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" placeholder="{key}" value="{value.0.target}" /></div>
                                     <div class="hd-translator-original">{value.0.source}</div>
                                     <f:if condition="{langaugeKey} != 'default'">
                                         <div style="display: none">
