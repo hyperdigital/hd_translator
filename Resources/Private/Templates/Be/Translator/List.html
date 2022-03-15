@@ -1,0 +1,37 @@
+<html
+        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+        data-namespace-typo3-fluid="true">
+
+<f:layout name="Default" />
+
+<f:section name="headline">
+</f:section>
+
+<f:section name="content">
+    <f:if condition="{data}">
+        <f:for each="{data}" key="index" as="file">
+            <div>
+                <div>{file.label}</div>
+                <div>
+                    <f:if condition="{file.availableLanguages}">
+                        <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
+                            <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: langShort}">{lang}</f:link.action>
+                        </f:for>
+                    </f:if>
+                </div>
+                <div style="color: silver; opacity: 0.3;">
+                    <f:if condition="{file.languages}">
+                        <f:then>
+                            <f:for each="{file.languages}" as="lang">
+                                <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}}</f:link.action>
+                            </f:for>
+                        </f:then>
+                    </f:if>
+                </div>
+            </div>
+        </f:for>
+    </f:if>
+</f:section>
+</html>

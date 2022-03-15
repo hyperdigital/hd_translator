@@ -1,0 +1,37 @@
+<div>
+    <f:if condition="{emptyStorage}">
+        <f:then>
+            First configure the sotrage.
+        </f:then>
+        <f:else>
+            <f:if condition="{categories}">
+                <f:then>
+                    <f:if condition="{enabledSync}">
+                        <f:link.action action="syncLocallangs">TODO:Run sync</f:link.action>
+                    </f:if>
+                    <f:render partial="Search" arguments="{_all}" />
+                    <f:for each="{categories}" as="languages" key="category">
+                        <div><f:link.action action="list" arguments="{category: category}">{category}</f:link.action></div>
+                    </f:for>
+                </f:then>
+                <f:else>
+                    <f:if condition="{enabledSync}">
+                        <f:link.action action="syncLocallangs">TODO:Run sync</f:link.action>
+                    </f:if>
+
+                    <h3>No translation enabled for translation.</h3>
+                    <p>To set up the translation add this settings</p>
+                    <pre>$GLOBALS['TYPO3_CONF_VARS']['translator']['news'] = [
+    'label' => 'News',
+    'path' => 'EXT:news/Resources/Private/Language/locallang.xlf',
+    'category' => 'Category1',
+    'languages' => [
+        'de',
+        'en'
+    ]
+];</pre>
+                </f:else>
+            </f:if>
+        </f:else>
+    </f:if>
+</div>

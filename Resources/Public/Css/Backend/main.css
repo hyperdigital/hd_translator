@@ -1,0 +1,17 @@
+:root {
+    --hdtranslator-font-size: 16px;
+}
+
+.hd-translator-detail-grid{
+    display: grid;
+    grid-gap: 32px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    font-size: var(--hdtranslator-font-size);
+}
+.hd-translator-original{
+    font-size: 0.75em;
+}
+.hd-translator-field input{
+    width: 100%;
+    padding: calc(var(--hdtranslator-font-size) * 0.5);
+}

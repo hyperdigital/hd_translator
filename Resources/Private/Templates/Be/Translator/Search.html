@@ -1,0 +1,19 @@
+<div>
+    <f:render partial="Search" arguments="{_all}" />
+    
+    <f:if condition="{data}">
+        <f:for each="{data}" key="category" as="items">
+            <h3>{category}</h3>
+            <f:if condition="{items}">
+                <f:for each="{items}" as="item" key="key">
+                    <div>{item.label}</div>
+                    <f:if condition="{item.languages}">
+                        <f:for each="{item.languages}" as="lang">
+                            <f:link.action action="detail" arguments="{keyTranslation: key, languageTranslation: lang}">{languagesArray.{lang}}</f:link.action>
+                        </f:for>
+                    </f:if>
+                </f:for>
+            </f:if>
+        </f:for>
+    </f:if>
+</div>

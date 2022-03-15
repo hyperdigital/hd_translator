@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="messages" date="2020-07-02T09:00:00Z" product-name="hd_translator">
+        <header/>
+        <body>
+            <trans-unit id="storagePath">
+                <source>Storage path (from root of project)</source>
+            </trans-unit>
+            <trans-unit id="allLocallangs">
+                <source>All locallang.xlf files</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>
