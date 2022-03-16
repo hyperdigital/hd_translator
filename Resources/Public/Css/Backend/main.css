@@ -2,9 +2,38 @@
     --hdtranslator-font-size: 14px;
     --hdtranslator-gap-size: 32px;
     --hdtranslator-main-color: #787575;
+    --hdtranslator-dark-color: #333333;
 }
 .hd-translator *{
     color: var(--hdtranslator-main-color);
+}
+.hd-translator button{
+    background: transparent;
+    border: none;
+    color: var(--hdtranslator-dark-color);
+    font-weight: 600;
+}
+.hd-translator button svg{
+    height: 1rem;
+    width: auto;
+}
+.hd-translator button *{
+    color: var(--hdtranslator-dark-color);
+}
+.popup-action{
+    position: relative;
+}
+.popup-content{
+    position: absolute;
+    padding: 10px;
+    width: 100%;
+    border: 1px solid var(--hdtranslator-dark-color);
+    background-color: white;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+.popup-content.hidden{
+    display: none;
 }
 .hd-translator-detail-grid{
     display: grid;
@@ -46,6 +75,10 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
+.hd-translator .toolbar-section{
+    display: flex;
+    justify-content: space-between;
+}
 .hd-translator-key{
     font-size: 0.95em;
 }
@@ -59,4 +92,10 @@
 .hd-translator-field input{
     width: 100%;
     padding: calc(var(--hdtranslator-font-size) * 0.5);
+}
+.hd-translator .download-links a:hover{
+    text-decoration: none;
+}
+.hd-translator .toolbar-button-section{
+    display: flex;
 }

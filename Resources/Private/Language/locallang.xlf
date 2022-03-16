@@ -6,6 +6,9 @@
             <trans-unit id="detail.download">
                 <source>Download</source>
             </trans-unit>
+            <trans-unit id="detail.import">
+                <source>Import</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

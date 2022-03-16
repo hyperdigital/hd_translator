@@ -10,6 +10,7 @@
 </f:section>
 
 <f:section name="content">
+    <f:asset.css identifier="hd_translator" href="EXT:/hd_translator/Resources/Public/Css/Backend/main.css" />
     <div class="hd-translator">
         <f:if condition="{is_empty}">
             <f:then>
@@ -17,20 +18,47 @@
             </f:then>
             <f:else>
                 <f:if condition="{data}">
-                    <div>
-                        <button><f:translate key="detail.download" /></button>
-                        <div class="download-links">
-                            <div>
-                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">xlf</f:link.action>
+                    <div class="toolbar-section">
+                        <div>
+                            TODO: language select
+                        </div>
+                        <div class="toolbar-button-section">
+                            <div class="popup-action">
+                                <button>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    <f:translate key="detail.import" />
+                                </button>
+                                <div class="popup-content hidden download-links">
+                                    <f:form action="import" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
+                                        TODO: Allowed: xlf, xls, csv, json
+                                        <f:form.upload name="file" />
+                                        <f:form.submit value="TODO: upload" />
+                                    </f:form>
+                                </div>
                             </div>
-                            <div>
-                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">xls</f:link.action>
-                            </div>
-                            <div>
-                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">csv</f:link.action>
-                            </div>
-                            <div>
-                                <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">json</f:link.action>
+                            <div class="popup-action">
+                                <button>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    <f:translate key="detail.download" />
+                                </button>
+                                <div class="popup-content hidden download-links">
+                                    <div>
+                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">XLF</f:link.action>
+                                    </div>
+                                    <div>
+                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">XLS</f:link.action>
+                                    </div>
+                                    <div>
+                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">CSV</f:link.action>
+                                    </div>
+                                    <div>
+                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">JSON</f:link.action>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -54,12 +82,25 @@
             </f:else>
         </f:if>
     </div>
-
     <script>
         let save = document.querySelector('a[data-action=save]')
         if (save){
             save.addEventListener('click', (event) => {
                 document.getElementById('translation-form').submit();
+            })
+        }
+
+        let popups = document.querySelectorAll('.popup-action');
+        if (popups){
+            popups.forEach(function(element){
+                element.querySelector('button').addEventListener('click', (event) => {
+                    let content = element.querySelector('.popup-content');
+                    if (content.classList.contains('hidden')) {
+                        content.classList.remove('hidden')
+                    } else {
+                        content.classList.add('hidden');
+                    }
+                })
             })
         }
     </script>

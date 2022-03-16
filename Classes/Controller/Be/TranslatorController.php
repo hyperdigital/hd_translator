@@ -420,8 +420,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      * @param string $keyTranslation
      * @param string $languageTranslation
      * @param boolean $saved
+     * @param boolean $emptyImport
      */
-    public function detailAction($keyTranslation, $languageTranslation, $saved = false)
+    public function detailAction($keyTranslation, $languageTranslation, $saved = false, $emptyImport = false)
     {
         if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')) {
             if (file_exists($this->storage . $this->conigurationFile)) {
@@ -432,8 +433,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if ($saved) {
-            $this->moduleTemplate->addFlashMessage('Successfully saved');
+            $this->moduleTemplate->addFlashMessage('TODO: Successfully saved');
         }
+        if ($emptyImport) {
+            $this->moduleTemplate->addFlashMessage('TODO: No data to import', '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
+        }
+
 
         $uriBuilder = $this->objectManager->get(UriBuilder::class);
         $uriBuilder->setRequest($this->request);
@@ -500,9 +505,104 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      * @param string $keyTranslation
      * @param string $languageTranslation
      */
-    public function saveAction($keyTranslation, $languageTranslation)
+    public function importAction($keyTranslation, $languageTranslation)
     {
-        $data = $this->request->getArgument('data');
+        if (!$this->request->hasArgument('file')) {
+            $this->redirect('detail',  null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+        }
+        $file = $this->request->getArgument('file');
+        $extension = explode('.', $file['name']);
+        $extension = strtolower($extension[count($extension) - 1]);
+        $filePath = $file['tmp_name'];
+        $content = file_get_contents($filePath);
+        $data = [];
+
+        switch($extension) {
+            case 'xlf':
+                $doc = new \DOMDocument();
+                $doc->loadXML($content);
+                $items = $doc->getElementsByTagName('trans-unit');
+                if ($items) {
+                    foreach ($items as $item) {
+                        $key = $item->getAttribute('id');
+
+                        $source = '';
+                        $sourceData = $item->getElementsByTagName('source');
+                        if ($sourceData[0]) {
+                            $source = $sourceData[0]->textContent;
+                        }
+                        $target = $source;
+                        $targetData = $item->getElementsByTagName('target');
+                        if ($targetData[0]) {
+                            $target = $targetData[0]->textContent;
+                        }
+
+                        $data[$key] = [
+                            'default' => $source,
+                            $languageTranslation => $target
+                        ];
+                    }
+                }
+                break;
+            case 'json':
+                $dataArray = json_decode($content);
+                if ($dataArray) {
+                    foreach ($dataArray as $key => $value) {
+                        $data[$key] = [
+                            'default' => $value[0]->source,
+                            $languageTranslation => $value[0]->target
+                        ];
+                    }
+                }
+                break;
+            case 'csv':
+                $dataArray = \TYPO3\CMS\Core\Utility\CsvUtility::csvToArray($content);
+                if ($dataArray) {
+                    foreach ($dataArray as $value) {
+                        $data[$value[0]] = [
+                            'default' => $value[1],
+                            $languageTranslation => $value[2]
+                        ];
+                    }
+                }
+                break;
+            case 'xls':
+            case 'xlsx':
+                $temp = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+                $temp = $temp->load($filePath);
+                $temp = $temp->getActiveSheet();
+            $rows = $temp->toArray();
+
+                foreach($rows as $key => $value) {
+                    $data[$value[0]] = [
+                        'default' => $value[1],
+                        $languageTranslation => $value[2]
+                    ];
+                }
+                break;
+        }
+
+        if (!empty($data)) {
+            $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data]);
+        }
+
+        $this->redirect('detail', null, null, [
+            'keyTranslation' => $keyTranslation,
+            'languageTranslation' => $languageTranslation,
+            'emptyImport' => true
+        ]);
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     * @param array $data
+     */
+    public function saveAction($keyTranslation, $languageTranslation, $data = null)
+    {
+        if (empty($data)) {
+            $data = $this->request->getArgument('data');
+        }
 
         $domtree = new \DOMDocument('1.0', 'UTF-8');
         $domtree->preserveWhiteSpace = false;
