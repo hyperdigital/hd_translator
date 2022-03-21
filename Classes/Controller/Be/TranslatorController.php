@@ -505,6 +505,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      * @param string $keyTranslation
      * @param string $languageTranslation
      */
+    public function removeAction($keyTranslation, $languageTranslation)
+    {
+        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
+            $filename = $keyTranslation . '.xlf';
+        } else {
+            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
+        }
+
+        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
+
+        if (file_exists($path)) {
+            unlink($path);
+        }
+
+        $this->redirect('list', null, null, [
+            'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
+        ]);
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     */
     public function importAction($keyTranslation, $languageTranslation)
     {
         if (!$this->request->hasArgument('file')) {

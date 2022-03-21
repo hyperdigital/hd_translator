@@ -11,28 +11,28 @@ class FlagService
         'bs' => '', // Bosnian
         'bg' => '', // Bulgarian
         'ca' => '', // Catalan
-        'ch' => '', // Chinese (Simple)
+        'ch' => 'CN', // Chinese (Simple)
         'cs' => 'CZ', // Czech
-        'cy' => '', // Welsh
+        'cy' => 'GB-WLS', // Welsh
         'da' => '', // Danish
         'de' => 'DE', // German
         'el' => '', // Greek
         'eo' => '', // Esperanto
-        'es' => '', // Spanish
-        'et' => '', // Estonian
+        'es' => 'ES', // Spanish
+        'et' => 'EE', // Estonian
         'eu' => '', // Basque
         'fa' => '', // Persian
-        'fi' => '', // Finnish
+        'fi' => 'FI', // Finnish
         'fo' => '', // Faroese
         'fr' => 'FR', // French
         'fr_CA' => 'CA', // French (Canada)
         'gl' => '', // Galician
         'he' => '', // Hebrew
         'hi' => '', // Hindi
-        'hr' => '', // Croatian
-        'hu' => '', // Hungarian
-        'is' => '', // Icelandic
-        'it' => '', // Italian
+        'hr' => 'HR', // Croatian
+        'hu' => 'HU', // Hungarian
+        'is' => 'IS', // Icelandic
+        'it' => 'IT', // Italian
         'ja' => '', // Japanese
         'ka' => '', // Georgian
         'kl' => '', // Greenlandic
@@ -44,7 +44,7 @@ class FlagService
         'mk' => '', // Macedonian
         'ms' => '', // Malay
         'nl' => '', // Dutch
-        'no' => '', // Norwegian
+        'no' => 'NO', // Norwegian
         'pl' => '', // Polish
         'pt' => 'PT', // Portuguese
         'pt_BR' => 'BR', // Brazilian Portuguese
@@ -56,12 +56,12 @@ class FlagService
         'sn' => '', // Shona (Bantu)
         'sq' => '', // Albanian
         'sr' => '', // Serbian
-        'sv' => '', // Swedish
+        'sv' => 'SE', // Swedish
         'th' => '', // Thai
         'tr' => '', // Turkish
         'uk' => '', // Ukrainian
         'vi' => '', // Vietnamese
-        'zh' => '', // Chinese (Trad)
+        'zh' => 'CN', // Chinese (Trad)
     ];
 
     /**

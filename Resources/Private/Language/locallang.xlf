@@ -9,6 +9,12 @@
             <trans-unit id="detail.import">
                 <source>Import</source>
             </trans-unit>
+            <trans-unit id="detail.remove">
+                <source>Delete translation</source>
+            </trans-unit>
+            <trans-unit id="list.add_new">
+                <source>Add new</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -7,7 +7,7 @@ defined('TYPO3') or die();
         'hd_translator_engine',
         'bottom',
         [
-            \Hyperdigital\HdTranslator\Controller\Be\TranslatorController::class => 'index, list, detail, save, syncLocallangs, search, download, import'
+            \Hyperdigital\HdTranslator\Controller\Be\TranslatorController::class => 'index, list, detail, save, syncLocallangs, search, download, import, remove'
         ],
         [
             'access' => 'group',

@@ -31,6 +31,9 @@
     background-color: white;
     font-size: 1.15rem;
     font-weight: 600;
+    z-index: 2;
+    max-height: 400px;
+    overflow-y: auto;
 }
 .popup-content.hidden{
     display: none;
@@ -42,7 +45,6 @@
     font-size: var(--hdtranslator-font-size);
 }
 .hd-translator-list-table{
-    width: 100%;
 }
 .hd-translator-list-table td{
     vertical-align: top;
@@ -52,6 +54,7 @@
 .hd-translator-list-table .hd-translator-list-table-flags{
 }
 .hd-translator-list-table .hd-translator-list-table-tools{
+    min-width: 400px;
 }
 .hd-translator-list-flags-wrap{
     display: flex;
@@ -98,4 +101,9 @@
 }
 .hd-translator .toolbar-button-section{
     display: flex;
+}
+.hd-translator-flag{
+    height: 2em;
+    margin-top: -0.5em;
+    width: auto;
 }

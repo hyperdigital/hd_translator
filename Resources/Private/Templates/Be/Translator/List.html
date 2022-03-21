@@ -22,7 +22,7 @@
                                 <div class="hd-translator-list-flags-wrap">
                                     <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
                                         <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: langShort}">
-                                            <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" />
+                                            <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" class="hd-translator-flag" />
                                         </f:link.action>
                                     </f:for>
                                 </div>
@@ -30,11 +30,22 @@
                         </td>
                         <td  class="hd-translator-list-table-tools">
                             <f:if condition="{file.languages}">
-                                <f:then>
-                                    <f:for each="{file.languages}" as="lang">
-                                        <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}}</f:link.action>
-                                    </f:for>
-                                </f:then>
+                                <div class="popup-action">
+                                    <button>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" stroke="currentColor"  viewBox="0 0 24 24" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                        <f:translate key="list.add_new" />
+                                    </button>
+                                    <div class="popup-content hidden">
+                                        <f:for each="{file.languages}" as="lang">
+                                            <div>
+                                                <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="" />
+                                                <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
+                                            </div>
+                                        </f:for>
+                                    </div>
+                                </div>
                             </f:if>
                         </td>
                     </tr>
@@ -42,5 +53,20 @@
             </table>
         </f:if>
     </div>
+    <script>
+        let popups = document.querySelectorAll('.popup-action');
+        if (popups){
+            popups.forEach(function(element){
+                element.querySelector('button').addEventListener('click', (event) => {
+                    let content = element.querySelector('.popup-content');
+                    if (content.classList.contains('hidden')) {
+                        content.classList.remove('hidden')
+                    } else {
+                        content.classList.add('hidden');
+                    }
+                })
+            })
+        }
+    </script>
 </f:section>
 </html>
