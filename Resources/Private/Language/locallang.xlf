@@ -15,6 +15,12 @@
             <trans-unit id="list.add_new">
                 <source>Add new</source>
             </trans-unit>
+            <trans-unit id="flashMessages.sucecssfullySaved">
+                <source>Successfully saved</source>
+            </trans-unit>
+            <trans-unit id="flashMessages.noDataToImport">
+                <source>No Data to import</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
