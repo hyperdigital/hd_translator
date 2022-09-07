@@ -50,6 +50,7 @@
     vertical-align: top;
 }
 .hd-translator-list-table .hd-translator-list-table-label{
+    padding-right: 10px;
 }
 .hd-translator-list-table .hd-translator-list-table-flags{
 }
@@ -106,4 +107,6 @@
     height: 2em;
     margin-top: -0.5em;
     width: auto;
+    padding: 2px 4px;
+    box-sizing: border-box;
 }

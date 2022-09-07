@@ -40,7 +40,7 @@
                                     <div class="popup-content hidden">
                                         <f:for each="{file.languages}" as="lang">
                                             <div>
-                                                <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="" />
+                                                <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="hd-translator-flag" />
                                                 <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
                                             </div>
                                         </f:for>
