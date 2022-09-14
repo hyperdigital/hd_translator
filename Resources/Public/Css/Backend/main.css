@@ -48,6 +48,7 @@
 }
 .hd-translator-list-table td{
     vertical-align: top;
+    padding: 2px 4px;
 }
 .hd-translator-list-table .hd-translator-list-table-label{
     padding-right: 10px;
@@ -104,9 +105,7 @@
     display: flex;
 }
 .hd-translator-flag{
-    height: 2em;
-    margin-top: -0.5em;
-    width: auto;
-    padding: 2px 4px;
+    width: 1.8em;
+    height: auto;
     box-sizing: border-box;
 }
