@@ -449,7 +449,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
                 $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
                     ->setHref($uriBuilder->reset()->uriFor('detail', ['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang]))
-                    ->setActive(($languageTranslation == $lang) ? 1 : 0);
+                    ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
                 $menu->addMenuItem($item);
             }
         }
@@ -483,11 +483,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->languageService->init($languageTranslation);
             $data = $this->languageService->includeLLFile($originalLanguageFilePath);
 
-            if ($keyTranslation != 'en' && $keyTranslation != 'default' && empty($data[$languageTranslation])) {
+            if ($languageTranslation != 'en' && $languageTranslation != 'default' && empty($data[$languageTranslation])) {
                 $this->redirect('newLangauge', null, null, [
                     'keyTranslation' => $keyTranslation,
                     'languageTranslation' => $languageTranslation
                 ]);
+            }
+
+            if (empty($data[$languageTranslation])) {
+                $data[$languageTranslation] = $data['default'];
             }
 
             $this->view->assign('data', $data);
