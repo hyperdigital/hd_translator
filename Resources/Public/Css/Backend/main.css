@@ -84,6 +84,13 @@
     display: flex;
     justify-content: space-between;
 }
+.hd-translator-detail-categorytitle{
+	font-size: 1.2em;
+	font-weight: bold;
+	text-transform: capitalize;
+	line-height: 1.5;
+	margin: 8px 0px 0px 0px;
+}
 .hd-translator-key{
     font-size: 0.95em;
 }

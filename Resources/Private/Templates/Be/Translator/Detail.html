@@ -72,20 +72,16 @@
                         </div>
                     </div>
                     <f:form action="save" id="translation-form" objectName="data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post" name="data">
-                        <div class="hd-translator-detail-grid">
-                            <f:for each="{data.{langaugeKey}}" key="key" as="value">
-                                <div class="hd-translator-detail-grid-item">
-                                    <div class="hd-translator-key">{key}</div>
-                                    <div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" placeholder="{key}" value="{value.0.target}" /></div>
-                                    <div class="hd-translator-original">{value.0.source}</div>
-                                    <f:if condition="{langaugeKey} != 'default'">
-                                        <div style="display: none">
-                                            <f:form.hidden name="data[{key}][default]" value="{value.0.source}" />
-                                        </div>
-                                    </f:if>
-                                </div>
-                            </f:for>
-                        </div>
+											<f:if condition="{isCategorized}">
+												<f:then>
+													<div class="hd-translator-detail-grid">
+														<f:render section="Categorized" arguments="{_all}" />
+													</div>
+												</f:then>
+												<f:else>
+													<f:render section="NotCategorized" arguments="{_all}" />
+												</f:else>
+											</f:if>
                     </f:form>
                 </f:if>
             </f:else>
@@ -113,5 +109,69 @@
             })
         }
     </script>
+</f:section>
+
+<f:section name="Categorized">
+	<f:if condition="!{level}"><f:variable name="level" value="0" /></f:if>
+
+	<f:if condition="{data} && {data.fullKey}">
+		<f:then>
+			<f:debug>{_all}</f:debug>
+		</f:then>
+		<f:else>
+			<f:for each="{data}" as="subdata" key="key">
+				<f:if condition="{subdata.fullKey}">
+					<f:then>
+						<f:render section="Item" arguments="{
+				key: subdata.fullKey,
+				langaugeKey: langaugeKey,
+				originalSource: subdata.value.0.source,
+				target: subdata.value.0.target
+			}" />
+					</f:then>
+					<f:else>
+						<f:variable name="movement" value="{level * 15}" />
+						<f:variable name="level" value="{level + 1}" />
+
+						</div>
+						<div class="hd-translator-detail-categorytitle" style="padding-left: {movement}px;">{key}</div>
+						<div style="padding-left: {movement}px;" class="hd-translator-detail-grid">
+
+						<f:render section="Categorized" arguments="{
+							data: subdata,
+							langaugeKey: langaugeKey,
+							level: level
+						}" />
+					</f:else>
+				</f:if>
+			</f:for>
+		</f:else>
+	</f:if>
+</f:section>
+
+<f:section name="NotCategorized">
+	<div class="hd-translator-detail-grid">
+		<f:for each="{data.{langaugeKey}}" key="key" as="value">
+			<f:render section="Item" arguments="{
+				key: key,
+				langaugeKey: langaugeKey,
+				originalSource: value.0.source,
+				target: value.0.target
+			}" />
+		</f:for>
+	</div>
+</f:section>
+
+<f:section name="Item">
+	<div class="hd-translator-detail-grid-item">
+		<div class="hd-translator-key">{key}</div>
+		<div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
+		<div class="hd-translator-original">{originalSource}</div>
+		<f:if condition="{langaugeKey} != 'default'">
+			<div style="display: none">
+				<f:form.hidden name="data[{key}][default]" value="{originalSource}" />
+			</div>
+		</f:if>
+	</div>
 </f:section>
 </html>

@@ -120,7 +120,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 if (!empty($value['category'])) {
                     $categoryData = $value['category'];
                 }
-                
+
                 if ($category == $categoryData) {
                     $data[$key] = [
                         'label' => (!empty($value['label'])) ? $value['label'] : $key,
@@ -255,7 +255,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
-        
+
         if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
             $data = [];
             $return = [];
@@ -489,12 +489,21 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     'languageTranslation' => $languageTranslation
                 ]);
             }
-
             if (empty($data[$languageTranslation])) {
                 $data[$languageTranslation] = $data['default'];
             }
 
-            $this->view->assign('data', $data);
+            if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
+                $output = [];
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $this->setCategorizatedData($output, $key, $value, $key);
+                }
+                $this->view->assign('data', $output);
+                $this->view->assign('isCategorized', true);
+            } else {
+                $this->view->assign('data', $data);
+            }
+
             $this->view->assign('langaugeKey', $languageTranslation);
             $this->view->assign('translationKey', $keyTranslation);
 
@@ -503,6 +512,25 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
+    }
+
+    public function setCategorizatedData(&$output, $key, $value, $fullKey)
+    {
+        $keyArray = explode('.', $key);
+
+        if (!empty($keyArray)) {
+            $newKey = $keyArray[0];
+            if (count($keyArray) > 1) {
+                // another subcategory is needed
+                unset($keyArray[0]);
+                $this->setCategorizatedData($output[$newKey], implode('.', $keyArray), $value, $fullKey);
+            } else {
+                $output[$newKey] = [
+                    'value' => $value,
+                    'fullKey' => $fullKey
+                ];
+            }
+        }
     }
 
     /**
