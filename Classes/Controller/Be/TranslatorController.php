@@ -483,12 +483,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->languageService->init($languageTranslation);
             $data = $this->languageService->includeLLFile($originalLanguageFilePath);
 
-            if ($languageTranslation != 'en' && $languageTranslation != 'default' && empty($data[$languageTranslation])) {
-                $this->redirect('newLangauge', null, null, [
-                    'keyTranslation' => $keyTranslation,
-                    'languageTranslation' => $languageTranslation
-                ]);
-            }
             if (empty($data[$languageTranslation])) {
                 $data[$languageTranslation] = $data['default'];
             }

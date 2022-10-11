@@ -17,6 +17,7 @@ class FlagService
         'da' => '', // Danish
         'de' => 'DE', // German
         'el' => '', // Greek
+        'en_US' => 'US',
         'eo' => '', // Esperanto
         'es' => 'ES', // Spanish
         'et' => 'EE', // Estonian
@@ -60,6 +61,7 @@ class FlagService
         'th' => '', // Thai
         'tr' => '', // Turkish
         'uk' => '', // Ukrainian
+        'us' => 'US',
         'vi' => '', // Vietnamese
         'zh' => 'CN', // Chinese (Trad)
     ];
