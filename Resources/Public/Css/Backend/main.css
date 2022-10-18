@@ -38,6 +38,12 @@
 .popup-content.hidden{
     display: none;
 }
+.popup-content > div {
+	margin-top: 5px;
+}
+.popup-content > div:first-child{
+	margin-top: 0px;
+}
 .hd-translator-detail-grid{
     display: grid;
     grid-gap: calc(0.5 * var(--hdtranslator-gap-size)) var(--hdtranslator-gap-size);
@@ -52,6 +58,7 @@
 }
 .hd-translator-list-table .hd-translator-list-table-label{
     padding-right: 10px;
+	vertical-align: center;
 }
 .hd-translator-list-table .hd-translator-list-table-flags{
 }
