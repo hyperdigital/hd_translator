@@ -1,0 +1,68 @@
+<div class="hd-translator">
+	<h1>Database translator</h1>
+	<f:form action="databaseExport">
+		<div>
+			<f:form.select name="format">
+				<f:form.select.option value="xlf">
+					XLF
+				</f:form.select.option>
+				<f:form.select.option value="csv">
+					CSV
+				</f:form.select.option>
+				<f:form.select.option value="xml">
+					XML
+				</f:form.select.option>
+			</f:form.select>
+		</div>
+		<div>
+			<div>
+				<label for="storage">
+					Comma separated storages (empty to enable all)
+				</label>
+			</div>
+			<f:form.textfield id="storage" name="storage" value="" />
+		</div>
+		<div>
+			<f:form.checkbox name="sublevels" value="1" /> Enable sublevels
+		</div>
+		<f:if condition="{allowedLanguages}">
+			<div>
+				TODO: from to
+				<div>
+					<f:form.select multiple="0" name="languageFrom">
+						<f:for each="{allowedLanguages}" as="lang">
+							<f:form.select.option value="{lang.uid}">
+								{lang.title}
+							</f:form.select.option>
+						</f:for>
+					</f:form.select>
+				</div>
+				<div>
+					<f:form.select multiple="0" name="languageTo">
+						<f:for each="{allowedLanguages}" as="lang">
+							<f:form.select.option value="{lang.uid}">
+								{lang.title}
+							</f:form.select.option>
+						</f:for>
+					</f:form.select>
+				</div>
+			</div>
+		</f:if>
+		<f:form.select multiple="1" name="tables" class="hd-translator-long_select">
+			<f:if condition="{tables}">
+				<f:for each="{tables}" as="fields" key="table">
+					<f:form.select.optgroup label="{table}">
+						<f:if condition="{fields}">
+							<f:for each="{fields}" as="field">
+								<f:form.select.option value="{table}.{field.fieldName}">[{field.fieldName}]</f:form.select.option>
+							</f:for>
+						</f:if>
+					</f:form.select.optgroup>
+				</f:for>
+			</f:if>
+		</f:form.select>
+		<div>
+			<f:form.submit value="EXPORT" />
+		</div>
+	</f:form>
+</div>

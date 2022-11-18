@@ -10,6 +10,8 @@ use TYPO3\CMS\Backend\View\BackendTemplateView;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -28,6 +30,9 @@ use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
 use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use TYPO3\CMS\Core\Service\FlexFormService;
+use TYPO3\CMS\Core\Database\Connection;
+use \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 
 class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionController
 {
@@ -40,16 +45,31 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $langFiles = [];
     protected $listUtility;
     protected $languageService;
+    protected $flexFormService;
+
+    /**
+     * @var array
+     * Used in database import. It starts with original (default) language and chnaged items are overwritten
+     */
+    protected $originalData = [];
+
+    /**
+     * @var array
+     * Used in database import. It always holds original (default) language.
+     */
+    protected $superOriginalData = [];
 
     public function __construct(
         ListUtility     $listUtility,
         ModuleTemplate  $moduleTemplate,
-        LanguageService $languageService
+        LanguageService $languageService,
+        FlexFormService $flexFormService
     )
     {
         $this->listUtility = $listUtility;
         $this->moduleTemplate = $moduleTemplate;
         $this->languageService = $languageService;
+        $this->flexFormService = $flexFormService;
     }
 
     public function initializeAction()
@@ -68,11 +88,35 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
     }
 
+    protected function indexMenu()
+    {
+        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $uriBuilder->setRequest($this->request);
+
+        $menu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
+        $menu->setIdentifier('hd_translator_index');
+
+        // Static strings
+        $item = $menu->makeMenuItem()->setTitle('Static strings')
+            ->setHref($uriBuilder->reset()->uriFor('index', null))
+            ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
+        $menu->addMenuItem($item);
+
+        $item = $menu->makeMenuItem()->setTitle('Database entries')
+            ->setHref($uriBuilder->reset()->uriFor('database', null))
+            ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
+        $menu->addMenuItem($item);
+
+        $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
+    }
+
     public function indexAction()
     {
         if (empty($this->storage)) {
             $this->view->assign('emptyStorage', 1);
         } else {
+            $this->indexMenu();
+
             if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
                 $data = [];
                 foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
@@ -94,6 +138,740 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
+    }
+
+    public function databaseAction()
+    {
+        $this->indexMenu();
+
+        $tables = [];
+        foreach ($GLOBALS['TCA'] as $tableName => $data) {
+            $tables[] = [
+                'tableName' => $tableName,
+                'tableTitle' => !empty($data['ctrl']['title']) ? $data['ctrl']['title'] : $tableName,
+            ];
+        }
+
+        $this->view->assign('tables', $tables);
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
+    public function databaseTableFieldsAction()
+    {
+        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('database'))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        $tables = [];
+        if (!$this->request->hasArgument('tables')) {
+            $errors[] = 'Tables is missing';
+        } else {
+            $tables = $this->request->getArgument('tables');
+        }
+
+        $fields = [];
+        $disabledFields = [];
+        $disabledFields[] = 't3_origuid';
+        foreach ($tables as $table) {
+            $targetUidField = 'l10n_parent';
+            if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+            }
+            $langaugeField = 'sys_language_uid';
+            if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+                $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+            }
+            $disabledFields[] = $targetUidField;
+            $disabledFields[] = $langaugeField;
+
+            foreach ($GLOBALS['TCA'][$table]['columns'] as $key => $columnData) {
+                if (!in_array($key, $disabledFields)) {
+                    $fields[$table][] = [
+                        'fieldName' => $key,
+                    ];
+                }
+            }
+        }
+
+        $allowedLanguages = [];
+        $allowedLanguages[] = [
+            'uid' => 0,
+            'title' => 'Default'
+        ];
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $result = $queryBuilder->select('*')->from('sys_language')->execute();
+        while ($row = $result->fetch()) {
+            $allowedLanguages[] = $row;
+        }
+
+
+        $this->view->assign('allowedLanguages', $allowedLanguages);
+        $this->view->assign('tables', $fields);
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
+    public function getAllPagesFromRoot($roots, &$return)
+    {
+        $roots = explode(',', strval($roots));
+        foreach ($roots as $root) {
+            $root = (int) $root;
+            if (!in_array($root, $return)) {
+                $return[] = $root;
+            }
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('pages')->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $result = $queryBuilder->select('uid')->from('pages')
+                ->where(
+                    $queryBuilder->expr()->eq('pid', $root)
+                )
+                ->execute();
+            while($row = $result->fetch()) {
+                $this->getAllPagesFromRoot($row['uid'], $return);
+            }
+        }
+    }
+
+    public function databaseImportAction()
+    {
+        $errors = [];
+
+        if (!$this->request->hasArgument('file')) {
+            $errors[] = 'No file uploaded';
+        } else {
+            $file = $this->request->getArgument('file');
+
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $ext = $finfo->file($file['tmp_name']);
+            switch($ext) {
+                case 'text/xml':
+                    $temp = explode('.', $file['name']);
+                    switch ($temp[count($temp) - 1]) {
+                        case 'xlf':
+                            $content = file_get_contents($file['tmp_name']);
+                            $this->importXlfFile($content);
+                            break;
+                        case 'xml':
+                            $content = file_get_contents($file['tmp_name']);
+                            $this->importXmlFile($content);
+                            break;
+                    }
+                    break;
+            }
+        }
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
+    protected function idToDatabaseNames(&$retrun, $id, $value)
+    {
+        $parts = explode('.',$id);
+        $languageUid = $parts[0];
+        $table = $parts[1];
+        $uid = $parts[2];
+
+        unset($parts[0]);
+        unset($parts[1]);
+        unset($parts[2]);
+
+        $field = implode('.', $parts);
+        $retrun[$languageUid][$table][$uid][$field] = $value;
+    }
+
+    protected function keysToSubarray($fieldData, $valueToInsert, &$originalData)
+    {
+        $key = key($fieldData);
+        $keyLabel = reset($fieldData);
+
+        if (count($fieldData) > 0) {
+            unset($fieldData[$key]);
+            if (!is_array($originalData)) {
+                $originalData = GeneralUtility::xml2array($originalData);
+            }
+
+            if (!empty($originalData['data'])) {
+                foreach ($originalData['data'] as $key => $dataSheet) {
+                    if (!empty($dataSheet['lDEF'])) {
+                        foreach ($dataSheet['lDEF'] as $fieldKey => $value) {
+                            $fieldDataTemp = $fieldData;
+                            $keysCount = count(explode('.', $fieldKey));
+                            $newKyes = [];
+                            for ($i = 0; $i < $keysCount; $i++) {
+                                $tempKey = key($fieldDataTemp);
+                                $newKyes[] = reset($fieldDataTemp);
+                                unset($fieldDataTemp[$tempKey]);
+                            }
+
+                            $newKyes = implode('.', $newKyes);
+                            if ($newKyes == $fieldKey) {
+                                if (empty($fieldDataTemp)) {
+                                    $originalData['data'][$key]['lDEF'][$fieldKey]['vDEF'] = $valueToInsert;
+                                    break 2;
+                                } else {
+                                    if (key($value) == 'el') {
+                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el']
+                                        $tempKey = key($fieldDataTemp);
+                                        $elementHash = reset($fieldDataTemp);
+                                        unset($fieldDataTemp[$tempKey]);
+                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash]
+                                        $tempKey = key($fieldDataTemp);
+                                        $elementKey = reset($fieldDataTemp);
+                                        unset($fieldDataTemp[$tempKey]);
+                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash][$elementKey]['el']
+
+                                        $finalKey = implode('.', $fieldDataTemp);
+                                        $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash][$elementKey]['el'][$finalKey]['vDEF'] = $valueToInsert;
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
+
+
+        return $originalData;
+
+
+//            return array_merge_recursive([],
+//                [
+//                    $keyLabel => [
+//                        'data' => [
+//                            'options' => [
+//                                'lDEF' => $this->asociativeKeyMap($fieldData, ['vDEF' => strval($value)], $originalData['data']['options']['lDEF'])
+//                            ]
+//                            ]
+//                        ]
+//                    ]
+//            );
+//        }
+
+//        return $keyLabel = $value;
+    }
+
+    protected function asociativeKeyMap($fieldData, $value, $originalData, $ignoreOriginalKey = false)
+    {
+        $keysAsString = implode('.', $fieldData);
+
+        if (!$ignoreOriginalKey) {
+            $newKey = false;
+            $newOriginalData = false;
+            $keyLength = 0;
+            foreach ($originalData as $originalKey => $originalValues) {
+                $originalKey = strval($originalKey);
+                $keyLength = strlen($originalKey);
+                if (substr($keysAsString,0, $keyLength) == $originalKey && ($keyLength == strlen($keysAsString) || substr($keysAsString,$keyLength,1) == '.')) {
+                    $newKey = $originalKey;
+                    $newOriginalData = $originalValues;
+                    break;
+                }
+            }
+
+            if (!$newKey && count($originalData) == 1 && key($originalData) == 'el') {
+                return ['el' => $this->asociativeKeyMap(explode('.', $keysAsString), $value, $originalData['el'], true)];
+            }
+            if ($keyLength == 0) {
+                $keysAsString = '';
+                $newKey = implode('.',$fieldData);
+            } else {
+                $keysAsString = substr($keysAsString, $keyLength + 1);
+            }
+        }  else {
+            $key = key($fieldData);
+            $newKey = reset($fieldData);
+            unset($fieldData[$key]);
+            $keysAsString = implode('.', $fieldData);
+
+            $key = key($originalData);
+            $newOriginalData = $originalData[$key];
+        }
+        $keysAsString = strval($keysAsString);
+        if ($newOriginalData && strlen($keysAsString) > 0) {
+            return [$newKey => $this->asociativeKeyMap(explode('.', $keysAsString), $value, $newOriginalData)];
+        } else {
+            if (!$newKey) {
+                $newKey = $fieldData[0];
+            }
+            return [$newKey => $value];
+        }
+    }
+
+    public function importItself($syncArray)
+    {
+        if (!empty($syncArray)) {
+            foreach ($syncArray as $languageUid => $tables) {
+                foreach ($tables as $table => $uids) {
+                    $fieldsToBeIgnored = [];
+                    $targetUidField = 'uid';
+                    $fieldsToBeIgnored[] = 'uid';
+                    if ($languageUid != 0) {
+                        $targetUidField = 'l10n_parent';
+                        if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                            $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+                        }
+                    }
+                    $fieldsToBeIgnored[] = $targetUidField;
+                    $langaugeField = 'sys_language_uid';
+                    if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+                        $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+                    }
+                    $fieldsToBeIgnored[] = $langaugeField;
+
+                    foreach ($uids as $uid => $fields) {
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                        $tempQuery = $queryBuilder->select('uid')->from($table);
+                        $tempQuery->where(
+                            $queryBuilder->expr()->eq($langaugeField, $languageUid),
+                            $queryBuilder->expr()->eq($targetUidField, $uid)
+                        );
+
+                        $result = $tempQuery->execute()->fetch();
+
+                        //ORIGINAL
+                        if (empty($this->originalData[$table][$uid])) {
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                            $tempQuery = $queryBuilder->select('*')->from($table);
+                            $tempQuery->where(
+                                $queryBuilder->expr()->eq('uid', $uid)
+                            );
+
+                            $originalData = $tempQuery->execute()->fetch();
+                            $this->superOriginalData[$table][$uid] = $this->originalData[$table][$uid] = $originalData;
+                        }
+
+                        if (!empty($result['uid'])) {
+                            // ONLY UPDATE QUERY
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                            $tempQueryUpdate = $queryBuilder
+                                ->update($table)
+                                ->where(
+                                    $queryBuilder->expr()->eq('uid', $result['uid'])
+                                );
+
+                            $fieldsToSync = [];
+                            $fieldNames = [];
+
+                            foreach ($fields as $field => $value) {
+                                if (!in_array($field, $fieldsToBeIgnored)) {
+                                    $fieldData = explode('.', $field);
+                                    if (!empty($fieldData[1])) {
+                                        $newSettings = $this->keysToSubarray($fieldData, $value, $this->originalData[$table][$uid][$fieldData[0]]);
+//                                        DebuggerUtility::var_dump($newSettings);
+//                                        die();
+                                        $fieldsToSync[$fieldData[0]] = $newSettings;
+                                    } else {
+                                        $fieldNames[] = $field;
+                                        $tempQueryUpdate->set($field, $value);
+                                    }
+                                }
+                            }
+
+                            foreach ($fieldsToSync as $tableColumn => $data) {
+                                $fieldNames[] = $tableColumn;
+                                $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
+
+                                if ($type == 'flex') {
+                                    $flexFormTools = new FlexFormTools();
+                                    $flexFormString = $flexFormTools->flexArray2Xml($data, true);
+                                    $fieldsToSync[$tableColumn] = $flexFormString;
+                                    $tempQueryUpdate->set($tableColumn, $flexFormString);
+                                }
+                            }
+                            if (!empty($this->originalData[$table][$uid]['sorting']) && empty($fieldsToSync['sorting'])) {
+                                $tempQueryUpdate->set('sorting', $this->originalData[$table][$uid]['sorting']);
+                            }
+                            if (!empty($this->originalData[$table][$uid]['doktype']) && empty($fieldsToSync['doktype'])) {
+                                $tempQueryUpdate->set('doktype', $this->originalData[$table][$uid]['doktype']);
+                            }
+                            if (!empty($this->originalData[$table][$uid]['CType']) && empty($fieldsToSync['CType'])) {
+                                $tempQueryUpdate->set('CType', $this->originalData[$table][$uid]['CType']);
+                            }
+                            if (!empty($this->originalData[$table][$uid]['colPos']) && empty($fieldsToSync['colPos'])) {
+                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$uid]['colPos']);
+                            }
+                            if (!empty($this->originalData[$table][$uid]['list_type']) && empty($fieldsToSync['list_type'])) {
+                                $tempQueryUpdate->set('list_type', $this->originalData[$table][$uid]['list_type']);
+                            }
+                            if (isset($this->originalData[$table][$uid]['l10n_source'])) {
+                                $tempQueryUpdate->set('l10n_source', $uid);
+                            }
+
+//                            if ($this->originalData[$table][$uid]['uid'] == 15664) {
+//                                echo '<pre>';
+//                                var_dump(htmlentities($fieldsToSync['pi_flexform']));
+//                                var_dump(htmlentities($this->superOriginalData[$table][$uid]['pi_flexform']));
+//                                echo '</pre>';
+//                                die();
+//                            }
+
+                            $tempQueryUpdate->execute();
+                            $output['updated'][] = $table.':'.$result['uid'] .' fields:'.implode(',',$fieldNames);
+                        } else {
+                            // Insert query
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+
+                            $fieldsToSync = [];
+                            $fieldNames = [];
+                            $insert = [];
+                            foreach ($fields as $field => $value) {
+                                $fieldData = explode('.', $field);
+                                if (!empty($fieldData[1])) {
+                                    $newSettings = $this->keysToSubarray($fieldData, $value, $originalData[$fieldData[0]]);
+                                    $fieldsToSync = array_merge_recursive($fieldsToSync, $newSettings);
+                                } else {
+                                    $fieldNames[] = $field;
+                                    $insert[$field] = $value;
+                                }
+                            }
+
+                            foreach ($fieldsToSync as $tableColumn => $data) {
+                                $fieldNames[] = $tableColumn;
+                                $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
+
+                                if ($type == 'flex') {
+                                    $flexFormTools = new FlexFormTools();
+                                    $flexFormString = $flexFormTools->flexArray2Xml($data, true);
+
+                                    $insert[$tableColumn] = $flexFormString;
+                                }
+                            }
+
+                            if (!empty($insert)) {
+                                $insert[$langaugeField] = $languageUid;
+                                $insert[$targetUidField] = $uid;
+
+                                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                                $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                                $tempQuery = $queryBuilder->select('*')->from($table);
+                                $tempQuery->where(
+                                    $queryBuilder->expr()->eq('uid', $uid)
+                                );
+                                $originalData = $tempQuery->execute()->fetch();
+                                if ($originalData) {
+                                    $insert['pid'] = $originalData['pid'];
+                                    $insert['crdate'] = time();
+                                    $insert['tstamp'] = time();
+
+                                    if (!empty($originalData['sorting']) && empty($insert['sorting'])) {
+                                        $insert['sorting'] = $originalData['sorting'];
+                                    }
+                                    if (!empty($originalData['doktype']) && empty($insert['doktype'])) {
+                                        $insert['doktype'] = $originalData['doktype'];
+                                    }
+                                    if (!empty($originalData['CType']) && empty($insert['CType'])) {
+                                        $insert['CType'] = $originalData['CType'];
+                                    }
+                                    if (!empty($originalData['colPos']) && empty($insert['colPos'])) {
+                                        $insert['colPos'] = $originalData['colPos'];
+                                    }
+                                    if (!empty($originalData['list_type']) && empty($insert['list_type'])) {
+                                        $insert['list_type'] = $originalData['list_type'];
+                                    }
+                                    if (isset($originalData['l10n_source'])) {
+                                        $insert['l10n_source'] = $uid;
+                                    }
+                                }
+
+                                $queryBuilder
+                                    ->insert($table)
+                                    ->values($insert)
+                                    ->execute();
+                                $lastUid = $queryBuilder->getConnection()->lastInsertId();
+                                $output['inserted'][] = $table.':'.$lastUid .' fields:'.implode(',',$fieldNames);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $this->view->assign('actions', $output);
+    }
+
+    public function importXlfFile($content)
+    {
+        $output = [];
+        $doc = new \DOMDocument();
+        $doc->loadXML($content, LIBXML_PARSEHUGE );
+        $syncArray = [];
+        foreach($doc->getElementsByTagName('trans-unit') as $unit) {
+            $id = $unit->getAttribute('id');
+            $value = $unit->getElementsByTagName('target')->item(0)->nodeValue;
+
+            $this->idToDatabaseNames($syncArray, $id, $value);
+        }
+
+        $this->importItself($syncArray);
+    }
+
+    public function importXmlFile($content)
+    {
+        $output = [];
+        $doc = new \DOMDocument();
+        $doc->loadXML($content, LIBXML_PARSEHUGE );
+        $syncArray = [];
+        foreach($doc->getElementsByTagName('data') as $unit) {
+            $id = $unit->getAttribute('key');
+            $value = $unit->nodeValue;
+
+            $this->idToDatabaseNames($syncArray, $id, $value);
+        }
+
+        $this->importItself($syncArray);
+    }
+
+    public function databaseExportAction()
+    {
+        $errors = [];
+
+        if (!$this->request->hasArgument('languageFrom')) {
+            $errors[] = 'Language from is missing';
+        } else {
+            $sourceLangauge = $this->request->getArgument('languageFrom');
+        }
+        if (!$this->request->hasArgument('languageTo')) {
+            $errors[] = 'Language to is missing';
+        } else {
+            $targetLangauge = $this->request->getArgument('languageTo');
+        }
+        if (!$this->request->hasArgument('tables')) {
+            $errors[] = 'Tables is missing';
+        } else {
+            $tablesPRE = $this->request->getArgument('tables');
+        }
+
+        $storage = [];
+        if ($this->request->hasArgument('storage')) {
+            if ($this->request->hasArgument('sublevels') && $this->request->getArgument('sublevels')) {
+                $this->getAllPagesFromRoot($this->request->getArgument('storage'), $storage);
+            } else {
+                $storage = explode(',', $this->request->getArgument('storage'));
+            }
+        }
+
+        $tables = [];
+        foreach ($tablesPRE as $table) {
+            $table = explode('.', $table);
+            $tables[$table[0]][] = $table[1];
+        }
+
+        $data = [];
+
+        $disabledTcaTypes = ['slug'];
+        $disableRenderTypes = ['insights'];
+
+        $sourceLanguageLetters = 'en';
+        if ($sourceLangauge != 0) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $tempQuery = $queryBuilder->select('language_isocode')->from('sys_language')
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $sourceLangauge)
+                );
+            $result = $tempQuery->execute();
+            $row = $result->fetch();
+            if ($row) {
+                $sourceLanguageLetters = $row['language_isocode'];
+            }
+        }
+        $targetLanguageLetters = 'en';
+        if ($targetLangauge != 0) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $result = $queryBuilder->select('language_isocode')->from('sys_language')
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $targetLangauge)
+                )
+                ->execute();
+            $row = $result->fetch();
+            if ($row) {
+                $targetLanguageLetters = $row['language_isocode'];
+            }
+        }
+        foreach ($tables as $table => $columns) {
+            $sourceUidField = 'uid';
+            if ($sourceLangauge != 0) {
+                $sourceUidField = 'l10n_parent';
+                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                    $sourceUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+                }
+            }
+            $targetUidField = 'uid';
+            if ($targetLangauge != 0) {
+                $targetUidField = 'l10n_parent';
+                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                    $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+                }
+            }
+
+            if (!in_array('uid', $columns)) {
+                $columns[] = 'uid';
+            }
+            if (!in_array($sourceUidField, $columns)) {
+                $columns[] = $sourceUidField;
+            }
+            if (!in_array($targetUidField, $columns)) {
+                $columns[] = $targetUidField;
+            }
+
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+            $langaugeField = 'sys_language_uid';
+            if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+                $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+            }
+
+            $tempQuery = $queryBuilder->select(...$columns)->from($table);
+                if (!empty($storage)) {
+                    if ($table == 'pages' && $sourceLangauge == 0) {
+                        $tempQuery->where(
+                            $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                            $queryBuilder->expr()->in('uid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
+                        );
+                    } else {
+                        $tempQuery->where(
+                            $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                            $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
+                        );
+                    }
+                } else {
+                    $tempQuery->where(
+                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge)
+                    );
+                }
+            $result = $tempQuery->execute();
+            while ($row = $result->fetch()) {
+                $key = $targetLangauge.'.'.$table.'.'.$row['uid'];
+                $realUid = $row[$sourceUidField];
+
+                //remove unnecessary keys
+                if(isset($row[$sourceUidField])) unset($row[$sourceUidField]);
+                if(isset($row[$targetUidField])) unset($row[$targetUidField]);
+                if(isset($row['uid'])) unset($row['uid']);
+
+                $resultTarget = $queryBuilder->select(...array_keys($row))->from($table)
+                    ->where(
+                        $queryBuilder->expr()->eq($langaugeField, $targetLangauge),
+                        $queryBuilder->expr()->eq($targetUidField, $realUid)
+                    )
+                    ->execute();
+                $rowTarget = $resultTarget->fetch();
+
+                foreach ($row as $tableColumn => $tableValue) {
+                    // TODO: if flexform
+                    $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
+
+                    if ($type == 'flex') {
+                        $flexformDataOriginal = $this->flexFormService
+                            ->convertFlexFormContentToArray(strval($tableValue));
+                        $flexformDataTarget = $this->flexFormService
+                            ->convertFlexFormContentToArray(strval($rowTarget[$tableColumn]));
+                        $this->databaseFlexformDataToTranslationArray($data, $key . '.' . $tableColumn, $targetLanguageLetters, $flexformDataOriginal, $flexformDataTarget);
+                    } else {
+                        if (!empty($rowTarget[$tableColumn]) || !empty($tableValue) ) {
+                            $data[$key . '.' . $tableColumn]['default'] = strval($tableValue);
+                            $data[$key . '.' . $tableColumn][$targetLanguageLetters] = strval(!empty($rowTarget[$tableColumn]) ? $rowTarget[$tableColumn] : $tableValue);
+                        }
+                    }
+                }
+
+            }
+        }
+
+        if (!$this->request->hasArgument('format')) {
+            $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
+        } else {
+            switch ($this->request->getArgument('format')) {
+                case 'xml':
+                    $this->exportDatabaseToXlm($data, $targetLanguageLetters);
+                    break;
+                case 'csv':
+                    $realData = [];
+                    foreach ($data as $key => $value) {
+                        $tempData = [];
+                        $tempData[] = $key;
+                        $tempData[] = $value['default'];
+                        $tempData[] = $value[$targetLanguageLetters];
+                        $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
+                    }
+
+                    $downloadFilename = 'temp' . '.csv';
+                    header('Content-Description: File Transfer');
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                    header('Content-Transfer-Encoding: binary');
+                    header('Expires: 0');
+                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Pragma: public');
+                    echo implode(PHP_EOL, $realData);
+                    break;
+                default:
+                    $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
+                    break;
+            }
+        }
+
+        die();
+    }
+
+    protected function exportDatabaseToXlm($data, $targetLanguageLetters)
+    {
+        $output = $this->dataToXml($data, $targetLanguageLetters);
+
+        header('Content-type: text/xml');
+        header('Content-Disposition: attachment; filename="temp.xml"');
+        echo $output;
+    }
+
+    protected function databaseFlexformDataToTranslationArray(&$data, $lastKey, $targetLanguageLetters, $flexformDataOriginal, $flexformDataTarget)
+    {
+        if (is_array($flexformDataOriginal)) {
+            foreach ($flexformDataOriginal as $key => $value) {
+                $target = null;
+                if ($flexformDataTarget[$key]) {
+                    $target = $flexformDataTarget[$key];
+                }
+                $this->databaseFlexformDataToTranslationArray($data, $lastKey.'.'.$key, $targetLanguageLetters, $value, $target);
+            }
+        } else {
+            if (!empty($flexformDataOriginal) || !empty($flexformDataTarget) ) {
+                $data[$lastKey]['default'] = strval($flexformDataOriginal);
+                $data[$lastKey][$targetLanguageLetters] = strval(($flexformDataTarget) ? $flexformDataTarget : $flexformDataOriginal);
+            }
+        }
+    }
+
+
+    protected function exportDatabaseToXlf($data, $sourceLanguage, $targetLanguage)
+    {
+        $output = $this->dataToXlf('database', $targetLanguage, $data, $sourceLanguage);
+
+        header('Content-type: text/xml');
+        header('Content-Disposition: attachment; filename="temp.xlf"');
+        echo $output;
     }
 
     /**
@@ -642,25 +1420,16 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         ]);
     }
 
-    /**
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     * @param array $data
-     */
-    public function saveAction($keyTranslation, $languageTranslation, $data = null)
+    protected function dataToXlf($keyTranslation, $languageTranslation, $data = null, $sourceLanguage = 'en')
     {
-        if (empty($data)) {
-            $data = $this->request->getArgument('data');
-        }
-
         $domtree = new \DOMDocument('1.0', 'UTF-8');
         $domtree->preserveWhiteSpace = false;
         $domtree->formatOutput = true;
         $xmlRoot = $domtree->createElement('xliff');
-        $xmlRoot->setAttribute('version', '1.0');
+        $xmlRoot->setAttribute('version', '1.2');
 
         $file = $domtree->createElement('file');
-        $file->setAttribute('source-language', 'en');
+        $file->setAttribute('source-language', $sourceLanguage);
         $file->setAttribute('target-language', $languageTranslation);
         $file->setAttribute('product-name', $keyTranslation);
         $file->setAttribute('original', 'messages');
@@ -701,6 +1470,48 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $xmlRoot->appendChild($file);
         $domtree->appendChild($xmlRoot);
 
+        return $domtree->saveXML();
+    }
+
+    protected function dataToXml($data, $targetLanguageLetters)
+    {
+        $domtree = new \DOMDocument('1.0', 'UTF-8');
+        $domtree->preserveWhiteSpace = false;
+        $domtree->formatOutput = true;
+        $root = $domtree->createElement('TYPO3L10N');
+        $head = $domtree->createElement('head');
+        $target = $domtree->createElement('t3_targetLang');
+        $lang = $domtree->createTextNode($targetLanguageLetters);
+        $target->appendChild($lang);
+        $root->appendChild($head);
+        $page = $domtree->createElement('pageGrp');
+        foreach ($data as $key => $value) {
+            $dataItem = $domtree->createElement('data');
+            $dataItem->setAttribute('key', $key);
+            $dataItemValue = $domtree->createTextNode($value[$targetLanguageLetters]);
+            $dataItem->appendChild($dataItemValue);
+            $page->appendChild($dataItem);
+        }
+        $root->appendChild($page);
+        $domtree->appendChild($root);
+
+        return $domtree->saveXML();
+    }
+
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     * @param array $data
+     */
+    public function saveAction($keyTranslation, $languageTranslation, $data = null)
+    {
+        if (empty($data)) {
+            $data = $this->request->getArgument('data');
+        }
+
+        $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
+
         if ($languageTranslation == 'en' || $languageTranslation == 'default') {
             $filename = $keyTranslation . '.xlf';
         } else {
@@ -708,7 +1519,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-        file_put_contents($path, $domtree->saveXML());
+        file_put_contents($path, $xlfFileExport);
 
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
 

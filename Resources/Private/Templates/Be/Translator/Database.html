@@ -1,0 +1,28 @@
+<div class="hd-translator">
+	<h1>Database translator</h1>
+	<div>
+		<h2>Import</h2>
+		<f:form action="databaseImport" enctype="multipart/form-data">
+			TODO: Allowed: xlf
+			<f:form.upload name="file" />
+			<f:form.submit value="Import" />
+		</f:form>
+	</div>
+	<div>
+		<h2>Expert</h2>
+		<f:form action="databaseTableFields">
+			<f:form.select multiple="1" name="tables" class="hd-translator-long_select">
+				<f:if condition="{tables}">
+					<f:for each="{tables}" as="table">
+						<f:if condition="{table.tableTitle}">
+							<f:form.select.option value="{table.tableName}"><f:translate key="{table.tableTitle}" default="{table.tableTitle}" /> [{table.tableName}]</f:form.select.option>
+						</f:if>
+					</f:for>
+				</f:if>
+			</f:form.select>
+			<div>
+				<f:form.submit value="Continue" />
+			</div>
+		</f:form>
+	</div>
+</div>

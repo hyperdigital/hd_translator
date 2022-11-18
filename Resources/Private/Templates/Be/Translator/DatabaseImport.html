@@ -1,0 +1,39 @@
+<html
+	xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+	xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+	xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+	data-namespace-typo3-fluid="true">
+
+<f:layout name="Default" />
+
+<f:section name="headline">
+</f:section>
+
+<f:section name="content">
+	<div class="hd-translator">
+		<div>UPDATED: {actions.updated -> f:count()}</div>
+		<div>INSERTED: {actions.inserted -> f:count()}</div>
+
+		<f:if condition="{actions.updated}">
+			<div>
+				updated UIDs
+				<div>
+					<f:for each="{actions.updated}" as="item">
+						<div>{item}</div>
+					</f:for>
+				</div>
+			</div>
+		</f:if>
+		<f:if condition="{actions.inserted}">
+			<div>
+				inserted UIDs
+				<div>
+					<f:for each="{actions.inserted}" as="item">
+						<div>{item}</div>
+					</f:for>
+				</div>
+			</div>
+		</f:if>
+	</div>
+</f:section>
+</html>
