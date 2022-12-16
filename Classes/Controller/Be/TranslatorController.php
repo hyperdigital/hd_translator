@@ -146,10 +146,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $tables = [];
         foreach ($GLOBALS['TCA'] as $tableName => $data) {
-            $tables[] = [
-                'tableName' => $tableName,
-                'tableTitle' => !empty($data['ctrl']['title']) ? $data['ctrl']['title'] : $tableName,
-            ];
+            if (!empty($data['ctrl']['languageField'])) {
+                $tables[] = [
+                    'tableName' => $tableName,
+                    'tableTitle' => !empty($data['ctrl']['title']) ? $data['ctrl']['title'] : $tableName,
+                ];
+            }
         }
 
         $this->view->assign('tables', $tables);

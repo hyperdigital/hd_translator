@@ -9,15 +9,15 @@ class TranslationHelper
 {
     public static function getStoragePath()
     {
-        $sotrage = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'storagePath');
+        $storage = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'storagePath');
 
-        if (!empty($sotrage)){
+        if (!empty($storage)){
             $return = Environment::getProjectPath() ;
-            if (substr($sotrage, 1, 0) != '/') {
+            if (substr($storage, 1, 0) != '/') {
                 $return .= '/';
             }
 
-            $return .= $sotrage;
+            $return .= $storage;
 
             if (substr($return, -1) != '/') {
                 $return .= '/';
