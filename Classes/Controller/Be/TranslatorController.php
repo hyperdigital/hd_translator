@@ -747,23 +747,23 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
 
             $tempQuery = $queryBuilder->select(...$columns)->from($table);
-                if (!empty($storage)) {
-                    if ($table == 'pages' && $sourceLangauge == 0) {
-                        $tempQuery->where(
-                            $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
-                            $queryBuilder->expr()->in('uid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
-                        );
-                    } else {
-                        $tempQuery->where(
-                            $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
-                            $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
-                        );
-                    }
+            if (!empty($storage)) {
+                if ($table == 'pages' && $sourceLangauge == 0) {
+                    $tempQuery->where(
+                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                        $queryBuilder->expr()->in('uid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
+                    );
                 } else {
                     $tempQuery->where(
-                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge)
+                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                        $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
                     );
                 }
+            } else {
+                $tempQuery->where(
+                    $queryBuilder->expr()->eq($langaugeField, $sourceLangauge)
+                );
+            }
             $result = $tempQuery->execute();
             while ($row = $result->fetch()) {
                 $key = $targetLangauge.'.'.$table.'.'.$row['uid'];
@@ -1400,7 +1400,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $temp = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
                 $temp = $temp->load($filePath);
                 $temp = $temp->getActiveSheet();
-            $rows = $temp->toArray();
+                $rows = $temp->toArray();
 
                 foreach($rows as $key => $value) {
                     $data[$value[0]] = [
@@ -1455,7 +1455,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $item->appendChild($source);
             } else {
                 $target = $domtree->createElement('target');
-                $valSource = $domtree->createTextNode($value['default']);
+                $valSource = $domtree->createTextNode((!is_null($value['default'])) ? $value['default'] : $value[$languageTranslation]);
                 $valTarget = $domtree->createTextNode($value[$languageTranslation]);
 
                 $source->appendChild($valSource);
