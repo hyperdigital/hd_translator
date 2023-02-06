@@ -90,6 +90,7 @@
 .hd-translator .toolbar-section{
     display: flex;
     justify-content: space-between;
+    margin-bottom: 1em;
 }
 .hd-translator-detail-categorytitle{
 	font-size: 1.2em;
