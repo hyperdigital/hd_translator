@@ -14,8 +14,6 @@ News system
 
 .. only:: html
 
-	:Classification:
-		news
 
 	:Version:
 		|release|
@@ -27,7 +25,7 @@ News system
 		translator
 
 	:Copyright:
-		2022
+		2023
 
 	:Author:
 		Martin Pribyl
@@ -51,5 +49,4 @@ News system
 	:glob:
 
 	Introduction/Index
-	UsersManual/Index
 	DeveloperManual/Index
