@@ -4,6 +4,9 @@
             First configure the storage.
         </f:then>
         <f:else>
+            <f:if condition="{pageData}">
+                <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
+            </f:if>
             <f:if condition="{categories}">
                 <f:then>
                     <f:if condition="{enabledSync}">

@@ -18,8 +18,13 @@
             <f:else>
                 <f:if condition="{data}">
                     <div class="toolbar-section">
-                        <div>
-                            <span></span>
+                        <div class="search-section">
+                            <div class="search-wrap">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                                </svg>
+                                <input type="search" name="search" id="hd_translator-search" placeholder="{f:translate(key: 'detail.search')}" />
+                            </div>
                         </div>
                         <div class="toolbar-button-section">
                             <div class="popup-action">
@@ -71,6 +76,9 @@
                             </div>
                         </div>
                     </div>
+                    <f:if condition="{pageData}">
+                        <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
+                    </f:if>
                     <f:form action="save" id="translation-form" objectName="data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post" name="data">
 											<f:if condition="{isCategorized}">
 												<f:then>
@@ -107,6 +115,50 @@
                     }
                 })
             })
+        }
+
+        let search = document.querySelector('#hd_translator-search');
+        let dataItems = document.querySelectorAll('.hd-translator-detail-grid-item')
+
+        const searchAction = (event) => {
+            let searchStrings = search.value.toLowerCase().trim().split(' ');
+            if (search.value.length > 2 && searchStrings.length > 0) {
+                dataItems.forEach((item) => {
+                    let allFound = true;
+                    let dataSearchString = item.getAttribute('data-search');
+
+                    searchStrings.forEach((subsearch) => {
+                        let subsearchCleanString = subsearch.trim();
+
+                        if (subsearchCleanString.length > 1) {
+                            if (!dataSearchString.includes(subsearchCleanString)) {
+                                allFound = false;
+                            }
+                        }
+                    })
+
+                    if (!allFound) {
+                        if (!item.classList.contains('hidden')) {
+                            item.classList.add('hidden');
+                        }
+                    } else {
+                        if (item.classList.contains('hidden')) {
+                            item.classList.remove('hidden')
+                        }
+                    }
+                })
+            } else {
+                dataItems.forEach((item) => {
+                    if (item.classList.contains('hidden')) {
+                        item.classList.remove('hidden')
+                    }
+                })
+            }
+        }
+
+        if (search && dataItems) {
+            search.addEventListener('keyup', searchAction );
+            search.addEventListener('change', searchAction );
         }
     </script>
 </f:section>
@@ -163,7 +215,7 @@
 </f:section>
 
 <f:section name="Item">
-	<div class="hd-translator-detail-grid-item">
+	<div class="hd-translator-detail-grid-item" data-search="{key -> f:format.case(mode: 'lower')} {target -> f:format.case(mode: 'lower')} {originalSource -> f:format.case(mode: 'lower')}">
 		<div class="hd-translator-key">{key}</div>
 		<div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
 		<div class="hd-translator-original">{originalSource}</div>

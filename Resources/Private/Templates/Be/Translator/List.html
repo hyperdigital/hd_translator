@@ -13,6 +13,9 @@
 <f:section name="content">
     <div class="hd-translator">
         <f:if condition="{data}">
+            <f:if condition="{pageData}">
+                <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
+            </f:if>
             <table class="hd-translator-list-table">
                 <f:for each="{data}" key="index" as="file">
                     <tr>
@@ -39,7 +42,7 @@
                                     </button>
                                     <div class="popup-content hidden">
                                         <f:for each="{file.languages}" as="lang">
-                                            <div>
+                                            <div class="hd-translator-list-languageitem">
                                                 <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="hd-translator-flag" />
                                                 <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
                                             </div>

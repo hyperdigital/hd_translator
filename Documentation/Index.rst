@@ -3,7 +3,7 @@
 .. --------------------------------------------------
 .. -*- coding: utf-8 -*- with BOM.
 
-.. include:: Includes.txt
+.. include:: Includes.rst.txt
 
 
 .. _start:
@@ -50,3 +50,4 @@ News system
 
 	Introduction/Index
 	DeveloperManual/Index
+    Misc/Changelog/Index

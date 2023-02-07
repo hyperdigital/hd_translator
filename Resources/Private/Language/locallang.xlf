@@ -3,6 +3,9 @@
     <file source-language="en" datatype="plaintext" original="messages" date="2020-07-02T09:00:00Z" product-name="hd_translator">
         <header/>
         <body>
+            <trans-unit id="detail.search">
+                <source>Search...</source>
+            </trans-unit>
             <trans-unit id="detail.download">
                 <source>Download</source>
             </trans-unit>

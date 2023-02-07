@@ -33,6 +33,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use TYPO3\CMS\Core\Service\FlexFormService;
 use TYPO3\CMS\Core\Database\Connection;
 use \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 
 class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionController
 {
@@ -59,17 +60,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     protected $superOriginalData = [];
 
+    protected $pageUid = 0;
+    protected $pageData = [];
+
+    protected $pageRepository;
+
     public function __construct(
         ListUtility     $listUtility,
         ModuleTemplate  $moduleTemplate,
         LanguageService $languageService,
-        FlexFormService $flexFormService
+        FlexFormService $flexFormService,
+        PageRepository $pageRepository
     )
     {
         $this->listUtility = $listUtility;
         $this->moduleTemplate = $moduleTemplate;
         $this->languageService = $languageService;
         $this->flexFormService = $flexFormService;
+        $this->pageRepository = $pageRepository;
+
+        if (\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id')) {
+            $this->pageUid = (int)\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id');
+            $this->pageData = $pageRepository->getPage($this->pageUid, true);
+        }
     }
 
     public function initializeAction()
@@ -132,6 +145,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 }
             }
 
+            if (!empty($this->pageData)) {
+                $this->view->assign('pageData', $this->pageData);
+            }
             $this->view->assign('categories', $data);
             $this->view->assign('enabledSync', \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs'));
         }
@@ -893,6 +909,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
 
+        if (!empty($this->pageData)) {
+            $this->view->assign('pageData', $this->pageData);
+        }
+
         if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
             $data = [];
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
@@ -913,6 +933,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         } else {
                             $filename = $langKey . '.' . $key . '.xlf';
                         }
+
+                        if (!empty($this->pageUid)) {
+                            $filename = $this->pageUid . '.' . $filename;
+                        }
+
                         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
                         if (file_exists($path)) {
                             $data[$key]['availableLanguages'][$langKey] = $tempLang;
@@ -1255,6 +1280,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setTitle('Save');
         $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
 
+        if (!empty($this->pageData)) {
+            $this->view->assign('pageData', $this->pageData);
+        }
 
         if (false && !in_array($languageTranslation, $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
             $this->view->assign('is_empty', true);
@@ -1518,6 +1546,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $filename = $keyTranslation . '.xlf';
         } else {
             $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
+        }
+
+        if (!empty($this->pageUid)) {
+            $filename = $this->pageUid . '.' . $filename;
         }
 
         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);

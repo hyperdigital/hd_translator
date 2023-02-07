@@ -14,11 +14,11 @@ class FlagService
         'ch' => 'CN', // Chinese (Simple)
         'cs' => 'CZ', // Czech
         'cy' => 'GB-WLS', // Welsh
-        'da' => '', // Danish
+        'da' => 'DK', // Danish
         'de' => 'DE', // German
-        'el' => '', // Greek
+        'el' => 'GR', // Greek
         'en_US' => 'US',
-        'eo' => '', // Esperanto
+        'eo' => 'ES', // Esperanto
         'es' => 'ES', // Spanish
         'et' => 'EE', // Estonian
         'eu' => '', // Basque
@@ -28,7 +28,7 @@ class FlagService
         'fr' => 'FR', // French
         'fr_CA' => 'CA', // French (Canada)
         'gl' => '', // Galician
-        'he' => '', // Hebrew
+        'he' => 'IL', // Hebrew
         'hi' => '', // Hindi
         'hr' => 'HR', // Croatian
         'hu' => 'HU', // Hungarian
