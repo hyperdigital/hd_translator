@@ -158,3 +158,11 @@
 .hd-translator-list-languageitem{
     font-size: var(--hdtranslator-font-size);
 }
+.hd-translator #translation-form-success *{
+	color: white;
+}
+#translation-form-success{
+	display: none;
+	position: fixed;
+	top: 55px;
+}

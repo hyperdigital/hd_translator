@@ -50,10 +50,6 @@ class TranslationHelper
                 $currentPage = (int)\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id');
             }
 
-            $rootline = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Utility\RootlineUtility::class, $currentPage);
-            $rootlinePages = $rootline->get();
-//            $rootlinePages[] = ['uid' => $currentPage];
-
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $settings) {
                 foreach ($settings['languages'] as $lang) {
                     if ($lang == 'en' || $lang == 'default') {

@@ -79,7 +79,26 @@
                     <f:if condition="{pageData}">
                         <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
                     </f:if>
-                    <f:form action="save" id="translation-form" objectName="data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post" name="data">
+										<div id="translation-form-success">
+											<div class="module-body">
+												<div class="typo3-messages">
+													<div class="alert alert-success">
+														<div class="media">
+															<div class="media-left">
+																<span class="fa-stack fa-lg">
+																	<i class="fa fa-circle fa-stack-2x"></i>
+              										<i class="fa fa-check fa-stack-1x"></i>
+																</span>
+															</div>
+															<div class="media-body">
+																<p class="alert-message text-pre-wrap"><f:translate key="flashMessages.sucecssfullySaved" /></p>
+															</div>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+                    <form action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}" id="translation-form" method="post" name="data">
 											<f:if condition="{isCategorized}">
 												<f:then>
 													<div class="hd-translator-detail-grid">
@@ -90,7 +109,7 @@
 													<f:render section="NotCategorized" arguments="{_all}" />
 												</f:else>
 											</f:if>
-                    </f:form>
+                    </form>
                 </f:if>
             </f:else>
         </f:if>
@@ -99,9 +118,43 @@
         let save = document.querySelector('a[data-action=save]')
         if (save){
             save.addEventListener('click', (event) => {
-                document.getElementById('translation-form').submit();
+							saveAction()
+
+							event.stopPropagation();
             })
         }
+
+				document.getElementById('translation-form').addEventListener('submit', (event) => {
+					saveAction()
+					event.stopPropagation();
+				})
+
+				const saveAction = () => {
+        	const fromElement = document.getElementById('translation-form');
+					const formData = new FormData(fromElement);
+					let data = {};
+					formData.forEach((value, key) => (data[key] = value));
+					data = JSON.stringify(data);
+					fetch(fromElement.getAttribute('action'), {
+						method: 'POST',
+						body: data
+						,
+					}).then(function (response) {
+						if (response.ok) {
+							return response.json();
+						}
+						return Promise.reject(response);
+					}).then(function (data) {
+						if (data.success) {
+							document.getElementById('translation-form-success').style.display = 'block';
+							setTimeout(() => {
+								document.getElementById('translation-form-success').style.display = 'none';
+							}, 2000)
+						}
+					}).catch(function (error) {
+						console.warn(error);
+					});
+				}
 
         let popups = document.querySelectorAll('.popup-action');
         if (popups){
@@ -217,11 +270,11 @@
 <f:section name="Item">
 	<div class="hd-translator-detail-grid-item" data-search="{key -> f:format.case(mode: 'lower')} {target -> f:format.case(mode: 'lower')} {originalSource -> f:format.case(mode: 'lower')}">
 		<div class="hd-translator-key">{key}</div>
-		<div class="hd-translator-field"><f:form.textfield name="data[{key}][{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
+		<div class="hd-translator-field"><input name="{key}[{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
 		<div class="hd-translator-original">{originalSource}</div>
 		<f:if condition="{langaugeKey} != 'default'">
 			<div style="display: none">
-				<f:form.hidden name="data[{key}][default]" value="{originalSource}" />
+				<input type="hidden" name="{key}[default]" value="{originalSource}" />
 			</div>
 		</f:if>
 	</div>

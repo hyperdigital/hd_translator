@@ -1528,16 +1528,50 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         return $domtree->saveXML();
     }
 
+    public function multidimensionalArray($value, &$array, $keys)
+    {
+        if (count($keys) == 1) {
+            $array[$keys[0]] = $value;
+        } else {
+            $nextKey = $keys[0];
+            unset($keys[0]);
+            $keys = array_values($keys);
+            $this->multidimensionalArray($value, $array[$nextKey], $keys);
+        }
+    }
+
 
     /**
+     * @\TYPO3\CMS\Extbase\Annotation\IgnoreValidation("data")
+     *
      * @param string $keyTranslation
      * @param string $languageTranslation
      * @param array $data
      */
     public function saveAction($keyTranslation, $languageTranslation, $data = null)
     {
-        if (empty($data)) {
+        if (empty($data) && $this->request->hasArgument('data')) {
             $data = $this->request->getArgument('data');
+        }
+        if (empty($data)) {
+            $content = file_get_contents('php://input');
+            $content = json_decode($content);
+            $string = '';
+            $temp = [];
+            foreach ($content as $key => $value) {
+                $key = str_replace(']', '', $key);
+                $keys = explode('[', $key);
+
+                $this->multidimensionalArray($value, $temp, $keys);
+            }
+            if (!empty($temp)) {
+                $data = $temp;
+            }
+        }
+
+        if (empty($data)) {
+            echo json_encode(['success' => 0]);
+            die();
         }
 
         $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
@@ -1557,11 +1591,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
 
-        $this->redirect('detail', null, null, [
-            'keyTranslation' => $keyTranslation,
-            'languageTranslation' => $languageTranslation,
-            'saved' => true
-        ]);
+        echo json_encode(['success' => 1]);
+        die();
     }
 
     protected function exec_enabled() {
