@@ -24,3 +24,7 @@ It's also possible to add dependency by adding this code (if AT language is miss
 `
 GLOBALS['TYPO3_CONF_VARS']['SYS']['localization']['locales']['dependencies']['at'] = ['de'];
 `
+
+Database exports
+----------------
+Sinlge row export is accessible over List module in the control section (where are icons for hiding etc.)
