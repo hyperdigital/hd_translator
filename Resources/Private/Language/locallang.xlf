@@ -24,6 +24,9 @@
             <trans-unit id="flashMessages.noDataToImport">
                 <source>No Data to import</source>
             </trans-unit>
+            <trans-unit id="exportTableRow.headlineExport">
+                <source>Export</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

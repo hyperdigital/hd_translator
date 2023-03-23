@@ -12,6 +12,9 @@
 			<trans-unit id="useCategorization">
 				<source>Use categorization inside edit mode</source>
 			</trans-unit>
+            <trans-unit id="control.exportTranslation">
+                <source>Export translation</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

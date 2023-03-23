@@ -59,6 +59,7 @@ class TranslationHelper
                     }
 
                     $fileanme = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($storage . $filename);
+
                     if (file_exists($fileanme)) {
                         if ($lang == 'en' || $lang == 'default') {
                             if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']]) || !in_array($fileanme, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']])) {

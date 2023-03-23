@@ -123,6 +123,23 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
     }
 
+    /**
+     * @param string $tablename
+     * @param int $rowUid
+     */
+    public function exportTableRowIndexAction(string $tablename, int $rowUid)
+    {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
+
+        $label = $databaseEntriesService->getLabel($tablename, $row);
+
+        $this->view->assign('label', $label);
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
     public function indexAction()
     {
         if (empty($this->storage)) {

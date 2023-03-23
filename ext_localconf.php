@@ -15,4 +15,7 @@ defined('TYPO3') or die();
         \TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider::class,
         ['source' => 'EXT:hd_translator/Resources/Public/Icons/typo3_icon_lang-switch.svg']
     );
+
+    // Control icons
+    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['GLOBAL']['recStatInfoHooks'][] = \Hyperdigital\HdTranslator\Hooks\RecordListControllHook::class.'->defaultControl';
 })();
