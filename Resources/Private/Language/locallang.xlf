@@ -27,6 +27,12 @@
             <trans-unit id="exportTableRow.headlineExport">
                 <source>Export</source>
             </trans-unit>
+            <trans-unit id="exportTableRow.nothingToExport">
+                <source>Nothing found for export</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.nothingToExport.checkYourTcaSettings">
+                <source>Check you TCA settings, if your currenct entry type is correctly configured.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

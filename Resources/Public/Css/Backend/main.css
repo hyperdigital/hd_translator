@@ -166,3 +166,18 @@
 	position: fixed;
 	top: 55px;
 }
+
+.hd-translator-databaseexport-preview{
+    display: grid;
+    grid-gap: calc(0.5 * var(--hdtranslator-gap-size));
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    font-size: var(--hdtranslator-font-size);
+}
+.hd-translator-databaseexport-preview-row-value{
+    color: var(--hdtranslator-dark-color);
+}
+.hd-translator-databaseexport-preview-row-key{
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--hdtranslator-main-color);
+}

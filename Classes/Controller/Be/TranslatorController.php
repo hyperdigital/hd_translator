@@ -134,7 +134,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $label = $databaseEntriesService->getLabel($tablename, $row);
 
+        $this->view->assign('tablename', $tablename);
+        $this->view->assign('rowUid', $rowUid);
         $this->view->assign('label', $label);
+        $this->view->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
