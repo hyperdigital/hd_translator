@@ -138,9 +138,28 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('rowUid', $rowUid);
         $this->view->assign('label', $label);
         $this->view->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
+        $this->view->assign('languages', $this->listOfPossibleLanguages);
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
+    }
+
+    /**
+     * @param string $tablename
+     * @param int $rowUid
+     */
+    public function exportTableRowExportAction(string $tablename, int $rowUid)
+    {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
+        $label = $databaseEntriesService->getFilenameFromLabel($tablename, $row);
+
+        $cleanRow = $databaseEntriesService->getExportFields($tablename, $row);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename);
+        header('Content-type: text/xml');
+        header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
+        echo $output;
+        die();
     }
 
     public function indexAction()

@@ -22,8 +22,10 @@
                     <f:form action="exportTableRowExport" arguments="{tablename: tablename, rowUid: rowUid}">
                         <div>
                             <label>TODO: target language</label>
-                            <f:form.select>
-                                
+                            <f:form.select name="language">
+                                <f:for each="{languages}" as="language" key="key">
+                                    <f:form.select.option value="{key}">{language}</f:form.select.option>
+                                </f:for>
                             </f:form.select>
                         </div>
                         <div>

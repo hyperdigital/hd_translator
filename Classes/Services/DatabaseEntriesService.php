@@ -4,6 +4,8 @@ namespace Hyperdigital\HdTranslator\Services;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Charset\CharsetConverter;
+use TYPO3\CMS\Core\Localization\Locales;
 
 class DatabaseEntriesService
 {
@@ -46,6 +48,41 @@ class DatabaseEntriesService
 
         return implode(', ', $return);
 
+    }
+
+    /**
+     * @param string $tablename
+     * @param array | int $row
+     */
+    public function getFilenameFromLabel(string $tablename, $row)
+    {
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($tablename, $row);
+        }
+
+        $slug = $this->getLabel($tablename, $row);
+
+        // Convert to lowercase + remove tags
+        $slug = mb_strtolower($slug, 'utf-8');
+        $slug = strip_tags($slug);
+
+        // Convert some special tokens (space, "_" and "-") to the space character
+        $slug = preg_replace('/[ \t\x{00A0}\-+_]+/u', '-', $slug);
+
+        // Convert extended letters to ascii equivalents
+        // The specCharsToASCII() converts "€" to "EUR"
+        $slug = GeneralUtility::makeInstance(CharsetConverter::class)->specCharsToASCII('utf-8', $slug);
+
+        // Get rid of all invalid characters, but allow slashes
+        $slug = preg_replace('/[^\p{L}\p{M}0-9\/' . preg_quote('-') . ']/u', '', $slug);
+
+        // Convert multiple fallback characters to a single one
+        $slug = preg_replace('/' . preg_quote('-') . '{2,}/', '-', $slug);
+
+        // Ensure slug is lower cased after all replacement was done
+        $slug = mb_strtolower($slug, 'utf-8');
+
+        return $slug;
     }
 
     /**
@@ -219,5 +256,49 @@ class DatabaseEntriesService
         }
 
         return $return;
+    }
+
+    protected function prepareDataFromRow($uid, $row, $targetLanguage, $tablename, $translatedData = [])
+    {
+        $return = [];
+
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($row, $targetLanguage, $tablename);
+        }
+
+        foreach ($row as $fieldname => $value) {
+            $return[$tablename.'.'.$fieldname.'.'.$uid] = [
+                'default' => $value,
+                $targetLanguage => $translatedData[$fieldname] ?? $value
+            ];
+        }
+
+        return $return;
+    }
+
+    /**
+     * @param $uid - UID of the row (needed when $row is already ready for export)
+     * @param $row
+     * @param $targetLanguage
+     * @param $tablename
+     * @param bool $enableTranslatedData - if false, always the provided $row data are used
+     */
+    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true)
+    {
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($row, $targetLanguage, $tablename);
+        }
+
+        $test = GeneralUtility::makeInstance(Locales::class)->getIsoMapping();
+        var_dump($test);
+        die();
+
+        $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename);
+        
+        $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+
+        $output = $xlfService->dataToXlf($data, $targetLanguage);
+
+        return $output;
     }
 }
