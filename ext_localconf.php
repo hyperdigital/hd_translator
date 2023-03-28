@@ -17,5 +17,5 @@ defined('TYPO3') or die();
     );
 
     // Control icons
-    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['GLOBAL']['recStatInfoHooks'][] = \Hyperdigital\HdTranslator\Hooks\RecordListControllHook::class.'->defaultControl';
+    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['GLOBAL']['recStatInfoHooks'][] = \Hyperdigital\HdTranslator\Hooks\RecordListControllHook::class.'->renderListEntry';
 })();
