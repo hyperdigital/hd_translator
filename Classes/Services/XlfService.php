@@ -45,14 +45,14 @@ class XlfService
             $notes = [];
 
             if (!empty($value['_label'])) {
-                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.label') . ' :' . $value['_label'];
+                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.label') . ': ' . $value['_label'];
                 $item->setAttribute('resname', $value['_label']);
 
             }
             if (!empty($value['_html'])) {
                 $item->setAttribute('datatype', 'html');
             }
-            
+
             $source = $domtree->createElement('source');
 
             if ($targetLanguage == 'en' || $targetLanguage == 'default') {

@@ -243,9 +243,11 @@ class DatabaseEntriesService
             $return = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['label'];
         }
 
-        $newReturn = LocalizationUtility::translate($return);
-        if (!empty($newReturn)) {
-            $return = $newReturn;
+        if (substr($return, 0, 8) == 'LLL:EXT:') {
+            $newReturn = LocalizationUtility::translate($return);
+            if (!empty($newReturn)) {
+                $return = $newReturn;
+            }
         }
 
         return $return;
@@ -378,7 +380,7 @@ class DatabaseEntriesService
         }
 
         $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename);
-        
+
         $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
 
         $output = $xlfService->dataToXlf($data, $targetLanguage);
