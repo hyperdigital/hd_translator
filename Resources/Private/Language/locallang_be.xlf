@@ -15,6 +15,12 @@
             <trans-unit id="control.exportTranslation">
                 <source>Export translation</source>
             </trans-unit>
+            <trans-unit id="export.field.label">
+                <source>Label</source>
+            </trans-unit>
+            <trans-unit id="export.field.isSlug">
+                <source>This field is SLUG. Use only lowercase letters, numbers or "/-", no spaces or other special characters.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

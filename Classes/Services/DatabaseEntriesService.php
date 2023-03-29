@@ -278,6 +278,24 @@ class DatabaseEntriesService
         return $return;
     }
 
+    public function isSlugField($fieldname, $row, $tablename)
+    {
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($tablename, $row);
+        }
+
+        $return = ($GLOBALS['TCA'][$tablename]['columns'][$fieldname]['config']['type'] == 'slug') ? true : false ;
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['config']['type']) // override label from type
+        ) {
+            $return = ($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['config']['enableRichtext'] == 'slug') ? true : false ;
+        }
+
+        return $return;
+    }
+
     /**
      * @param string $tablename name of the table
      * @param int|array $row UID of entry or the whole row
@@ -326,11 +344,16 @@ class DatabaseEntriesService
         }
 
         foreach ($row as $fieldname => $value) {
+            $notes = [];
+            if ($this->isSlugField($fieldname, $row, $tablename)) {
+                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
+            }
             $return[$tablename.'.'.$fieldname.'.'.$uid] = [
                 'default' => $value,
                 $targetLanguage => $translatedData[$fieldname] ?? $value,
                 '_label' => $this->getFieldLabel($fieldname, $row, $tablename),
-                '_html' => $this->fieldCanContainHtml($fieldname, $row, $tablename)
+                '_html' => $this->fieldCanContainHtml($fieldname, $row, $tablename),
+                '_notes' => $notes
             ];
         }
 

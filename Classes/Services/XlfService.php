@@ -2,10 +2,12 @@
 
 namespace Hyperdigital\HdTranslator\Services;
 
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+
 class XlfService
 {
     /**
-     * @param array $data - array of ['default => 'SomeString', 'de' => 'translated string', '_label' => 'LABEL', '_html' => true]
+     * @param array $data - array of ['default => 'SomeString', 'de' => 'translated string', '_label' => 'LABEL', '_html' => true ,'notes' = [] ]
      * @param string $targetLanguage
      * @param string $sourceLanguage
      * @param string $keyTranslation
@@ -43,7 +45,7 @@ class XlfService
             $notes = [];
 
             if (!empty($value['_label'])) {
-                $notes[] = "Label: " . $value['_label'];
+                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.label') . ' :' . $value['_label'];
                 $item->setAttribute('resname', $value['_label']);
 
             }
@@ -67,6 +69,9 @@ class XlfService
                 $target->appendChild($valTarget);
                 $item->appendChild($source);
                 $item->appendChild($target);
+            }
+            if (!empty($value['_notes'])) {
+                $notes = array_merge($notes, $value['_notes']);
             }
 
             if (!empty($notes)) {
