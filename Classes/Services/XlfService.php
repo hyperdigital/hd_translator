@@ -4,7 +4,14 @@ namespace Hyperdigital\HdTranslator\Services;
 
 class XlfService
 {
-    public function dataToXlf($data, $targetLanguage, $sourceLanguage = '', $keyTranslation = '')
+    /**
+     * @param array $data - array of ['default => 'SomeString', 'de' => 'translated string', '_label' => 'LABEL', '_html' => true]
+     * @param string $targetLanguage
+     * @param string $sourceLanguage
+     * @param string $keyTranslation
+     * @return false|string
+     */
+    public function dataToXlf(array $data, string $targetLanguage, string $sourceLanguage = '', string $keyTranslation = '')
     {
         $domtree = new \DOMDocument('1.0', 'UTF-8');
         $domtree->preserveWhiteSpace = false;
@@ -32,6 +39,17 @@ class XlfService
         foreach ($data as $key => $value) {
             $item = $domtree->createElement('trans-unit');
             $item->setAttribute('id', $key);
+
+            $notes = [];
+
+            if (!empty($value['_label'])) {
+                $notes[] = "Label: " . $value['_label'];
+                $item->setAttribute('resname', $value['_label']);
+
+            }
+            if (!empty($value['_html'])) {
+                $item->setAttribute('datatype', 'html');
+            }
             
             $source = $domtree->createElement('source');
 
@@ -49,6 +67,13 @@ class XlfService
                 $target->appendChild($valTarget);
                 $item->appendChild($source);
                 $item->appendChild($target);
+            }
+
+            if (!empty($notes)) {
+                $noteLabel = $domtree->createElement('note');
+                $noteText = $domtree->createTextNode(implode("\n", $notes));
+                $noteLabel->appendChild($noteText);
+                $item->appendChild($noteLabel);
             }
 
 

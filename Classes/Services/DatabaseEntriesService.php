@@ -6,6 +6,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
 use TYPO3\CMS\Core\Localization\Locales;
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 class DatabaseEntriesService
 {
@@ -220,6 +221,64 @@ class DatabaseEntriesService
     }
 
     /**
+     * Label of the field displayed in Backend
+     *
+     * @param $fieldname
+     * @param $row
+     * @param $tablename
+     * @return string
+     */
+    protected function getFieldLabel($fieldname, $row, $tablename)
+    {
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($tablename, $row);
+        }
+
+        $return = $GLOBALS['TCA'][$tablename]['columns'][$fieldname]['label'];
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['label']) // override label from type
+        ) {
+            $return = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['label'];
+        }
+
+        $newReturn = LocalizationUtility::translate($return);
+        if (!empty($newReturn)) {
+            $return = $newReturn;
+        }
+
+        return $return;
+    }
+
+    /**
+     * Returns true when the field is marked as RTE
+     * TODO: make possible to mark like that all fiels
+     *
+     * @param $fieldname
+     * @param $row
+     * @param $tablename
+     * @return bool
+     */
+    protected function fieldCanContainHtml($fieldname, $row, $tablename)
+    {
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($tablename, $row);
+        }
+
+        $return = (isset($GLOBALS['TCA'][$tablename]['columns'][$fieldname]['config']['enableRichtext'])) ? $GLOBALS['TCA'][$tablename]['columns'][$fieldname]['config']['enableRichtext'] : false ;
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['config']['enableRichtext']) // override label from type
+        ) {
+            $return = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$fieldname]['config']['enableRichtext'];
+        }
+
+        return $return;
+    }
+
+    /**
      * @param string $tablename name of the table
      * @param int|array $row UID of entry or the whole row
      */
@@ -263,13 +322,15 @@ class DatabaseEntriesService
         $return = [];
 
         if (is_int($row)) {
-            $row = $this->getCompleteRow($row, $targetLanguage, $tablename);
+            $row = $this->getCompleteRow($tablename, $uid);
         }
 
         foreach ($row as $fieldname => $value) {
             $return[$tablename.'.'.$fieldname.'.'.$uid] = [
                 'default' => $value,
-                $targetLanguage => $translatedData[$fieldname] ?? $value
+                $targetLanguage => $translatedData[$fieldname] ?? $value,
+                '_label' => $this->getFieldLabel($fieldname, $row, $tablename),
+                '_html' => $this->fieldCanContainHtml($fieldname, $row, $tablename)
             ];
         }
 
@@ -279,19 +340,19 @@ class DatabaseEntriesService
     /**
      * @param $uid - UID of the row (needed when $row is already ready for export)
      * @param $row
-     * @param $targetLanguage
+     * @param $targetLanguage - default would be automatically converted to 'en'
      * @param $tablename
      * @param bool $enableTranslatedData - if false, always the provided $row data are used
      */
     public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true)
     {
-        if (is_int($row)) {
-            $row = $this->getCompleteRow($row, $targetLanguage, $tablename);
+        if ($targetLanguage == 'default') {
+            $targetLanguage = 'en';
         }
 
-        $test = GeneralUtility::makeInstance(Locales::class)->getIsoMapping();
-        var_dump($test);
-        die();
+        if (is_int($row)) {
+            $row = $this->getCompleteRow($tablename, $uid);
+        }
 
         $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename);
         
