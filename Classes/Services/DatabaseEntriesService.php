@@ -108,17 +108,57 @@ class DatabaseEntriesService
     }
 
     /**
+     * @param string $tablename
+     * @param int $parentUid
+     * @param string $foreignField
+     * @param string $foreignSortby
+     * @param string $foreignTableField
+     * @param array $foreignMatchFields
+     * @return mixed
+     */
+    public function getCompleteInlinedRows(string $tablename, int $parentUid, string $foreignField = '', string $foreignSortby = '', string $foreignTableField = '', array $foreignMatchFields = [])
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $where = [];
+        if (!empty($parentUid) && !empty($foreignField)) {
+            $where[] = $queryBuilder->expr()->eq($foreignField, $parentUid);
+        }
+
+        $result = $queryBuilder
+            ->select('*')
+            ->from($tablename)
+            ->where(
+                ...$where
+            )
+            ->execute();
+
+        $return = [];
+        while($row = $result->fetchAssociative()) {
+            $return[] = $row;
+        }
+
+        return $return;
+    }
+
+    /**
      * returns to $return key => value for the field by it's TCA settings
      *
      * @param string $tablename
      * @param string $field
      * @param $row
+     * @param string $specialFieldNameOutput
      * @param $return
      */
-    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return)
+    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '')
     {
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
+        }
+
+        if (empty($specialFieldNameOutput)) {
+            $specialFieldNameOutput = $row['uid'].'.'.$field;
         }
 
         if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'])) {
@@ -127,10 +167,90 @@ class DatabaseEntriesService
                 case 'input':
                 case 'text':
                 case 'slug':
-                    $return[$field] = $row[$field] ?? '';
+                    $return[$specialFieldNameOutput]['value'] = $row[$field] ?? '';
+                    $return[$specialFieldNameOutput]['label'] = $this->getFieldLabel($field, $row, $tablename);
+                    $return[$specialFieldNameOutput]['html'] = $this->fieldCanContainHtml($field, $row, $tablename);
+                    $return[$specialFieldNameOutput]['slug'] = $this->isSlugField($field, $row, $tablename);
+                    break;
+                case 'inline':
+                    $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput);
                     break;
             }
         }
+    }
+
+    /**
+     * @param string $tablename
+     * @param string $field
+     * @param $row
+     * @param $return
+     * @param string $specialFieldNameOutput
+     */
+    protected function getInlinedRowsFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '')
+    {
+        /**
+         * @param string $tablename
+         * @param int $parentUid
+         * @param string $foreignField
+         * @param string $foreignSortby
+         * @param string $foreignTableField
+         * @param array $foreignMatchFields
+         * @return mixed
+         */
+
+        $foreginTable = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_table'];
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
+        ) {
+            $foreginTable = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
+        }
+        $foreginField = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_field'];
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+        ) {
+            $foreginField = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+        }
+
+        $parentUid = $row['uid'];
+        $parentUidLanguageField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'] ?? 'l18n_parent';
+        $sysLangaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'] ?? 'sys_language_uid';
+        // has pointer to parent in default language and also it's not in default language
+        if (!empty($row[$parentUidLanguageField]) && !empty($row[$sysLangaugeField])) {
+            $parentUid = $row[$parentUidLanguageField];
+        }
+
+        $rows = $this->getCompleteInlinedRows($foreginTable, $parentUid, $foreginField);
+
+        if (!empty($rows)) {
+            if (
+                !empty($GLOBALS['TCA'][$foreginTable]['ctrl']['type']) // type field is defined
+                && isset($row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]) // row has this field
+                && isset($GLOBALS['TCA'][$foreginTable]['types'][$row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]]) // types has value for this field
+            ) {
+                $typeArray = $GLOBALS['TCA'][$foreginTable]['types'][$row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]];
+            } else {
+                $typeArray = $GLOBALS['TCA'][$foreginTable]['types'];
+                $typeArray = array_shift(array_slice($typeArray, 0, 1));
+            }
+
+            foreach ($rows as $rowInlined) {
+                if (!empty($typeArray['translator_export'])) {
+                    $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
+                }  else {
+                    $listOfFields = $this->getListOfFieldsFromRow($foreginTable, $rowInlined);
+                }
+
+                foreach ($listOfFields as $field) {
+                    $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
+                    $this->getFieldKeyAndValue($foreginTable, $field, $rowInlined, $return, $tempName);
+                }
+            }
+        }
+
     }
 
     /**
@@ -307,7 +427,7 @@ class DatabaseEntriesService
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
         }
-
+        
         if (empty($row)) {
             return [];
         }
@@ -347,14 +467,14 @@ class DatabaseEntriesService
 
         foreach ($row as $fieldname => $value) {
             $notes = [];
-            if ($this->isSlugField($fieldname, $row, $tablename)) {
+            if ($value['slug']) {
                 $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
             }
-            $return[$tablename.'.'.$fieldname.'.'.$uid] = [
-                'default' => $value,
-                $targetLanguage => $translatedData[$fieldname] ?? $value,
-                '_label' => $this->getFieldLabel($fieldname, $row, $tablename),
-                '_html' => $this->fieldCanContainHtml($fieldname, $row, $tablename),
+            $return[$tablename.'.'.$fieldname] = [
+                'default' => $value['value'],
+                $targetLanguage => $translatedData[$fieldname] ?? $value['value'],
+                '_label' => $value['label'],
+                '_html' => $value['html'],
                 '_notes' => $notes
             ];
         }
