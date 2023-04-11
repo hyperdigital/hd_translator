@@ -19,6 +19,4 @@ defined('TYPO3') or die();
     );
 
     $GLOBALS['TBE_STYLES']['skins']['hd_translator']['stylesheetDirectories'][] = 'EXT:hd_translator/Resources/Public/Css/Backend/';
-
-    \Hyperdigital\HdTranslator\Helpers\TranslationHelper::setupTranslation();
 })();
