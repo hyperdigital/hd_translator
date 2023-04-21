@@ -136,8 +136,9 @@ class DatabaseEntriesService
     /**
      * @param string $tablename name of the table
      * @param int $pid - PID where the rows are stored
+     * @param bool $clean - return cleaned rows
      */
-    public function getAllComplteteRowsForPid(string $tablename, int $pid)
+    public function getAllComplteteRowsForPid(string $tablename, int $pid, bool $clean = false)
     {
         $return = [];
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
@@ -151,7 +152,11 @@ class DatabaseEntriesService
             ->execute();
 
         while($row = $result->fetchAssociative()) {
-            $return[] = $row;
+            if ($clean) {
+                $return[] = $this->getExportFields($tablename, $row);
+            } else {
+                $return[] = $row;
+            }
         }
 
         return $return;
@@ -480,7 +485,7 @@ class DatabaseEntriesService
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
         }
-        
+
         if (empty($row)) {
             return [];
         }
@@ -567,11 +572,7 @@ class DatabaseEntriesService
             $output = $this->prepareDataFromRow((int) $row['uid'], $row, $targetLanguage, 'pages');
         }
 
-        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid) as $contentRow) {
-            if ($clean) {
-                $contentRow = $this->getExportFields('tt_content', $contentRow);
-            }
-
+        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid, $clean) as $contentRow) {
             $output = array_merge($output, $this->prepareDataFromRow((int) $contentRow['uid'], $contentRow, $targetLanguage, 'tt_content'));
         }
 
