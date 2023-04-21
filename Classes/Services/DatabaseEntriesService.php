@@ -52,6 +52,32 @@ class DatabaseEntriesService
     }
 
     /**
+     * @param int $parentPid - current parent page
+     * @param array $storages - storage reference which would be updated (list of PIDs)
+     * @param string $pageTypes - comma separated page types (doktypes)
+     * @param bool $firstReference - is this function called for the firt time?
+     */
+    public function addAllSubpages(int $parentPid, array &$storages, string $pageTypes = '', bool $firstReference = true)
+    {
+        if (!empty($pageTypes)) {
+            $pageTypes = GeneralUtility::trimExplode(',', $pageTypes);
+        }
+
+        $queryGenerator = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\QueryGenerator::class);
+
+        $subpages = $queryGenerator->getTreeList($parentPid, 9999);
+        if ($subpages){
+            $subpages = GeneralUtility::trimExplode(',', $subpages);
+            foreach ($subpages as $subpage) {
+                if (!in_array($subpage, $storages)) {
+                    $storages[] = $subpage;
+                }
+            }
+        }
+    }
+
+
+    /**
      * @param string $tablename
      * @param array | int $row
      */

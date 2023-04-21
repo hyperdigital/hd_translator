@@ -25,7 +25,11 @@ class XlfService
         if (!empty($sourceLanguage)) {
             $file->setAttribute('source-language', $sourceLanguage);
         }
-        $file->setAttribute('target-language', $targetLanguage);
+        if ($targetLanguage == 'en' || $targetLanguage == 'default') {
+            $file->setAttribute('target-language', 'en');
+        } else {
+            $file->setAttribute('target-language', $targetLanguage);
+        }
         if (!empty($keyTranslation)) {
             $file->setAttribute('product-name', $keyTranslation);
         }
@@ -56,10 +60,13 @@ class XlfService
             $source = $domtree->createElement('source');
 
             if ($targetLanguage == 'en' || $targetLanguage == 'default') {
+                $target = $domtree->createElement('target');
                 $valSource = $domtree->createTextNode($value[$targetLanguage]);
-
+                $valTarget = $domtree->createTextNode($value[$targetLanguage]);
                 $source->appendChild($valSource);
+                $target->appendChild($valTarget);
                 $item->appendChild($source);
+                $item->appendChild($target);
             } else {
                 $target = $domtree->createElement('target');
                 $valSource = $domtree->createTextNode((!is_null($value['default'])) ? $value['default'] : $value[$targetLanguage]);

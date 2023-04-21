@@ -3,10 +3,37 @@
     <div>
         <f:form action="pageContentExportProccess">
             <div>
-                <label for="storages">Page UID (can be comma separated list)</label>
+                <div>
+                    <label>Target language</label>
+                    <f:form.select name="language">
+                        <f:for each="{languages}" as="language" key="key">
+                            <f:form.select.option value="{key}">{language}</f:form.select.option>
+                        </f:for>
+                    </f:form.select>
+                </div>
             </div>
             <div>
-                <f:form.textfield id="storages" name="storages" value="{currentPage}" required="1" />
+                <div>
+                    <label for="storages">Page UID (can be comma separated list)</label>
+                </div>
+                <div>
+                    <f:form.textfield id="storages" name="storages" value="{currentPage}" required="1" />
+                </div>
+            </div>
+            <div>
+                <label for="supages">
+                    <f:form.checkbox name="subpages" id="supages" value="1" />
+                    <span>Add also subpages</span>
+                </label>
+            </div>
+            <div>
+                TODO: only if supages are selected
+                <div>
+                    <label for="pageTypes">Page Types (can be comma separated list)</label>
+                </div>
+                <div>
+                    <f:form.textfield id="pageTypes" name="pageTypes" value="1" />
+                </div>
             </div>
             <div>
                 <button>OK, export</button>

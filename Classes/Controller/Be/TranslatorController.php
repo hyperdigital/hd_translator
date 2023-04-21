@@ -120,6 +120,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
+        $item = $menu->makeMenuItem()->setTitle('Page content import')
+            ->setHref($uriBuilder->reset()->uriFor('pageContentImport', null))
+            ->setActive('pageContentImport' == $this->request->getControllerActionName() ? 1 : 0);
+        $menu->addMenuItem($item);
+
         $item = $menu->makeMenuItem()->setTitle('Database entries export')
             ->setHref($uriBuilder->reset()->uriFor('database', null))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
@@ -181,6 +186,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->view->assign('currentPage', $currentPage);
+        $this->view->assign('languages', $this->listOfPossibleLanguages);
+
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
     }
@@ -190,14 +197,26 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function pageContentExportProccessAction(string $storages)
     {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
         $storages = GeneralUtility::trimExplode(',', $storages);
+        if ($this->request->getArgument('subpages') == 1) {
+            $tempStorage = $storages;
+            foreach ($tempStorage as $storage) {
+                $databaseEntriesService->addAllSubpages((int) $storage, $storages, $this->request->getArgument('pageTypes'));
+            }
+        }
+
+
         $saveToZip = false;
         if (count($storages) > 1) {
             $saveToZip = true;
         }
         $defaultLanguage = 1;
         $targetLanguage = 'de';
-        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+        if ($this->request->hasArgument('language')) {
+            $targetLanguage = $this->request->getArgument('language');
+        }
 
         if ($saveToZip) {
             $zipFolder = Environment::getVarPath() . '/translation/';
@@ -240,10 +259,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
             header('Cache-Control: private', false);
             header('Content-type: text/xml');
-            header('Content-Disposition: attachment; filename="text.xlf"');
+            header('Content-Disposition: attachment; filename="page-'.$storage.'.xlf"');
             echo $output;
         }
         die();
+    }
+
+    public function pageContentImportAction()
+    {
+        $this->indexMenu();
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
     }
 
     public function indexAction()

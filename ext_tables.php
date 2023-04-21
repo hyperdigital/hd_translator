@@ -7,7 +7,7 @@ defined('TYPO3') or die();
         'hd_translator_engine',
         'bottom',
         [
-            \Hyperdigital\HdTranslator\Controller\Be\TranslatorController::class => 'index, list, detail, database, databaseTableFields, databaseExport, databaseImport, save, syncLocallangs, search, download, import, remove, exportTableRowIndex, exportTableRowExport, pageContentExport, pageContentExportProccess'
+            \Hyperdigital\HdTranslator\Controller\Be\TranslatorController::class => 'index, list, detail, database, databaseTableFields, databaseExport, databaseImport, save, syncLocallangs, search, download, import, remove, exportTableRowIndex, exportTableRowExport, pageContentExport, pageContentExportProccess, pageContentImport'
         ],
         [
             'access' => 'group',
@@ -21,7 +21,7 @@ defined('TYPO3') or die();
     $GLOBALS['TBE_STYLES']['skins']['hd_translator']['stylesheetDirectories'][] = 'EXT:hd_translator/Resources/Public/Css/Backend/';
 
     \Hyperdigital\HdTranslator\Helpers\TranslationHelper::setupTranslation();
-
+    
     // TODO: hook list rightbar menu to add direct download -> EXT:sysext/recordlist/Classes/Controller/RecordListController.php:417
     // translatorController::pageContentExportProccessAction(UID of opened page above)
 })();
