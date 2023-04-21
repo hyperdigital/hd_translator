@@ -115,9 +115,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Database entries')
+        $item = $menu->makeMenuItem()->setTitle('Page content export')
+            ->setHref($uriBuilder->reset()->uriFor('pageContentExport', null))
+            ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
+        $menu->addMenuItem($item);
+
+        $item = $menu->makeMenuItem()->setTitle('Database entries export')
             ->setHref($uriBuilder->reset()->uriFor('database', null))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
+        $menu->addMenuItem($item);
+
+        $item = $menu->makeMenuItem()->setTitle('Database entries import')
+            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
+            ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
@@ -159,6 +169,80 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         header('Content-type: text/xml');
         header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
         echo $output;
+        die();
+    }
+
+    public function pageContentExportAction()
+    {
+        $this->indexMenu();
+        $currentPage = '';
+        if ($this->request->hasArgument('page')) {
+            $currentPage = $this->request->getArgument('page');
+        }
+
+        $this->view->assign('currentPage', $currentPage);
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
+    /**
+     * @param string $storages
+     */
+    public function pageContentExportProccessAction(string $storages)
+    {
+        $storages = GeneralUtility::trimExplode(',', $storages);
+        $saveToZip = false;
+        if (count($storages) > 1) {
+            $saveToZip = true;
+        }
+        $defaultLanguage = 1;
+        $targetLanguage = 'de';
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
+        if ($saveToZip) {
+            $zipFolder = Environment::getVarPath() . '/translation/';
+            mkdir($zipFolder);
+            $zipPath = $zipFolder . 'translation.zip';
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
+                exit("cannot open <$zipPath>\n");
+            }
+        }
+
+
+        foreach ($storages as $storage) {
+            $contentArray = $databaseEntriesService->getCompleteContentForPage((int) $storage, $targetLanguage);
+
+            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+            $output = $xlfService->dataToXlf($contentArray, $targetLanguage);
+
+            if ($saveToZip) {
+                $zip->addFromString("page-{$storage}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+            }
+        }
+
+        if ($saveToZip) {
+            $zip->close();
+
+            header('Pragma: public');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Cache-Control: private', false);
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . filesize($zipPath));
+            echo file_get_contents($zipPath);
+            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+        } else {
+            header('Pragma: public');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Cache-Control: private', false);
+            header('Content-type: text/xml');
+            header('Content-Disposition: attachment; filename="text.xlf"');
+            echo $output;
+        }
         die();
     }
 
@@ -213,6 +297,215 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
+    }
+
+    /**
+     * @param array $tables
+     */
+    public function databaseExportAction(array $tables)
+    {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
+        $cleanRow = $databaseEntriesService->getExportFields($tablename, $row);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename);
+        header('Content-type: text/xml');
+
+        DebuggerUtility::var_dump($tables);
+        die();
+
+
+        $errors = [];
+
+        if (!$this->request->hasArgument('languageFrom')) {
+            $errors[] = 'Language from is missing';
+        } else {
+            $sourceLangauge = $this->request->getArgument('languageFrom');
+        }
+        if (!$this->request->hasArgument('languageTo')) {
+            $errors[] = 'Language to is missing';
+        } else {
+            $targetLangauge = $this->request->getArgument('languageTo');
+        }
+        if (!$this->request->hasArgument('tables')) {
+            $errors[] = 'Tables is missing';
+        } else {
+            $tablesPRE = $this->request->getArgument('tables');
+        }
+
+        $storage = [];
+        if ($this->request->hasArgument('storage')) {
+            if ($this->request->hasArgument('sublevels') && $this->request->getArgument('sublevels')) {
+                $this->getAllPagesFromRoot($this->request->getArgument('storage'), $storage);
+            } else {
+                $storage = explode(',', $this->request->getArgument('storage'));
+            }
+        }
+
+        $tables = [];
+        foreach ($tablesPRE as $table) {
+            $table = explode('.', $table);
+            $tables[$table[0]][] = $table[1];
+        }
+
+        $data = [];
+
+        $disabledTcaTypes = ['slug'];
+        $disableRenderTypes = ['insights'];
+
+        $sourceLanguageLetters = 'en';
+        if ($sourceLangauge != 0) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $tempQuery = $queryBuilder->select('language_isocode')->from('sys_language')
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $sourceLangauge)
+                );
+            $result = $tempQuery->execute();
+            $row = $result->fetch();
+            if ($row) {
+                $sourceLanguageLetters = $row['language_isocode'];
+            }
+        }
+        $targetLanguageLetters = 'en';
+        if ($targetLangauge != 0) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $result = $queryBuilder->select('language_isocode')->from('sys_language')
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $targetLangauge)
+                )
+                ->execute();
+            $row = $result->fetch();
+            if ($row) {
+                $targetLanguageLetters = $row['language_isocode'];
+            }
+        }
+        foreach ($tables as $table => $columns) {
+            $sourceUidField = 'uid';
+            if ($sourceLangauge != 0) {
+                $sourceUidField = 'l10n_parent';
+                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                    $sourceUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+                }
+            }
+            $targetUidField = 'uid';
+            if ($targetLangauge != 0) {
+                $targetUidField = 'l10n_parent';
+                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
+                    $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
+                }
+            }
+
+            if (!in_array('uid', $columns)) {
+                $columns[] = 'uid';
+            }
+            if (!in_array($sourceUidField, $columns)) {
+                $columns[] = $sourceUidField;
+            }
+            if (!in_array($targetUidField, $columns)) {
+                $columns[] = $targetUidField;
+            }
+
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+            $langaugeField = 'sys_language_uid';
+            if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+                $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
+            }
+
+            $tempQuery = $queryBuilder->select(...$columns)->from($table);
+            if (!empty($storage)) {
+                if ($table == 'pages' && $sourceLangauge == 0) {
+                    $tempQuery->where(
+                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                        $queryBuilder->expr()->in('uid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
+                    );
+                } else {
+                    $tempQuery->where(
+                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
+                        $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
+                    );
+                }
+            } else {
+                $tempQuery->where(
+                    $queryBuilder->expr()->eq($langaugeField, $sourceLangauge)
+                );
+            }
+            $result = $tempQuery->execute();
+            while ($row = $result->fetch()) {
+                $key = $targetLangauge.'.'.$table.'.'.$row['uid'];
+                $realUid = $row[$sourceUidField];
+
+                //remove unnecessary keys
+                if(isset($row[$sourceUidField])) unset($row[$sourceUidField]);
+                if(isset($row[$targetUidField])) unset($row[$targetUidField]);
+                if(isset($row['uid'])) unset($row['uid']);
+
+                $resultTarget = $queryBuilder->select(...array_keys($row))->from($table)
+                    ->where(
+                        $queryBuilder->expr()->eq($langaugeField, $targetLangauge),
+                        $queryBuilder->expr()->eq($targetUidField, $realUid)
+                    )
+                    ->execute();
+                $rowTarget = $resultTarget->fetch();
+
+                foreach ($row as $tableColumn => $tableValue) {
+                    // TODO: if flexform
+                    $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
+
+                    if ($type == 'flex') {
+                        $flexformDataOriginal = $this->flexFormService
+                            ->convertFlexFormContentToArray(strval($tableValue));
+                        $flexformDataTarget = $this->flexFormService
+                            ->convertFlexFormContentToArray(strval($rowTarget[$tableColumn]));
+                        $this->databaseFlexformDataToTranslationArray($data, $key . '.' . $tableColumn, $targetLanguageLetters, $flexformDataOriginal, $flexformDataTarget);
+                    } else {
+                        if (!empty($rowTarget[$tableColumn]) || !empty($tableValue) ) {
+                            $data[$key . '.' . $tableColumn]['default'] = strval($tableValue);
+                            $data[$key . '.' . $tableColumn][$targetLanguageLetters] = strval(!empty($rowTarget[$tableColumn]) ? $rowTarget[$tableColumn] : $tableValue);
+                        }
+                    }
+                }
+
+            }
+        }
+
+        if (!$this->request->hasArgument('format')) {
+            $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
+        } else {
+            switch ($this->request->getArgument('format')) {
+                case 'xml':
+                    $this->exportDatabaseToXlm($data, $targetLanguageLetters);
+                    break;
+                case 'csv':
+                    $realData = [];
+                    foreach ($data as $key => $value) {
+                        $tempData = [];
+                        $tempData[] = $key;
+                        $tempData[] = $value['default'];
+                        $tempData[] = $value[$targetLanguageLetters];
+                        $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
+                    }
+
+                    $downloadFilename = 'temp' . '.csv';
+                    header('Content-Description: File Transfer');
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                    header('Content-Transfer-Encoding: binary');
+                    header('Expires: 0');
+                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Pragma: public');
+                    echo implode(PHP_EOL, $realData);
+                    break;
+                default:
+                    $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
+                    break;
+            }
+        }
+
+        die();
     }
 
     public function databaseTableFieldsAction()
@@ -698,201 +991,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->importItself($syncArray);
     }
 
-    public function databaseExportAction()
-    {
-        $errors = [];
-
-        if (!$this->request->hasArgument('languageFrom')) {
-            $errors[] = 'Language from is missing';
-        } else {
-            $sourceLangauge = $this->request->getArgument('languageFrom');
-        }
-        if (!$this->request->hasArgument('languageTo')) {
-            $errors[] = 'Language to is missing';
-        } else {
-            $targetLangauge = $this->request->getArgument('languageTo');
-        }
-        if (!$this->request->hasArgument('tables')) {
-            $errors[] = 'Tables is missing';
-        } else {
-            $tablesPRE = $this->request->getArgument('tables');
-        }
-
-        $storage = [];
-        if ($this->request->hasArgument('storage')) {
-            if ($this->request->hasArgument('sublevels') && $this->request->getArgument('sublevels')) {
-                $this->getAllPagesFromRoot($this->request->getArgument('storage'), $storage);
-            } else {
-                $storage = explode(',', $this->request->getArgument('storage'));
-            }
-        }
-
-        $tables = [];
-        foreach ($tablesPRE as $table) {
-            $table = explode('.', $table);
-            $tables[$table[0]][] = $table[1];
-        }
-
-        $data = [];
-
-        $disabledTcaTypes = ['slug'];
-        $disableRenderTypes = ['insights'];
-
-        $sourceLanguageLetters = 'en';
-        if ($sourceLangauge != 0) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
-            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-            $tempQuery = $queryBuilder->select('language_isocode')->from('sys_language')
-                ->where(
-                    $queryBuilder->expr()->eq('uid', $sourceLangauge)
-                );
-            $result = $tempQuery->execute();
-            $row = $result->fetch();
-            if ($row) {
-                $sourceLanguageLetters = $row['language_isocode'];
-            }
-        }
-        $targetLanguageLetters = 'en';
-        if ($targetLangauge != 0) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
-            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-            $result = $queryBuilder->select('language_isocode')->from('sys_language')
-                ->where(
-                    $queryBuilder->expr()->eq('uid', $targetLangauge)
-                )
-                ->execute();
-            $row = $result->fetch();
-            if ($row) {
-                $targetLanguageLetters = $row['language_isocode'];
-            }
-        }
-        foreach ($tables as $table => $columns) {
-            $sourceUidField = 'uid';
-            if ($sourceLangauge != 0) {
-                $sourceUidField = 'l10n_parent';
-                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
-                    $sourceUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-                }
-            }
-            $targetUidField = 'uid';
-            if ($targetLangauge != 0) {
-                $targetUidField = 'l10n_parent';
-                if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
-                    $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-                }
-            }
-
-            if (!in_array('uid', $columns)) {
-                $columns[] = 'uid';
-            }
-            if (!in_array($sourceUidField, $columns)) {
-                $columns[] = $sourceUidField;
-            }
-            if (!in_array($targetUidField, $columns)) {
-                $columns[] = $targetUidField;
-            }
-
-
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-
-            $langaugeField = 'sys_language_uid';
-            if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
-                $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
-            }
-
-            $tempQuery = $queryBuilder->select(...$columns)->from($table);
-            if (!empty($storage)) {
-                if ($table == 'pages' && $sourceLangauge == 0) {
-                    $tempQuery->where(
-                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
-                        $queryBuilder->expr()->in('uid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
-                    );
-                } else {
-                    $tempQuery->where(
-                        $queryBuilder->expr()->eq($langaugeField, $sourceLangauge),
-                        $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($storage, Connection::PARAM_INT_ARRAY))
-                    );
-                }
-            } else {
-                $tempQuery->where(
-                    $queryBuilder->expr()->eq($langaugeField, $sourceLangauge)
-                );
-            }
-            $result = $tempQuery->execute();
-            while ($row = $result->fetch()) {
-                $key = $targetLangauge.'.'.$table.'.'.$row['uid'];
-                $realUid = $row[$sourceUidField];
-
-                //remove unnecessary keys
-                if(isset($row[$sourceUidField])) unset($row[$sourceUidField]);
-                if(isset($row[$targetUidField])) unset($row[$targetUidField]);
-                if(isset($row['uid'])) unset($row['uid']);
-
-                $resultTarget = $queryBuilder->select(...array_keys($row))->from($table)
-                    ->where(
-                        $queryBuilder->expr()->eq($langaugeField, $targetLangauge),
-                        $queryBuilder->expr()->eq($targetUidField, $realUid)
-                    )
-                    ->execute();
-                $rowTarget = $resultTarget->fetch();
-
-                foreach ($row as $tableColumn => $tableValue) {
-                    // TODO: if flexform
-                    $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
-
-                    if ($type == 'flex') {
-                        $flexformDataOriginal = $this->flexFormService
-                            ->convertFlexFormContentToArray(strval($tableValue));
-                        $flexformDataTarget = $this->flexFormService
-                            ->convertFlexFormContentToArray(strval($rowTarget[$tableColumn]));
-                        $this->databaseFlexformDataToTranslationArray($data, $key . '.' . $tableColumn, $targetLanguageLetters, $flexformDataOriginal, $flexformDataTarget);
-                    } else {
-                        if (!empty($rowTarget[$tableColumn]) || !empty($tableValue) ) {
-                            $data[$key . '.' . $tableColumn]['default'] = strval($tableValue);
-                            $data[$key . '.' . $tableColumn][$targetLanguageLetters] = strval(!empty($rowTarget[$tableColumn]) ? $rowTarget[$tableColumn] : $tableValue);
-                        }
-                    }
-                }
-
-            }
-        }
-
-        if (!$this->request->hasArgument('format')) {
-            $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
-        } else {
-            switch ($this->request->getArgument('format')) {
-                case 'xml':
-                    $this->exportDatabaseToXlm($data, $targetLanguageLetters);
-                    break;
-                case 'csv':
-                    $realData = [];
-                    foreach ($data as $key => $value) {
-                        $tempData = [];
-                        $tempData[] = $key;
-                        $tempData[] = $value['default'];
-                        $tempData[] = $value[$targetLanguageLetters];
-                        $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
-                    }
-
-                    $downloadFilename = 'temp' . '.csv';
-                    header('Content-Description: File Transfer');
-                    header('Content-Type: application/octet-stream');
-                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                    header('Content-Transfer-Encoding: binary');
-                    header('Expires: 0');
-                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                    header('Pragma: public');
-                    echo implode(PHP_EOL, $realData);
-                    break;
-                default:
-                    $this->exportDatabaseToXlf($data, $sourceLanguageLetters, $targetLanguageLetters);
-                    break;
-            }
-        }
-
-        die();
-    }
 
     protected function exportDatabaseToXlm($data, $targetLanguageLetters)
     {

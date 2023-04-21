@@ -21,6 +21,9 @@
             <trans-unit id="export.field.isSlug">
                 <source>This field is SLUG. Use only lowercase letters, numbers or "/-", no spaces or other special characters.</source>
             </trans-unit>
+            <trans-unit id="export.table_reference">
+                <source>Table reference</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

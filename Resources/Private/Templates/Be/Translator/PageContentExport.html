@@ -1,0 +1,16 @@
+<div class="hd-translator">
+    <h1>{f:translate(key: 'contentExport.headline')}</h1>
+    <div>
+        <f:form action="pageContentExportProccess">
+            <div>
+                <label for="storages">Page UID (can be comma separated list)</label>
+            </div>
+            <div>
+                <f:form.textfield id="storages" name="storages" value="{currentPage}" required="1" />
+            </div>
+            <div>
+                <button>OK, export</button>
+            </div>
+        </f:form>
+    </div>
+</div>

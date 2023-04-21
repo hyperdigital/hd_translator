@@ -11,7 +11,10 @@
 
 <f:section name="content">
     <div class="hd-translator">
-        <h1><f:translate key="exportTableRow.headlineExport" />: {label}</h1>
+        <h1>
+            <f:translate key="exportTableRow.headlineExport" />: {label}
+            <div class="subline">{tablename}:{rowUid}</div>
+        </h1>
         <f:if condition="{fields}">
             <f:else>
                 <h2><f:translate key="exportTableRow.nothingToExport" /></h2>
@@ -38,11 +41,13 @@
                         </div>
                     </f:form>
                 </div>
+                <h2><f:translate key="exportTableRow.headlinePreviewValues" /></h2>
                 <div class="hd-translator-databaseexport-preview">
                     <f:for each="{fields}" as="value" key="key">
                         <div class="hd-translator-databaseexport-preview-row">
                             <div class="hd-translator-databaseexport-preview-row-key">{value.label}</div>
                             <div class="hd-translator-databaseexport-preview-row-value">{value.value}</div>
+                            <div class="hd-translator-databaseexport-preview-row-tablename">{value.table}:{value.uid}:{value.field}</div>
                         </div>
                     </f:for>
                 </div>

@@ -108,6 +108,30 @@ class DatabaseEntriesService
     }
 
     /**
+     * @param string $tablename name of the table
+     * @param int $pid - PID where the rows are stored
+     */
+    public function getAllComplteteRowsForPid(string $tablename, int $pid)
+    {
+        $return = [];
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $result = $queryBuilder
+            ->select('*')
+            ->from($tablename)
+            ->where(
+                $queryBuilder->expr()->eq('pid', $pid)
+            )
+            ->execute();
+
+        while($row = $result->fetchAssociative()) {
+            $return[] = $row;
+        }
+
+        return $return;
+    }
+
+    /**
      * @param string $tablename
      * @param int $parentUid
      * @param string $foreignField
@@ -171,6 +195,9 @@ class DatabaseEntriesService
                     $return[$specialFieldNameOutput]['label'] = $this->getFieldLabel($field, $row, $tablename);
                     $return[$specialFieldNameOutput]['html'] = $this->fieldCanContainHtml($field, $row, $tablename);
                     $return[$specialFieldNameOutput]['slug'] = $this->isSlugField($field, $row, $tablename);
+                    $return[$specialFieldNameOutput]['table'] = $tablename;
+                    $return[$specialFieldNameOutput]['uid'] = $row['uid'] ?? '';
+                    $return[$specialFieldNameOutput]['field'] = $field ?? '';
                     break;
                 case 'inline':
                     $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput);
@@ -470,16 +497,59 @@ class DatabaseEntriesService
             if ($value['slug']) {
                 $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
             }
+
+            $reference = [];
+            if (!empty($value['table'])){
+                $reference[] = $value['table'];
+            }
+            if (!empty($value['uid'])){
+                $reference[] = $value['uid'];
+            }
+            if (!empty($value['field'])){
+                $reference[] = $value['field'];
+            }
+
             $return[$tablename.'.'.$fieldname] = [
                 'default' => $value['value'],
                 $targetLanguage => $translatedData[$fieldname] ?? $value['value'],
                 '_label' => $value['label'],
                 '_html' => $value['html'],
-                '_notes' => $notes
+                '_notes' => $notes,
+                '_table_reference' => LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.table_reference') . ': ' . implode(':', $reference)
             ];
         }
 
         return $return;
+    }
+
+    /**
+     * @param int $uid - UID of page which should be complete exported
+     * @param string $targetLanguage - Target language letter
+     * @param bool $clean - if false then the whole database entry is exportend,
+     * if true, then the database entry is cleaned
+     */
+    public function getCompleteContentForPage(int $uid = 0, string $targetLanguage, bool $clean = true)
+    {
+        $row = $this->getCompleteRow('pages', $uid);
+
+        $realUid = $uid;// PID of other contents
+        if ($row['sys_language_uid'] != 0 ) {
+            $realUid = $row['l10n_parent']; // The page is just translation;
+        }
+        if ($clean) {
+            $row = $this->getExportFields('pages', $row);
+            $output = $this->prepareDataFromRow((int) $row['uid'], $row, $targetLanguage, 'pages');
+        }
+
+        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid) as $contentRow) {
+            if ($clean) {
+                $contentRow = $this->getExportFields('tt_content', $contentRow);
+            }
+
+            $output = array_merge($output, $this->prepareDataFromRow((int) $contentRow['uid'], $contentRow, $targetLanguage, 'tt_content'));
+        }
+
+        return $output;
     }
 
     /**

@@ -33,6 +33,21 @@
             <trans-unit id="exportTableRow.nothingToExport.checkYourTcaSettings">
                 <source>Check you TCA settings, if your currenct entry type is correctly configured.</source>
             </trans-unit>
+            <trans-unit id="exportTableRow.headlinePreviewValues">
+                <source>Preview values</source>
+            </trans-unit>
+            <trans-unit id="exportDatabase.headline">
+                <source>Export database entries</source>
+            </trans-unit>
+            <trans-unit id="exportDatabase.chooseTablesForExport">
+                <source>Choose tables to be exported</source>
+            </trans-unit>
+            <trans-unit id="exportDatabase.exportButton">
+                <source>Export</source>
+            </trans-unit>
+            <trans-unit id="contentExport.headline">
+                <source>Content export</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

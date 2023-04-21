@@ -73,6 +73,9 @@ class XlfService
             if (!empty($value['_notes'])) {
                 $notes = array_merge($notes, $value['_notes']);
             }
+            if (!empty($value['_table_reference'])) {
+                $notes = array_merge($notes, [$value['_table_reference']]);
+            }
 
             if (!empty($notes)) {
                 $noteLabel = $domtree->createElement('note');
