@@ -31,6 +31,10 @@ Default list of exported fields from the database is in the same location like s
 `
 $GLOBALS['TCA'][$table]['types'][1]['translator_export'] = 'title,subtitle,another_field'
 `
+When the flexform is inside the export, it would get all fields, but the fields can be limited simmilar way like for the whole table.
+`
+$GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] = 'settings.text,settings.header'
+`
 
 Sinlge row export is accessible over List module in the control section (where are icons for hiding etc.)
 

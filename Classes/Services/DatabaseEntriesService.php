@@ -1,15 +1,28 @@
 <?php
 namespace Hyperdigital\HdTranslator\Services;
 
+use Tpwd\KeSearch\Backend\Flexform;
+use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
 use TYPO3\CMS\Core\Localization\Locales;
+use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Core\Service\FlexFormService;
 
 class DatabaseEntriesService
 {
+    protected $flexFormService;
+
+    public function __construct(
+        FlexFormService $flexFormService
+    )
+    {
+        $this->flexFormService = $flexFormService;
+    }
+
     /**
      * @param string $tablename  name of the table
      * @param int|array $row UID of entry or the whole row
@@ -206,7 +219,7 @@ class DatabaseEntriesService
      * @param string $specialFieldNameOutput
      * @param $return
      */
-    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '')
+    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', array $typeArray = [])
     {
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
@@ -233,6 +246,52 @@ class DatabaseEntriesService
                 case 'inline':
                     $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput);
                     break;
+                case 'flex':
+                    $limitedFields = [];
+                    if (isset($typeArray['translator_export_column'][$field])) {
+                        $limitedFields = GeneralUtility::trimExplode(',', $typeArray['translator_export_column'][$field]);
+                    }
+                    $this->getFlexformKeysAndValues($tablename, $field, $row, $return, $field, $limitedFields);
+            }
+        }
+    }
+
+    /**
+     * @param string $tablename
+     * @param string $field
+     * @param array $row
+     * @param array $return
+     * @param string $specialFieldNameOutput
+     */
+    protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields)
+    {
+        $flexString = $row[$field];
+        $data = $this->flexFormService
+            ->convertFlexFormContentToArray(strval($flexString));
+
+        foreach ($data as $key => $value) {
+            $subarrayName = $specialFieldNameOutput.'.'.$key;
+            $this->subarrayToKeyValues($tablename, $field, $row['uid'], $return, $subarrayName, $value, $limitedFields);
+        }
+    }
+
+    protected function subarrayToKeyValues(string $tablename, string $field, $rowUid, &$return, $subarrayName, $value, $limitedFields)
+    {
+        if (is_string($value)) {
+            $subarrayFieldName = substr($subarrayName, strlen($field.'.')); // full name with the parent field - used in export settings
+            if (empty($limitedFields) || in_array($subarrayFieldName, $limitedFields)) {
+                $return[$subarrayName]['value'] = $value ?? '';
+                $return[$subarrayName]['label'] = $subarrayName; // TODO
+                $return[$subarrayName]['html'] = false;// TODO
+                $return[$subarrayName]['slug'] = false; // TODO
+                $return[$subarrayName]['table'] = $tablename;
+                $return[$subarrayName]['uid'] = $rowUid ?? '';
+                $return[$subarrayName]['field'] = $subarrayName ?? '';
+            }
+        } else if(is_array($value)) {
+            foreach ($value as $newKey => $newValue) {
+                $newKey = $subarrayName.'.'.$newKey;
+                $this->subarrayToKeyValues($tablename, $field, $rowUid, $return, $newKey, $newValue, $limitedFields);
             }
         }
     }
@@ -296,7 +355,7 @@ class DatabaseEntriesService
             }
 
             foreach ($rows as $rowInlined) {
-                if (!empty($typeArray['translator_export'])) {
+                if (isset($typeArray['translator_export'])) {
                     $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
                 }  else {
                     $listOfFields = $this->getListOfFieldsFromRow($foreginTable, $rowInlined);
@@ -304,7 +363,7 @@ class DatabaseEntriesService
 
                 foreach ($listOfFields as $field) {
                     $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
-                    $this->getFieldKeyAndValue($foreginTable, $field, $rowInlined, $return, $tempName);
+                    $this->getFieldKeyAndValue($foreginTable, $field, $rowInlined, $return, $tempName, $typeArray);
                 }
             }
         }
@@ -502,14 +561,14 @@ class DatabaseEntriesService
             $typeArray = array_shift(array_slice($typeArray, 0, 1));
         }
 
-        if (!empty($typeArray['translator_export'])) {
+        if (isset($typeArray['translator_export'])) {
             $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
         }  else {
             $listOfFields = $this->getListOfFieldsFromRow($tablename, $row);
         }
 
         foreach ($listOfFields as $field) {
-            $this->getFieldKeyAndValue($tablename, $field, $row, $return);
+            $this->getFieldKeyAndValue($tablename, $field, $row, $return, '', $typeArray);
         }
 
         return $return;

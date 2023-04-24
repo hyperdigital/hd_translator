@@ -200,7 +200,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
         $storages = GeneralUtility::trimExplode(',', $storages);
-        if ($this->request->getArgument('subpages') == 1) {
+        if ($this->request->hasArgument('subpages') && $this->request->getArgument('subpages') == 1) {
             $tempStorage = $storages;
             foreach ($tempStorage as $storage) {
                 $databaseEntriesService->addAllSubpages((int) $storage, $storages, $this->request->getArgument('pageTypes'));

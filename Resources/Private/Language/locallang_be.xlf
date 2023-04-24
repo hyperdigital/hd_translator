@@ -24,6 +24,12 @@
             <trans-unit id="export.table_reference">
                 <source>Table reference</source>
             </trans-unit>
+			<trans-unit id="control.exportTranslationPageContent">
+				<source>Export translation</source>
+			</trans-unit>
+			<trans-unit id="control.exportTranslationRow">
+				<source>Export translation</source>
+			</trans-unit>
         </body>
     </file>
 </xliff>
