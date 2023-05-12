@@ -3,19 +3,45 @@
 	<div>
 		<f:form action="databaseExport">
 			<div>
-				<label>{f:translate(key: 'exportDatabase.chooseTablesForExport')}</label>
-				<f:form.select multiple="1" name="tables" class="hd-translator-long_select" required="1">
-					<f:if condition="{tables}">
-						<f:for each="{tables}" as="table">
-							<f:if condition="{table.tableTitle}">
-								<f:form.select.option value="{table.tableName}">
-									<f:translate key="{table.tableTitle}" default="{table.tableName}" />
-									[{table.tableName}]
-								</f:form.select.option>
-							</f:if>
+				<div>
+					<label>Target language</label>
+					<f:form.select name="language">
+						<f:for each="{languages}" as="language" key="key">
+							<f:form.select.option value="{key}">{language}</f:form.select.option>
 						</f:for>
-					</f:if>
-				</f:form.select>
+					</f:form.select>
+				</div>
+			</div>
+			<div>
+				<div>
+					<label for="storages">Page UID (can be comma separated list)</label>
+				</div>
+				<div>
+					<f:form.textfield id="storages" name="storages" value="{currentPage}" />
+				</div>
+			</div>
+			<div>
+				<label for="supages">
+					<f:form.checkbox name="subpages" id="supages" value="1" />
+					<span>Add also subpages</span>
+				</label>
+			</div>
+			<div>
+				<label>{f:translate(key: 'exportDatabase.chooseTablesForExport')}</label>
+				<div>
+					<f:form.select multiple="1" name="tables" class="hd-translator-long_select" required="1">
+						<f:if condition="{tables}">
+							<f:for each="{tables}" as="table">
+								<f:if condition="{table.tableTitle}">
+									<f:form.select.option value="{table.tableName}">
+										<f:translate key="{table.tableTitle}" default="{table.tableName}" />
+										[{table.tableName}]
+									</f:form.select.option>
+								</f:if>
+							</f:for>
+						</f:if>
+					</f:form.select>
+				</div>
 			</div>
 			<div>
 				<f:form.submit value="{f:translate(key: 'exportDatabase.exportButton')}" />

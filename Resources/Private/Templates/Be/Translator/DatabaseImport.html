@@ -11,29 +11,9 @@
 
 <f:section name="content">
 	<div class="hd-translator">
-		<div>UPDATED: {actions.updated -> f:count()}</div>
-		<div>INSERTED: {actions.inserted -> f:count()}</div>
-
-		<f:if condition="{actions.updated}">
-			<div>
-				updated UIDs
-				<div>
-					<f:for each="{actions.updated}" as="item">
-						<div>{item}</div>
-					</f:for>
-				</div>
-			</div>
-		</f:if>
-		<f:if condition="{actions.inserted}">
-			<div>
-				inserted UIDs
-				<div>
-					<f:for each="{actions.inserted}" as="item">
-						<div>{item}</div>
-					</f:for>
-				</div>
-			</div>
-		</f:if>
+		<div>UPDATED: {actions.updated}</div>
+		<div>INSERTED: {actions.inserted}</div>
+		<div>FAILS: {actions.fails}</div>
 	</div>
 </f:section>
 </html>

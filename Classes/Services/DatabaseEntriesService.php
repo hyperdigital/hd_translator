@@ -1,6 +1,7 @@
 <?php
 namespace Hyperdigital\HdTranslator\Services;
 
+use Google\Service\CloudDebugger\Resource\Debugger;
 use Tpwd\KeSearch\Backend\Flexform;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -14,6 +15,19 @@ use TYPO3\CMS\Core\Service\FlexFormService;
 
 class DatabaseEntriesService
 {
+    public static $databaseEntriesOriginal = [];
+    public static $databaseEntriesTranslated = [];
+    protected $updateMmRelations = [];
+
+    /**
+     * @var bool this will disable inserting or updating data
+     */
+    public static $onlyDebug = false;
+
+
+    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0];
+    protected $updateAfterImport = [];
+
     protected $flexFormService;
 
     public function __construct(
@@ -21,6 +35,32 @@ class DatabaseEntriesService
     )
     {
         $this->flexFormService = $flexFormService;
+    }
+
+    public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
+    {
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]) // types has value for this field
+            && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['translator_export'])
+        ) {
+            $typeArray = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]];
+        } else {
+            if (isset($GLOBALS['TCA'][$tablename]['types']['1']['translator_export'])) {
+                $typeArray = $GLOBALS['TCA'][$tablename]['types']['1'];
+            }
+        }
+
+        $typeArrayReturn = $typeArray;
+
+        if (isset($typeArray['translator_export'])) {
+            $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
+        }  else {
+            $listOfFields = $this->getListOfFieldsFromRow($tablename, $row);
+        }
+
+        return $listOfFields;
     }
 
     /**
@@ -142,13 +182,65 @@ class DatabaseEntriesService
             ->execute();
 
         $row = $result->fetchAssociative();
+        //setup default lanugage uid
+        $parentUidField = 'l10n_parent';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
+            $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'];
+        }
+        $langaugeField = 'sys_language_uid';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['languageField'])) {
+            $langaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'];
+        }
+        if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
+            $parentUidField = 'uid';
+        }
+
+        if (!empty($parentUidField) && !empty($row[$parentUidField])) {
+            $row['uid'] = $row[$parentUidField];
+        }
+
+        return $row;
+    }
+
+    public function getTranslatedCompleteRow($tablename, $l10nParent, $targetLanguage)
+    {
+        if (empty($l10nParent)) {
+            return false;
+        }
+
+        $parentUidField = 'l10n_parent';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
+            $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'];
+        }
+
+        if ($targetLanguage == 0) {
+            $parentUidField = 'uid';
+        }
+
+        $langaugeField = 'sys_language_uid';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['languageField'])) {
+            $langaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'];
+        }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $result = $queryBuilder
+            ->select('*')
+            ->from($tablename)
+            ->where(
+                $queryBuilder->expr()->eq($parentUidField, $l10nParent),
+                $queryBuilder->expr()->eq($langaugeField, $targetLanguage)
+            )
+            ->execute();
+
+        $row = $result->fetchAssociative();
 
         return $row;
     }
 
     /**
      * @param string $tablename name of the table
-     * @param int $pid - PID where the rows are stored
+     * @param int $pid - PID where the rows are stored (if lower then 0 then it's over the whole database)
      * @param bool $clean - return cleaned rows
      */
     public function getAllComplteteRowsForPid(string $tablename, int $pid, bool $clean = false)
@@ -156,11 +248,19 @@ class DatabaseEntriesService
         $return = [];
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $where = [];
+        if ($pid < 0) {
+
+        } else {
+            $where[] = $queryBuilder->expr()->eq('pid', $pid);
+        }
+
         $result = $queryBuilder
             ->select('*')
             ->from($tablename)
             ->where(
-                $queryBuilder->expr()->eq('pid', $pid)
+                ...$where
             )
             ->execute();
 
@@ -184,7 +284,7 @@ class DatabaseEntriesService
      * @param array $foreignMatchFields
      * @return mixed
      */
-    public function getCompleteInlinedRows(string $tablename, int $parentUid, string $foreignField = '', string $foreignSortby = '', string $foreignTableField = '', array $foreignMatchFields = [])
+    public function getCompleteInlinedRows(string $tablename, int $parentUid, $foreignField = '', $foreignTableField = '', $parentTableName = '',  $foreignMatchFields = [])
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -192,6 +292,12 @@ class DatabaseEntriesService
         $where = [];
         if (!empty($parentUid) && !empty($foreignField)) {
             $where[] = $queryBuilder->expr()->eq($foreignField, $parentUid);
+        }
+        if (!empty($parentTableName) && !empty($foreignTableField)) {
+            $where[] = $queryBuilder->expr()->eq($foreignTableField, $queryBuilder->createNamedParameter($parentTableName));
+        }
+        foreach ($foreignMatchFields as $tempKey => $tempValue) {
+            $where[] = $queryBuilder->expr()->eq($tempKey, $queryBuilder->createNamedParameter($tempValue));
         }
 
         $result = $queryBuilder
@@ -219,7 +325,7 @@ class DatabaseEntriesService
      * @param string $specialFieldNameOutput
      * @param $return
      */
-    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', array $typeArray = [])
+    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', $typeArray = [])
     {
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
@@ -270,7 +376,7 @@ class DatabaseEntriesService
             ->convertFlexFormContentToArray(strval($flexString));
 
         foreach ($data as $key => $value) {
-            $subarrayName = $specialFieldNameOutput.'.'.$key;
+            $subarrayName = $row['uid'].'.'.$specialFieldNameOutput.'.'.$key;
             $this->subarrayToKeyValues($tablename, $field, $row['uid'], $return, $subarrayName, $value, $limitedFields);
         }
     }
@@ -278,7 +384,8 @@ class DatabaseEntriesService
     protected function subarrayToKeyValues(string $tablename, string $field, $rowUid, &$return, $subarrayName, $value, $limitedFields)
     {
         if (is_string($value)) {
-            $subarrayFieldName = substr($subarrayName, strlen($field.'.')); // full name with the parent field - used in export settings
+            $subarrayFieldName = substr($subarrayName, strlen($rowUid.'.'.$field.'.')); // full name with the parent field - used in export settings
+
             if (empty($limitedFields) || in_array($subarrayFieldName, $limitedFields)) {
                 $return[$subarrayName]['value'] = $value ?? '';
                 $return[$subarrayName]['label'] = $subarrayName; // TODO
@@ -340,26 +447,45 @@ class DatabaseEntriesService
             $parentUid = $row[$parentUidLanguageField];
         }
 
-        $rows = $this->getCompleteInlinedRows($foreginTable, $parentUid, $foreginField);
+        $foreginField = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_field'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+        ) {
+            $foreginField = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+        }
+
+        $foreginTableField = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_table_field'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
+        ) {
+            $foreginTableField = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
+        }
+
+        if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_match_fields'])) {
+            $foreignMatchFields = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_match_fields'];
+            if (
+                !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+                && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+                && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
+            ) {
+                $foreignMatchFields = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
+            }
+        }
+
+        if (empty($foreignMatchFields)) {
+            $foreignMatchFields = [];
+        }
+
+        $rows = $this->getCompleteInlinedRows($foreginTable, $parentUid, $foreginField, $foreginTableField, $tablename, $foreignMatchFields);
 
         if (!empty($rows)) {
-            if (
-                !empty($GLOBALS['TCA'][$foreginTable]['ctrl']['type']) // type field is defined
-                && isset($row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]) // row has this field
-                && isset($GLOBALS['TCA'][$foreginTable]['types'][$row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]]) // types has value for this field
-            ) {
-                $typeArray = $GLOBALS['TCA'][$foreginTable]['types'][$row[$GLOBALS['TCA'][$foreginTable]['ctrl']['type']]];
-            } else {
-                $typeArray = $GLOBALS['TCA'][$foreginTable]['types'];
-                $typeArray = array_shift(array_slice($typeArray, 0, 1));
-            }
-
             foreach ($rows as $rowInlined) {
-                if (isset($typeArray['translator_export'])) {
-                    $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
-                }  else {
-                    $listOfFields = $this->getListOfFieldsFromRow($foreginTable, $rowInlined);
-                }
+                $typeArray = [];
+                $listOfFields = $this->getListOfTranslatableFields($foreginTable, $rowInlined, $typeArray);
 
                 foreach ($listOfFields as $field) {
                     $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
@@ -550,22 +676,9 @@ class DatabaseEntriesService
         }
 
         $return = [];
-        if (
-            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
-            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
-            && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]) // types has value for this field
-        ) {
-            $typeArray = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]];
-        } else {
-            $typeArray = $GLOBALS['TCA'][$tablename]['types'];
-            $typeArray = array_shift(array_slice($typeArray, 0, 1));
-        }
 
-        if (isset($typeArray['translator_export'])) {
-            $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
-        }  else {
-            $listOfFields = $this->getListOfFieldsFromRow($tablename, $row);
-        }
+        $typeArray = [];
+        $listOfFields = $this->getListOfTranslatableFields($tablename, $row, $typeArray);
 
         foreach ($listOfFields as $field) {
             $this->getFieldKeyAndValue($tablename, $field, $row, $return, '', $typeArray);
@@ -574,7 +687,7 @@ class DatabaseEntriesService
         return $return;
     }
 
-    protected function prepareDataFromRow($uid, $row, $targetLanguage, $tablename, $translatedData = [])
+    public function prepareDataFromRow($uid, $row, $targetLanguage, $tablename, $translatedData = [])
     {
         $return = [];
 
@@ -618,7 +731,7 @@ class DatabaseEntriesService
      * @param bool $clean - if false then the whole database entry is exportend,
      * if true, then the database entry is cleaned
      */
-    public function getCompleteContentForPage(int $uid = 0, string $targetLanguage, bool $clean = true)
+    public function getCompleteContentForPage(int $uid = 0, string $targetLanguage = 'en', bool $clean = true)
     {
         $row = $this->getCompleteRow('pages', $uid);
 
@@ -662,5 +775,622 @@ class DatabaseEntriesService
         $output = $xlfService->dataToXlf($data, $targetLanguage);
 
         return $output;
+    }
+
+    /**
+     * @param array $data
+     * @param int $targetLanguage - sys_language_uid
+     */
+    public function importIntoDatabase(array $data, int $targetLanguage)
+    {
+        $data = $this->convertDataToDatabaseTablesArray($data, $targetLanguage);
+
+        if ($data) {
+            foreach ($data as $tablename => $rows) {
+                foreach ($rows as $l10nParent => $row) {
+                    $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+                }
+            }
+        }
+
+        $this->cleanRelationshipsAfterImport($targetLanguage);
+        /*$this->updateAfterImport[] = [
+                    'table' => $parentTableName,
+                    'uid' => $rowUid,
+                    'field' => $field,
+                    'type' => 'updateChildInlinedReferences'
+                ];
+        */
+    }
+
+    public function cleanRelationshipsAfterImport($targetLanguage)
+    {
+        if (!empty($this->updateAfterImport)) {
+            foreach($this->updateAfterImport as $import) {
+                switch($import['type']) {
+                    case 'updateChildInlinedReferences':
+                        $parentTableName = $import['table'];
+                        $field = $import['field'];
+
+                        $row = $this->getTranslatedCompleteRow($parentTableName, $import['uid'], $targetLanguage);
+
+                        $foreginTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table'] ?? '';
+                        if (
+                            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
+                        ) {
+                            $foreginTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
+                        }
+
+                        $foreginField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_field'] ?? '';
+                        if (
+                            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+                        ) {
+                            $foreginField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+                        }
+
+                        $foreginTableField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table_field'] ?? '';
+                        if (
+                            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
+                        ) {
+                            $foreginTableField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
+                        }
+
+                        $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'] ?? '';
+                        if (
+                            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
+                        ) {
+                            $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
+                        }
+
+
+
+
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                        $where = [];
+
+                        if (!empty($foreginTableField)) {
+                            $where[] = $queryBuilder->expr()->eq($foreginTableField, $queryBuilder->createNamedParameter($parentTableName));
+                        }
+                        $langaugeField = 'sys_language_uid';
+                        if (!empty($GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'])) {
+                            $langaugeField = $GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'];
+                        }
+                        if (!empty($langaugeField)) {
+                            $where[] = $queryBuilder->expr()->eq($langaugeField, $targetLanguage);
+                        }
+                        if (!empty($foreignMatchFields)) {
+                            foreach ($foreignMatchFields as $foreignMatchFieldKey => $foreignMatchFieldValue) {
+                                $where[] = $queryBuilder->expr()->eq($foreignMatchFieldKey, $queryBuilder->createNamedParameter($foreignMatchFieldValue));
+                            }
+                        }
+
+                        $orWhere = [];
+                        if (!empty($foreginField)) {
+                            // There is original UID
+                            if (!empty($import['uid'])) {
+                                $orWhere[] = $queryBuilder->expr()->eq($foreginField, $import['uid']);
+                            }
+
+                            // Or translated UID
+                            if (!empty($row['uid'])) {
+                                $orWhere[] = $queryBuilder->expr()->eq($foreginField, $row['uid']);
+                            }
+                        }
+
+                        $result = $queryBuilder
+                            ->select('uid' )
+                            ->from($foreginTable)
+                            ->orWhere(
+                                ...$orWhere
+                            )
+                            ->andWhere(
+                                ...$where
+                            )
+                            ->execute();
+
+                        $childern = [];
+                        while($tempRow = $result->fetchAssociative()) {
+                            $childern[] = $tempRow;
+
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                            if (!self::$onlyDebug) {
+                                $temp = $queryBuilder
+                                    ->update($foreginTable)
+                                    ->set($foreginField, $row['uid'])
+                                    ->where(
+                                        $queryBuilder->expr()->eq('uid', $tempRow['uid'])
+                                    )
+                                    ->execute();
+                            }
+                        }
+                        // update parent inline field => if INT then amount of children, if VARCHAR then list of uids
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($parentTableName)->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                        if (!self::$onlyDebug) {
+                            $temp = $queryBuilder
+                                ->update($parentTableName)
+                                ->set($field, count($childern))
+                                ->where(
+                                    $queryBuilder->expr()->eq('uid', $row['uid'])
+                                )
+                                ->execute();
+                        }
+                        break;
+                }
+            }
+
+        }
+
+        if (!empty($this->updateMmRelations)) {
+            foreach($this->updateMmRelations as $mmRelation) {
+                if (empty(self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
+                    self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']] = $this->getTranslatedCompleteRow($mmRelation['foreginTable'], $mmRelation['local_uid'], $targetLanguage);
+                }
+
+                if (!empty(self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
+                    $queryBuilder->getRestrictions()->removeAll();
+
+                    $result = $queryBuilder
+                        ->select('*')
+                        ->from($mmRelation['mm_table'])
+                        ->where(
+                            $queryBuilder->expr()->eq('uid_local', $mmRelation['local_uid'])
+                        )
+                        ->execute();
+
+                    $newUid = self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']]['uid'];
+                    while($newUid && $row = $result->fetchAssociative()) {
+
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll();
+                        $result2 = $queryBuilder
+                            ->select('*')
+                            ->from($mmRelation['mm_table'])
+                            ->where(
+                                $queryBuilder->expr()->eq('uid_local', $newUid),
+                                $queryBuilder->expr()->eq('uid_foreign', $row['uid_foreign'])
+                            )
+                            ->execute();
+                        if (!$result2->fetchAssociative()) {
+                            if (!self::$onlyDebug) {
+                                $row['uid_local'] = $newUid;
+                                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
+                                $queryBuilder->getRestrictions()->removeAll();
+                                $temp = $queryBuilder
+                                    ->insert($mmRelation['mm_table'])
+                                    ->values(
+                                        $row
+                                    )
+                                    ->execute();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param $tablename
+     * @param $l10nParent
+     * @param $row
+     */
+    public function importIntoTable($tablename, $l10nParent, $row, $targetLanguage)
+    {
+        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
+            self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
+        }
+        // convert felxform array into string
+        foreach($row as $key => $value) {
+            if (is_array($value)) {
+                $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
+                $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
+            }
+        }
+        $translatedRow = $this->getTranslatedCompleteRow($tablename, $l10nParent, $targetLanguage);
+
+        if (!empty($translatedRow)) {
+            // Only Update row
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            if (!self::$onlyDebug) {
+                $temp = $queryBuilder
+                    ->update($tablename)
+                    ->where(
+                        $queryBuilder->expr()->eq('uid', $translatedRow['uid'])
+                    );
+
+                foreach ($row as $key => $value) {
+                    $temp = $temp->set($key, $value);
+                }
+
+                $temp->execute();
+            }
+
+            self::$importStats['updates']++;
+        } else {
+            // Import whole data
+            $return = $this->insertIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+            if ($return) {
+                self::$importStats['inserts']++;
+            } else {
+                self::$importStats['fails']++;
+            }
+        }
+    }
+
+    public function insertIntoTable($tablename, $l10nParent, $row, $targetLanguage)
+    {
+        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
+            self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
+        }
+
+        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
+            return false;
+        }
+
+        $typeArray = [];
+        $listOfFields = $this->getListOfTranslatableFields($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent], $typeArray);
+
+        foreach (self::$databaseEntriesOriginal[$tablename][$l10nParent] as $key => $parentValue) {
+            // if colmun is not exisitn then shouldn't be synced
+            if (
+                !in_array($key, $listOfFields)
+                && !empty($GLOBALS['TCA'][$tablename]['columns'][$key])
+                && (
+                    empty($GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'])
+                    || $GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'] != 'exclude'
+                )
+            ) {
+                if (
+                    !empty($GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'])
+                    &&  (
+                        $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'] == 'inline'
+                    )
+                ) {
+                    $this->duplicateInlineData($tablename, $l10nParent, $key, self::$databaseEntriesOriginal[$tablename][$l10nParent], $targetLanguage);
+                } else {
+                    if (
+                        $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'] == 'select'
+                        && !empty($GLOBALS['TCA'][$tablename]['columns'][$key]['config']['MM'])
+                    ) {
+                        $this->updateMmRelations[] = [
+                            'foreginTable' => $tablename,
+                            'mm_table' => $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['MM'],
+                            'local_uid' => $l10nParent
+                        ];
+                    }
+                    $row[$key] = $parentValue;
+                }
+            }
+        }
+
+        $parentUidField = 'l10n_parent';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
+            $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'];
+        }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['translationSource'])) {
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['translationSource']] = $l10nParent;
+        }
+        $langaugeField = 'sys_language_uid';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['languageField'])) {
+            $langaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'];
+        }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['crdate'])) {
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['crdate']] = time();
+        }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['tstamp'])) {
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['tstamp']] = time();
+        }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['sortby'])) {
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['sortby']] = self::$databaseEntriesOriginal[$tablename][$l10nParent][$GLOBALS['TCA'][$tablename]['ctrl']['sortby']];
+        }
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField'])
+            && !empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])
+        ) {
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField']] = json_encode(self::$databaseEntriesOriginal[$tablename][$l10nParent]);
+        }
+
+        $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['pid'];
+        if ($tablename == 'pages') {
+            $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['uid'];
+        }
+        $row[$parentUidField] = $l10nParent;
+        $row[$langaugeField] = $targetLanguage;
+
+        foreach ($row as $tempKey => $tempValue) {
+            if ($tempValue === true) {
+                unset($row[$tempKey]);
+            }
+        }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        if (!self::$onlyDebug) {
+            $temp = $queryBuilder
+                ->insert($tablename)
+                ->values(
+                    $row
+                )
+                ->execute();
+        }
+
+
+        return true;
+    }
+
+    protected function duplicateInlineData($parentTableName, $l10nParent, $field, $l10nParentRow, $targetLanguage)
+    {
+        $mmTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['MM'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM']) // override label from type
+        ) {
+            $mmTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM'];
+        }
+
+        $foreginTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
+        ) {
+            $foreginTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
+        }
+
+        $foreginField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_field'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+        ) {
+            $foreginField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+        }
+
+        $foreginTableField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table_field'] ?? '';
+        if (
+            !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
+        ) {
+            $foreginTableField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
+        }
+
+        if (!empty($GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'])) {
+            $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'];
+            if (
+                !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
+            ) {
+                $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
+            }
+        }
+
+        if (empty($foreignMatchFields)) {
+            $foreignMatchFields = [];
+        }
+
+        if (!empty($mmTable)) {
+
+        } else {
+            $rows = $this->getCompleteInlinedRows($foreginTable, $l10nParent, $foreginField, $foreginTableField, $parentTableName, $foreignMatchFields);
+
+            if ($rows) {
+                foreach ($rows as $row) {
+                    // fix mm relations
+                    foreach ($row as $rowField => $rowValue) {
+                        $mmTable = $GLOBALS['TCA'][$foreginTable]['columns'][$rowField]['config']['MM'] ?? '';
+
+                        if (!empty($mmTable)) {
+                            $this->updateMmRelations[] = [
+                                'foreginTable' => $foreginTable,
+                                'mm_table' => $mmTable,
+                                'local_uid' => $row['uid']
+                            ];
+                        }
+                    }
+
+                    $langaugeField = 'sys_language_uid';
+                    if (!empty($GLOBALS['TCA'][$foreginTable]['ctrl']['languageField'])) {
+                        $langaugeField = $GLOBALS['TCA'][$foreginTable]['ctrl']['languageField'];
+                    }
+                    $row[$langaugeField] = $targetLanguage;
+
+                    if (!empty($GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigPointerField'])) {
+                        $row[$GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigPointerField']] = $row['uid'];
+                    }
+
+                    if (
+                        !empty($GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigDiffSourceField'])
+                        && !empty(self::$databaseEntriesOriginal[$foreginTable][$row['uid']])
+                    ) {
+                        $row[$GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigDiffSourceField']] = json_encode(self::$databaseEntriesOriginal[$foreginTable][$row['uid']]);
+                    }
+
+                    if ($row['uid']) {
+                        unset($row['uid']);
+                    }
+
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                    if (!self::$onlyDebug) {
+                        $temp = $queryBuilder
+                            ->insert($foreginTable)
+                            ->values(
+                                $row
+                            )
+                            ->execute();
+                    }
+
+                    $this->updateAfterImport[$parentTableName . '-' . $l10nParent . '-' . $field . '-updateChildInlinedReferences'] = [
+                        'table' => $parentTableName,
+                        'uid' => $l10nParent,
+                        'field' => $field,
+                        'type' => 'updateChildInlinedReferences'
+                    ];
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array $data
+     */
+    public function convertDataToDatabaseTablesArray(array $data, $targetLanguage)
+    {
+        $return = [];
+        foreach ($data as $key => $value) {
+            $this->databaseTableArrayRecursive($key, $value, $return, $targetLanguage);
+        }
+
+        return $return;
+    }
+
+    public function recursiveUpdateOfArrayByGivenKey(&$return, array $key, $value)
+    {
+        $return[implode('.',$key)]['vDEF'] = $value;
+    }
+
+    /**
+     * @param $key
+     * @param $value
+     * @param $return
+     */
+    protected function databaseTableArrayRecursive($key, $value, &$return, $targetLanguage)
+    {
+        $tempKeys = explode('.', $key);
+        if (count($tempKeys) == 3) {
+            // 0 tablename, 1 uid, 2 field
+            $return[$tempKeys[0]][$tempKeys[1]][$tempKeys[2]] = $value;
+        } else if(count($tempKeys) > 3) {
+            $parentTableName = $tempKeys[0];
+            $rowUid = $tempKeys[1];
+            $field = $tempKeys[2];
+
+            if (empty(self::$databaseEntriesOriginal[$parentTableName][$rowUid])) {
+                self::$databaseEntriesOriginal[$parentTableName][$rowUid] = $this->getCompleteRow($parentTableName, $rowUid);
+            }
+
+            // if $tempKeys[3] is numeric, then the items are subitems, otherwise it seems like flexform
+            if ((int) $tempKeys[3] == 0) {
+                if (empty($return[$parentTableName][$rowUid][$field])) {
+                    $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesOriginal[$parentTableName][$rowUid][$field]));
+
+                    if (empty(self::$databaseEntriesTranslated[$parentTableName][$rowUid])) {
+                        self::$databaseEntriesTranslated[$parentTableName][$rowUid] = $this->getTranslatedCompleteRow($parentTableName, $rowUid, $targetLanguage);
+
+                        if (!empty(self::$databaseEntriesTranslated[$parentTableName][$rowUid])){
+                            $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesTranslated[$parentTableName][$rowUid][$field]));
+                        }
+                    }
+                }
+                unset($tempKeys[0]);
+                unset($tempKeys[1]);
+                unset($tempKeys[2]);
+                $keyName = implode('.',$tempKeys);
+                $tabName = 'sDEF';
+                foreach ($return[$parentTableName][$rowUid][$field]['data'] as $sheetName => $sheetData) {
+                    if (in_array($keyName, array_keys($sheetData['lDEF']))) {
+                        $tabName = $sheetName;
+                        break;
+                    }
+                }
+
+                $this->recursiveUpdateOfArrayByGivenKey($return[$parentTableName][$rowUid][$field]['data'][$tabName]['lDEF'], explode('.', implode('.',$tempKeys)), $value);
+            } else {
+                // disable from sync
+                $return[$tempKeys[0]][$tempKeys[1]][$tempKeys[2]] = true;
+
+                $uidOfChild = $tempKeys[3];
+
+                $row = self::$databaseEntriesOriginal[$parentTableName][$rowUid];
+                if ($row) {
+                    switch ($GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['type']) {
+                        case 'inline':
+                            $foreginTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table'];
+                            if (
+                                !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
+                            ) {
+                                $foreginTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
+                            }
+
+                            $foreginField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_field'] ?? '';
+                            if (
+                                !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+                            ) {
+                                $foreginField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+                            }
+
+                            $foreginTableField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table_field'] ?? '';
+                            if (
+                                !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
+                            ) {
+                                $foreginTableField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
+                            }
+
+                            $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'] ?? '';
+                            if (
+                                !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
+                                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
+                            ) {
+                                $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
+                            }
+
+                            if (!empty($foreginField)) {
+                                $return[$foreginTable][$uidOfChild][$foreginField] = $rowUid;
+                            }
+
+                            if (!empty($foreginTableField)) {
+                                $return[$foreginTable][$uidOfChild][$foreginTableField] = $parentTableName;
+                            }
+
+                            if (!empty($foreignMatchFields)) {
+                                foreach ($foreignMatchFields as $matchKey => $matchValue) {
+                                    $return[$foreginTable][$uidOfChild][$matchKey] = $matchValue;
+                                }
+                            }
+
+                            $tempKeys[2] = $foreginTable;
+                            unset($tempKeys[0]);
+                            unset($tempKeys[1]);
+
+                            $this->databaseTableArrayRecursive(implode('.', $tempKeys), $value, $return, $targetLanguage);
+
+                            // Update parent table field to store amount of child or coma separated list
+                            $this->updateAfterImport[$parentTableName . '-' . $rowUid . '-' . $field . '-updateChildInlinedReferences'] = [
+                                'table' => $parentTableName,
+                                'uid' => $rowUid,
+                                'field' => $field,
+                                'type' => 'updateChildInlinedReferences'
+                            ];
+                            break;
+                    }
+                }
+            }
+        }
+
     }
 }

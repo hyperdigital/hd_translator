@@ -120,20 +120,23 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Page content import')
-            ->setHref($uriBuilder->reset()->uriFor('pageContentImport', null))
-            ->setActive('pageContentImport' == $this->request->getControllerActionName() ? 1 : 0);
-        $menu->addMenuItem($item);
-
         $item = $menu->makeMenuItem()->setTitle('Database entries export')
             ->setHref($uriBuilder->reset()->uriFor('database', null))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Database entries import')
+        if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
+            $item = $menu->makeMenuItem()->setTitle('Single table row export')
+                ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', null))
+                ->setActive('exportTableRowIndex' == $this->request->getControllerActionName() ? 1 : 0);
+            $menu->addMenuItem($item);
+        }
+
+        $item = $menu->makeMenuItem()->setTitle('Import')
             ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
+
 
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
     }
@@ -144,6 +147,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function exportTableRowIndexAction(string $tablename, int $rowUid)
     {
+        $this->indexMenu();
+
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
         $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
 
@@ -177,6 +182,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         die();
     }
 
+    public function databaseImportIndexAction()
+    {
+        $this->indexMenu();
+
+        $this->moduleTemplate->setContent($this->view->render());
+        return $this->moduleTemplate->renderContent();
+    }
+
     public function pageContentExportAction()
     {
         $this->indexMenu();
@@ -199,14 +212,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
+        if ($storages == '') {
+            $storages = -1;
+        }
         $storages = GeneralUtility::trimExplode(',', $storages);
         if ($this->request->hasArgument('subpages') && $this->request->getArgument('subpages') == 1) {
             $tempStorage = $storages;
             foreach ($tempStorage as $storage) {
-                $databaseEntriesService->addAllSubpages((int) $storage, $storages, $this->request->getArgument('pageTypes'));
+//                $databaseEntriesService->addAllSubpages((int) $storage, $storages, $this->request->getArgument('pageTypes'));
+                $databaseEntriesService->addAllSubpages((int) $storage, $storages);
             }
         }
-
 
         $saveToZip = false;
         if (count($storages) > 1) {
@@ -265,14 +281,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         die();
     }
 
-    public function pageContentImportAction()
-    {
-        $this->indexMenu();
-
-        $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
-    }
-
     public function indexAction()
     {
         if (empty($this->storage)) {
@@ -310,6 +318,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $this->indexMenu();
 
+        $this->view->assign('languages', $this->listOfPossibleLanguages);
+
         $tables = [];
         foreach ($GLOBALS['TCA'] as $tableName => $data) {
             if (!empty($data['ctrl']['languageField'])) {
@@ -328,16 +338,80 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     /**
      * @param array $tables
+     * @param string $storages
      */
-    public function databaseExportAction(array $tables)
+    public function databaseExportAction(array $tables, string $storages)
     {
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
-        $cleanRow = $databaseEntriesService->getExportFields($tablename, $row);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename);
-        header('Content-type: text/xml');
 
-        DebuggerUtility::var_dump($tables);
+        if (trim($storages) == '') {
+            $storages = -1;
+        }
+        $storages = GeneralUtility::trimExplode(',', $storages);
+        if ($this->request->hasArgument('subpages') && $this->request->getArgument('subpages') == 1) {
+            $tempStorage = $storages;
+            foreach ($tempStorage as $storage) {
+//                $databaseEntriesService->addAllSubpages((int) $storage, $storages, $this->request->getArgument('pageTypes'));
+                $databaseEntriesService->addAllSubpages((int) $storage, $storages);
+            }
+        }
+
+        $saveToZip = true;
+
+        $defaultLanguage = 1;
+        $targetLanguage = 'de';
+        if ($this->request->hasArgument('language')) {
+            $targetLanguage = $this->request->getArgument('language');
+        }
+
+        if ($saveToZip) {
+            $zipFolder = Environment::getVarPath() . '/translation/';
+            mkdir($zipFolder);
+            $zipPath = $zipFolder . 'translation.zip';
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
+                exit("cannot open <$zipPath>\n");
+            }
+        }
+
+        $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+
+        foreach ($storages as $storage) {
+            foreach($tables as $tablename) {
+
+                foreach ($databaseEntriesService->getAllComplteteRowsForPid($tablename, (int) $storage, false) as $contentRow) {
+                    $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
+                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRow['uid'], $cleanRow, $targetLanguage, $tablename, $enableTranslatedData);
+
+                    if ($saveToZip) {
+                        $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+                    }
+                }
+            }
+        }
+
+        if ($saveToZip) {
+            $zip->close();
+
+            header('Pragma: public');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Cache-Control: private', false);
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . filesize($zipPath));
+            echo file_get_contents($zipPath);
+            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+        } else {
+            header('Pragma: public');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Cache-Control: private', false);
+            header('Content-type: text/xml');
+            header('Content-Disposition: attachment; filename="page-'.$storage.'.xlf"');
+            echo $output;
+        }
         die();
 
 
@@ -627,29 +701,44 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $errors = [];
 
-        if (!$this->request->hasArgument('file')) {
+        if (!$this->request->hasArgument('files')) {
             $errors[] = 'No file uploaded';
         } else {
-            $file = $this->request->getArgument('file');
+            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+            $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
+            $files = $this->request->getArgument('files');
             $finfo = new \finfo(FILEINFO_MIME_TYPE);
-            $ext = $finfo->file($file['tmp_name']);
-            switch($ext) {
-                case 'text/xml':
-                    $temp = explode('.', $file['name']);
-                    switch ($temp[count($temp) - 1]) {
-                        case 'xlf':
-                            $content = file_get_contents($file['tmp_name']);
-                            $this->importXlfFile($content);
-                            break;
-                        case 'xml':
-                            $content = file_get_contents($file['tmp_name']);
-                            $this->importXmlFile($content);
-                            break;
-                    }
-                    break;
+            foreach($files as $file) {
+                $ext = $finfo->file($file['tmp_name']);
+                switch($ext){
+                    case 'text/xml':
+                        // XLF
+                        $data = file_get_contents($file['tmp_name']);
+                        $data = $xlfService->xlfToData($data);
+                        $databaseEntriesService->importIntoDatabase($data, 1);
+                        break;
+                    case 'application/zip':
+                        // ZIP of packed translations
+                        $zip = new \ZipArchive();
+                        $zip->open($file['tmp_name']);
+                        for($i = 0; $i < $zip->numFiles; $i++) {
+                            $data = $zip->getFromIndex($i);
+                            $data = $xlfService->xlfToData($data);
+                            $databaseEntriesService->importIntoDatabase($data, 1);
+                        }
+                        break;
+                }
             }
         }
+
+        $this->view->assignMultiple([
+            'actions' => [
+                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
+                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
+                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
+            ]
+        ]);
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();

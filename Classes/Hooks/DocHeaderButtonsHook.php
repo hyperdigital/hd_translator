@@ -19,6 +19,7 @@ class DocHeaderButtonsHook
         $buttons = $params['buttons'];
 
         $parameters = GeneralUtility::_GP('edit');
+
         $typo3Version = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Information\Typo3Version::class);
 
         if (!empty($parameters)) {
@@ -26,30 +27,28 @@ class DocHeaderButtonsHook
                 if (!empty($uidArray)) {
                     foreach ($uidArray as $uid => $status) {
                         if ($status == 'edit') {
-                            if ($tablename == 'pages') {
-                                $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
-                                $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-                                $button = $buttonBar->makeLinkButton();
-                                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
-                                $button->setTitle($label);
-                                $button->setShowLabelText($label);
-                                $button->setHref($this->getPageContentExportLink($uid));
-                                $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-                            } else {
-                                $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationRow');
-                                $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-                                $button = $buttonBar->makeLinkButton();
-                                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
-                                $button->setTitle($label);
-                                $button->setShowLabelText($label);
-                                $button->setHref($this->getRowExportLink($uid, $tablename));
-                                $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-                            }
+                            $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationRow');
+                            $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+                            $button = $buttonBar->makeLinkButton();
+                            $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+                            $button->setTitle($label);
+                            $button->setShowLabelText($label);
+                            $button->setHref($this->getRowExportLink($uid, $tablename));
+                            $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
                         }
                         break 2;
                     }
                 }
             }
+        } else if (GeneralUtility::_GP('route') == '/module/web/layout') {
+            $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
+            $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+            $button = $buttonBar->makeLinkButton();
+            $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+            $button->setTitle($label);
+            $button->setShowLabelText($label);
+            $button->setHref($this->getPageContentExportLink(GeneralUtility::_GP('id')));
+            $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
         }
 //
 //        DebuggerUtility::var_dump();

@@ -1,9 +1,12 @@
 <div>
     <h2>Import</h2>
     <f:form action="databaseImport" enctype="multipart/form-data">
-        TODO: Allowed: xlf
-        <f:form.upload name="file" />
+        TODO: Allowed: xlf or zip
+        <div>
+            <f:form.upload name="files" multiple="1" additionalAttributes="{accept: '.xlf, .zip'}" />
+        </div>
         <f:form.submit value="Import" />
     </f:form>
+
+    TODO: Missing: importIntoDatabase(data, #ID of target language#)
 </div>
-////////////////////

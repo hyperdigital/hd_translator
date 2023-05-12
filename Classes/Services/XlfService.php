@@ -2,6 +2,7 @@
 
 namespace Hyperdigital\HdTranslator\Services;
 
+use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 class XlfService
@@ -100,5 +101,26 @@ class XlfService
         $domtree->appendChild($xmlRoot);
 
         return $domtree->saveXML();
+    }
+
+    /**
+     * @param string $input
+     */
+    public function xlfToData(string $input)
+    {
+        $xml = simplexml_load_string($input);
+        $data = json_decode(json_encode($xml), true);
+        $return = [];
+        if (!empty($data['file']['body']['trans-unit'])) {
+            if (!empty($data['file']['body']['trans-unit'][0])) {
+                foreach ($data['file']['body']['trans-unit'] as $item) {
+                    $return[$item['@attributes']['id']] = (!empty($item['target'])) ? $item['target'] : '';
+                }
+            } else {
+                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (!empty($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
+            }
+        }
+
+        return $return;
     }
 }
