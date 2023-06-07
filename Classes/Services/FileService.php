@@ -3,11 +3,23 @@ namespace Hyperdigital\HdTranslator\Services;
 
 class FileService
 {
-    public static function rmdir(string $directory): bool
+    public static function rmdir(string $directory)
     {
-        if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
-            array_map(fn(string $file) => is_dir($file) ? self::rrmdir($file) : unlink($file), glob($directory . '/' . '*'));
+        self::rrmdir($directory);
+    }
+
+    public static function rrmdir($dir) {
+        if (is_dir($dir)) {
+            $objects = scandir($dir);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    if (is_dir($dir. DIRECTORY_SEPARATOR .$object) && !is_link($dir."/".$object))
+                        self::rrmdir($dir. DIRECTORY_SEPARATOR .$object);
+                    else
+                        unlink($dir. DIRECTORY_SEPARATOR .$object);
+                }
+            }
+            rmdir($dir);
         }
-        return rmdir($directory);
     }
 }

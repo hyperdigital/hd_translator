@@ -236,8 +236,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         if ($saveToZip) {
             $zipFolder = Environment::getVarPath() . '/translation/';
-            mkdir($zipFolder);
+            if (!file_exists($zipFolder)) {
+                mkdir($zipFolder);
+            }
             $zipPath = $zipFolder . 'translation.zip';
+            if (file_exists($zipPath)) {
+                unlink($zipPath);
+            }
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
                 exit("cannot open <$zipPath>\n");
@@ -246,19 +251,20 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
 
         foreach ($storages as $storage) {
-            $contentArray = $databaseEntriesService->getCompleteContentForPage((int) $storage, $targetLanguage);
+            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, $targetLanguage);
 
-            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-            $output = $xlfService->dataToXlf($contentArray, $targetLanguage);
+            if (!empty($contentArray)) {
+                $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+                $output = $xlfService->dataToXlf($contentArray, $targetLanguage);
 
-            if ($saveToZip) {
-                $zip->addFromString("page-{$storage}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+                if ($saveToZip) {
+                    $zip->addFromString("page-{$storage}.xlf", $output);
+                }
             }
         }
 
         if ($saveToZip) {
             $zip->close();
-
             header('Pragma: public');
             header('Expires: 0');
             header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
@@ -267,6 +273,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
             header('Content-Transfer-Encoding: binary');
             header('Content-Length: ' . filesize($zipPath));
+
             echo file_get_contents($zipPath);
             \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
         } else {
