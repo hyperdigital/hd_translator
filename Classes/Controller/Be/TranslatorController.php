@@ -711,6 +711,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (!$this->request->hasArgument('files')) {
             $errors[] = 'No file uploaded';
         } else {
+            $targetLanguage = 1;
+            if ($this->request->hasArgument('targetLanguageUid')) {
+                $targetLanguage = $this->request->getArgument('targetLanguageUid');
+            }
             $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
             $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
@@ -723,7 +727,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         // XLF
                         $data = file_get_contents($file['tmp_name']);
                         $data = $xlfService->xlfToData($data);
-                        $databaseEntriesService->importIntoDatabase($data, 1);
+                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         break;
                     case 'application/zip':
                         // ZIP of packed translations
@@ -732,7 +736,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         for($i = 0; $i < $zip->numFiles; $i++) {
                             $data = $zip->getFromIndex($i);
                             $data = $xlfService->xlfToData($data);
-                            $databaseEntriesService->importIntoDatabase($data, 1);
+                            $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         }
                         break;
                 }
