@@ -114,7 +114,7 @@ class XlfService
         if (!empty($data['file']['body']['trans-unit'])) {
             if (!empty($data['file']['body']['trans-unit'][0])) {
                 foreach ($data['file']['body']['trans-unit'] as $item) {
-                    $return[$item['@attributes']['id']] = (!empty($item['target'])) ? $item['target'] : '';
+                    $return[$item['@attributes']['id']] = (!empty($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
                 }
             } else {
                 $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (!empty($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';

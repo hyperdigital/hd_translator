@@ -251,7 +251,7 @@ class DatabaseEntriesService
 
         $where = [];
         if ($pid < 0) {
-
+            $where[] = $queryBuilder->expr()->gt('pid', -1);
         } else {
             $where[] = $queryBuilder->expr()->eq('pid', $pid);
         }
@@ -953,6 +953,13 @@ class DatabaseEntriesService
                 }
 
                 if (!empty(self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
+                    // is the mm table is opposite?
+                    $localFieldMm = 'uid_local';
+                    $foreginFieldMm = 'uid_foreign';
+                    if ($mmRelation['MM_opposite_field'] != false) {
+                        $localFieldMm = 'uid_foreign';
+                        $foreginFieldMm = 'uid_local';
+                    }
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll();
 
@@ -960,7 +967,7 @@ class DatabaseEntriesService
                         ->select('*')
                         ->from($mmRelation['mm_table'])
                         ->where(
-                            $queryBuilder->expr()->eq('uid_local', $mmRelation['local_uid'])
+                            $queryBuilder->expr()->eq($localFieldMm, $mmRelation['local_uid'])
                         )
                         ->execute();
 
@@ -973,13 +980,13 @@ class DatabaseEntriesService
                             ->select('*')
                             ->from($mmRelation['mm_table'])
                             ->where(
-                                $queryBuilder->expr()->eq('uid_local', $newUid),
-                                $queryBuilder->expr()->eq('uid_foreign', $row['uid_foreign'])
+                                $queryBuilder->expr()->eq($localFieldMm, $newUid),
+                                $queryBuilder->expr()->eq($foreginFieldMm, $row['uid_foreign'])
                             )
                             ->execute();
                         if (!$result2->fetchAssociative()) {
                             if (!self::$onlyDebug) {
-                                $row['uid_local'] = $newUid;
+                                $row[$localFieldMm] = $newUid;
                                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
                                 $queryBuilder->getRestrictions()->removeAll();
                                 $temp = $queryBuilder
@@ -1083,7 +1090,8 @@ class DatabaseEntriesService
                         $this->updateMmRelations[] = [
                             'foreginTable' => $tablename,
                             'mm_table' => $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['MM'],
-                            'local_uid' => $l10nParent
+                            'local_uid' => $l10nParent,
+                            'MM_opposite_field' => $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['MM_opposite_field'] ?? false,
                         ];
                     }
                     $row[$key] = $parentValue;
@@ -1119,9 +1127,9 @@ class DatabaseEntriesService
         }
 
         $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['pid'];
-        if ($tablename == 'pages') {
-            $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['uid'];
-        }
+//        if ($tablename == 'pages') {
+//            $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['uid'];
+//        }
         $row[$parentUidField] = $l10nParent;
         $row[$langaugeField] = $targetLanguage;
 
@@ -1214,7 +1222,8 @@ class DatabaseEntriesService
                             $this->updateMmRelations[] = [
                                 'foreginTable' => $foreginTable,
                                 'mm_table' => $mmTable,
-                                'local_uid' => $row['uid']
+                                'local_uid' => $row['uid'],
+                                'MM_opposite_field' => $GLOBALS['TCA'][$foreginTable]['columns'][$rowField]['config']['MM_opposite_field'] ?? false,
                             ];
                         }
                     }

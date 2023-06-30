@@ -373,7 +373,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         if ($saveToZip) {
             $zipFolder = Environment::getVarPath() . '/translation/';
-            mkdir($zipFolder);
+            if (!file_exists($zipFolder)) {
+                mkdir($zipFolder);
+            }
             $zipPath = $zipFolder . 'translation.zip';
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
@@ -391,7 +393,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRow['uid'], $cleanRow, $targetLanguage, $tablename, $enableTranslatedData);
 
                     if ($saveToZip) {
-                        $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+                        if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
+                            $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+                        } else {
+                            $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output);
+                        }
                     }
                 }
             }
@@ -713,7 +719,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         } else {
             $targetLanguage = 1;
             if ($this->request->hasArgument('targetLanguageUid')) {
-                $targetLanguage = $this->request->getArgument('targetLanguageUid');
+                $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
             }
             $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
             $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
