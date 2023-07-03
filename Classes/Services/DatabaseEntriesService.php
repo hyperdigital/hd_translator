@@ -989,12 +989,19 @@ class DatabaseEntriesService
                                 $row[$localFieldMm] = $newUid;
                                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
                                 $queryBuilder->getRestrictions()->removeAll();
-                                $temp = $queryBuilder
-                                    ->insert($mmRelation['mm_table'])
-                                    ->values(
-                                        $row
-                                    )
-                                    ->execute();
+                                if (isset($row['uid'])) {
+                                    unset($row['uid']);
+                                }
+                                try {
+                                    $temp = $queryBuilder
+                                        ->insert($mmRelation['mm_table'])
+                                        ->values(
+                                            $row
+                                        )
+                                        ->execute();
+                                } catch (\Exception $e) {
+
+                                }
                             }
                         }
                     }
