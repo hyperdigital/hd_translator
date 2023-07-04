@@ -941,6 +941,133 @@ class DatabaseEntriesService
                                 ->execute();
                         }
                         break;
+                    case 'updateChildInlinedReferencesFlexform':
+                        $translatedRow = self::$databaseEntriesTranslated[$import['parentTable']][$import['parentUid']];
+
+                        $foreginTable = $import['config']['foreign_table'] ?? '';
+
+
+                        $foreginField = $import['config']['foreign_field'] ?? '';
+
+                        $foreginTableField = $import['config']['foreign_table_field'] ?? '';
+
+                        $foreignMatchFields = $import['config']['foreign_match_fields'] ?? '';
+
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                        $where = [];
+
+                        if (!empty($foreginTableField)) {
+                            $where[] = $queryBuilder->expr()->eq($foreginTableField, $queryBuilder->createNamedParameter($import['parentTable']));
+                        }
+                        $langaugeField = 'sys_language_uid';
+                        if (!empty($GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'])) {
+                            $langaugeField = $GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'];
+                        }
+                        if (!empty($langaugeField)) {
+                            $where[] = $queryBuilder->expr()->eq($langaugeField, $targetLanguage);
+                        }
+                        if (!empty($foreignMatchFields)) {
+                            foreach ($foreignMatchFields as $foreignMatchFieldKey => $foreignMatchFieldValue) {
+                                $where[] = $queryBuilder->expr()->eq($foreignMatchFieldKey, $queryBuilder->createNamedParameter($foreignMatchFieldValue));
+                            }
+                        }
+
+                        $orWhere = [];
+                        if (!empty($foreginField)) {
+                            // Or translated UID
+                            if (!empty($translatedRow['uid'])) {
+                                $orWhere[] = $queryBuilder->expr()->eq($foreginField, $translatedRow['uid']);
+                            }
+                        }
+
+                        $temp = $queryBuilder
+                            ->count('uid' )
+                            ->from($foreginTable);
+                        if (!empty($orWhere)) {
+                            $temp = $temp->orWhere(
+                                ...$orWhere
+                            );
+                        }
+                        if (!empty($where)) {
+                            $temp = $temp->andWhere(
+                                ...$where
+                            );
+                        }
+
+                        $result = $temp->execute();
+
+                        // check if copies are needed
+                        if ($result->fetchOne() == 0) {
+                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                            $where = [];
+                            if (!empty($foreginTableField)) {
+                                $where[] = $queryBuilder->expr()->eq($foreginTableField, $queryBuilder->createNamedParameter($import['parentTable']));
+                            }
+                            $langaugeField = 'sys_language_uid';
+                            if (!empty($GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'])) {
+                                $langaugeField = $GLOBALS['TCA'][$foreginTableField]['ctrl']['languageField'];
+                            }
+                            if (!empty($langaugeField)) {
+                                $where[] = $queryBuilder->expr()->eq($langaugeField, 0);
+                            }
+                            if (!empty($foreignMatchFields)) {
+                                foreach ($foreignMatchFields as $foreignMatchFieldKey => $foreignMatchFieldValue) {
+//                                    $where[] = $queryBuilder->expr()->eq($foreignMatchFieldKey, $queryBuilder->createNamedParameter($foreignMatchFieldValue));
+                                }
+                            }
+
+                            $orWhere = [];
+                            if (!empty($foreginField)) {
+                                if (!empty($import['parentUid'])) {
+                                    $orWhere[] = $queryBuilder->expr()->eq($foreginField, $import['parentUid']);
+                                }
+                                if (!empty($translatedRow['uid'])) {
+                                    $orWhere[] = $queryBuilder->expr()->eq($foreginField, $translatedRow['uid']);
+                                }
+                            }
+
+                            $temp = $queryBuilder
+                                ->select('*' )
+                                ->from($foreginTable);
+                            if (!empty($orWhere)) {
+                                $temp = $temp->orWhere(
+                                    ...$orWhere
+                                );
+                            }
+                            if (!empty($where)) {
+                                $temp = $temp->andWhere(
+                                    ...$where
+                                );
+                            }
+
+                            $result = $temp->execute();
+                            while($row = $result->fetchAssociative()) {
+                                if ($translatedRow['uid']) {
+                                    unset($row['uid']);
+                                    $row['tstamp'] = $row['crdate'] = time();
+                                    $row['sys_language_uid'] = $targetLanguage;
+                                    $row[$foreginField] = $translatedRow['uid'];
+
+                                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
+                                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                                    if (!self::$onlyDebug) {
+                                        $affectedRows = $queryBuilder
+                                            ->insert($foreginTable)
+                                            ->values($row)
+                                            ->execute();
+                                        self::$importStats['inserts']++;
+                                    }
+                                } else {
+                                    DebuggerUtility::var_dump($translatedRow);
+                                }
+                            }
+                        }
+
+                        break;
                 }
             }
 
@@ -1010,6 +1137,48 @@ class DatabaseEntriesService
         }
     }
 
+    public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
+    {
+        $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
+        if (!empty($fieldConfig['ds_pointerField'])) {
+            $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
+            foreach ($pointers as $pointer) {
+                if (!empty($fieldConfig['ds'][$originalRow[$pointer]])) {
+                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds'][$originalRow[$pointer]], $originalRow);
+                } else if (!empty($fieldConfig['ds']['*,'.$originalRow[$pointer]])) {
+                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['*,'.$originalRow[$pointer]], $originalRow);
+                }
+            }
+        }
+    }
+
+    public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fleformDefinition, $originalRow)
+    {
+        $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
+
+        if (!empty($row[$key]['data'])) {
+            foreach ($flexFormArray['sheets'] as $sheetName => $sheetDefinition) {
+                if (!empty($sheetDefinition['ROOT']['el'])) {
+                    foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
+                        if(!empty($config['TCEforms']['config']['type'])) {
+                           switch ($config['TCEforms']['config']['type']) {
+                               case 'inline':
+                                   $inlineConfig = $config['TCEforms']['config'];
+                                   $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] .'-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
+                                       'config' => $inlineConfig,
+                                       'parentUid' => $originalRow['uid'],
+                                       'parentTable' => $tablename,
+                                       'type' => 'updateChildInlinedReferencesFlexform'
+                                   ];
+                                   break;
+                           }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * @param $tablename
      * @param $l10nParent
@@ -1024,9 +1193,11 @@ class DatabaseEntriesService
         foreach($row as $key => $value) {
             if (is_array($value)) {
                 $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
+                $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
                 $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
             }
         }
+
         $translatedRow = $this->getTranslatedCompleteRow($tablename, $l10nParent, $targetLanguage);
 
         if (!empty($translatedRow)) {

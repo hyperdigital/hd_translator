@@ -1,0 +1,14 @@
+.. include:: /Includes.rst.txt
+
+0.1.4 - 2023/07/04
+============================
+
+.. only:: html
+
+   .. contents::
+        :local:
+        :depth: 3
+
+FIX: Import of inline elements from flexform
+---------------------------------------------
+The import is going over the whole inlined flexform and imports new objects. Usually file references.
