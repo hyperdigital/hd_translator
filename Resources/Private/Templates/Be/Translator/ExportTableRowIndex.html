@@ -13,7 +13,7 @@
     <div class="hd-translator">
         <h1>
             <f:translate key="exportTableRow.headlineExport" />: {label}
-            <div class="subline">{tablename}:{rowUid}</div>
+            <div class="subline">{tablename}:{rowUid}<f:if condition="{rowType}"> (type: {rowType}<f:if condition="{rowTypeCouldBe} && {rowType} != {rowTypeCouldBe}">, could be {rowTypeCouldBe}</f:if>)</f:if></div>
         </h1>
         <f:if condition="{fields}">
             <f:else>

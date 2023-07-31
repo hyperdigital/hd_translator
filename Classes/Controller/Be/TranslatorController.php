@@ -159,6 +159,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('label', $label);
         $this->view->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
         $this->view->assign('languages', $this->listOfPossibleLanguages);
+        $this->view->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
+        $this->view->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->moduleTemplate->renderContent();
@@ -224,6 +226,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
+        $sourceLanguage = 0;
+        if ($this->request->hasArgument('source')) {
+            $sourceLanguage = $this->request->getArgument('source');
+        }
+
         $saveToZip = false;
         if (count($storages) > 1) {
             $saveToZip = true;
@@ -251,7 +258,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
 
         foreach ($storages as $storage) {
-            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, $targetLanguage);
+            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage);
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);

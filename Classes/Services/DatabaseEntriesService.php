@@ -17,6 +17,8 @@ class DatabaseEntriesService
 {
     public static $databaseEntriesOriginal = [];
     public static $databaseEntriesTranslated = [];
+    public static $rowType = '';
+    public static $rowTypeCouldBe = '';
     protected $updateMmRelations = [];
 
     /**
@@ -39,6 +41,9 @@ class DatabaseEntriesService
 
     public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
     {
+        if (!empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
+            self::$rowTypeCouldBe = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
+        }
         if (
             !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
             && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
@@ -46,7 +51,9 @@ class DatabaseEntriesService
             && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['translator_export'])
         ) {
             $typeArray = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]];
+            self::$rowType = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
         } else {
+            self::$rowType = '1';
             if (isset($GLOBALS['TCA'][$tablename]['types']['1']['translator_export'])) {
                 $typeArray = $GLOBALS['TCA'][$tablename]['types']['1'];
             }
@@ -169,20 +176,8 @@ class DatabaseEntriesService
      * @param string $tablename name of the table
      * @param int $rowUid UID of entry
      */
-    public function getCompleteRow(string $tablename, int $rowUid)
+    public function getCompleteRow(string $tablename, int $rowUid, int $sourceLanguage = 0)
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-        $result = $queryBuilder
-            ->select('*')
-            ->from($tablename)
-            ->where(
-                $queryBuilder->expr()->eq('uid', $rowUid)
-            )
-            ->execute();
-
-        $row = $result->fetchAssociative();
-        //setup default lanugage uid
         $parentUidField = 'l10n_parent';
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
             $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'];
@@ -191,6 +186,30 @@ class DatabaseEntriesService
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['languageField'])) {
             $langaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'];
         }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $orWhere = [];
+        $orWhere[] = $queryBuilder->expr()->eq('uid', $rowUid);
+        if (!empty($parentUidField)) {
+            $orWhere[] = $queryBuilder->expr()->eq($parentUidField, $rowUid);
+        }
+
+        $result = $queryBuilder
+            ->select('*')
+            ->from($tablename)
+            ->orWhere(
+                ...$orWhere
+            )
+            ->andWhere(
+                $queryBuilder->expr()->eq($langaugeField, $sourceLanguage)
+            )
+            ->execute();
+
+        $row = $result->fetchAssociative();
+
+        //setup default lanugage uid
         if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
             $parentUidField = 'uid';
         }
@@ -243,11 +262,20 @@ class DatabaseEntriesService
      * @param int $pid - PID where the rows are stored (if lower then 0 then it's over the whole database)
      * @param bool $clean - return cleaned rows
      */
-    public function getAllComplteteRowsForPid(string $tablename, int $pid, bool $clean = false)
+    public function getAllComplteteRowsForPid(string $tablename, int $pid, int $sourceLanguage = 0, bool $clean = false)
     {
         $return = [];
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $parentUidField = 'l10n_parent';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
+            $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'];
+        }
+        $langaugeField = 'sys_language_uid';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['languageField'])) {
+            $langaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'];
+        }
 
         $where = [];
         if ($pid < 0) {
@@ -255,14 +283,33 @@ class DatabaseEntriesService
         } else {
             $where[] = $queryBuilder->expr()->eq('pid', $pid);
         }
+        $where[] = $queryBuilder->expr()->eq($langaugeField, $sourceLanguage);
 
-        $result = $queryBuilder
+        $sortByTemp = 'uid';
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['default_sortby'])) {
+            $sortByTemp = $GLOBALS['TCA'][$tablename]['ctrl']['default_sortby'];
+        }
+
+        $sortByTemp = GeneralUtility::trimExplode(',', $sortByTemp);
+        $sortBys = [];
+        foreach ($sortByTemp as $val) {
+            $tempKyes = explode(' ', $val);
+            if (empty($tempKyes[1])) {
+                $tempKyes[1] = 'ASC';
+            }
+            $sortBys[] = $tempKyes;
+        }
+
+        $temp = $queryBuilder
             ->select('*')
             ->from($tablename)
             ->where(
                 ...$where
-            )
-            ->execute();
+            );
+        foreach ($sortBys as $sortBy) {
+            $temp->addOrderBy($sortBy[0], $sortBy[1]);
+        }
+          $result = $temp->execute();
 
         while($row = $result->fetchAssociative()) {
             if ($clean) {
@@ -745,9 +792,9 @@ class DatabaseEntriesService
      * @param bool $clean - if false then the whole database entry is exportend,
      * if true, then the database entry is cleaned
      */
-    public function getCompleteContentForPage(int $uid = 0, string $targetLanguage = 'en', bool $clean = true)
+    public function getCompleteContentForPage(int $uid = 0, $sourceLanguage = 0, string $targetLanguage = 'en', bool $clean = true)
     {
-        $row = $this->getCompleteRow('pages', $uid);
+        $row = $this->getCompleteRow('pages', $uid, $sourceLanguage);
 
         $realUid = $uid;// PID of other contents
         if ($row['sys_language_uid'] != 0 ) {
@@ -758,7 +805,7 @@ class DatabaseEntriesService
             $output = $this->prepareDataFromRow((int) $row['uid'], $row, $targetLanguage, 'pages');
         }
 
-        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid, $clean) as $contentRow) {
+        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid, $sourceLanguage, $clean) as $contentRow) {
             $output = array_merge($output, $this->prepareDataFromRow((int) $contentRow['uid'], $contentRow, $targetLanguage, 'tt_content'));
         }
 

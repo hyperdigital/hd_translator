@@ -1,0 +1,18 @@
+.. include:: /Includes.rst.txt
+
+0.1.5 - 2023/07/31
+============================
+
+.. only:: html
+
+   .. contents::
+        :local:
+        :depth: 3
+
+FIX: Sorting of exported tt_contents in given sorting
+---------------------------------------------
+When exporting the whole page content, now the tt_contets would be exported by correct sorting field.
+
+Enabled selection of source language for exporting page content
+---------------------------------------------
+Now it's possible to set language uid for source of the page content export
