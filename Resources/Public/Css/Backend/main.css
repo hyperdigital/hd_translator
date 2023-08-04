@@ -199,8 +199,10 @@
     font-size: 0.95em;
     font-weight: 600;
     color: var(--hdtranslator-main-color);
+	overflow: hidden;
 }
 .hd-translator-databaseexport-preview-row-tablename{
     font-size: 0.75em;
     font-weight: 800;
+	overflow: hidden;
 }

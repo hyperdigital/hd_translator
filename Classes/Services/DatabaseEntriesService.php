@@ -27,7 +27,7 @@ class DatabaseEntriesService
     public static $onlyDebug = false;
 
 
-    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0];
+    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessagesfailsMessages' => []];
     protected $updateAfterImport = [];
 
     protected $flexFormService;
@@ -208,6 +208,18 @@ class DatabaseEntriesService
             ->execute();
 
         $row = $result->fetchAssociative();
+
+        // Fix of notfound entry, when wrong language is used
+        if (!$row) {
+            $result = $queryBuilder
+                ->select('*')
+                ->from($tablename)
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $rowUid)
+                )
+                ->execute();
+            $row = $result->fetchAssociative();
+        }
 
         //setup default lanugage uid
         if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
@@ -404,7 +416,10 @@ class DatabaseEntriesService
                     if (isset($typeArray['translator_export_column'][$field])) {
                         $limitedFields = GeneralUtility::trimExplode(',', $typeArray['translator_export_column'][$field]);
                     }
-                    $this->getFlexformKeysAndValues($tablename, $field, $row, $return, $field, $limitedFields, $typeArray);
+
+                    $fieldPrefix = substr($specialFieldNameOutput, 0, -1 * strlen( $row['uid'].'.'.$field));
+
+                    $this->getFlexformKeysAndValues($tablename, $field, $row, $return, $field, $limitedFields, $typeArray, $fieldPrefix);
             }
         }
     }
@@ -416,7 +431,7 @@ class DatabaseEntriesService
      * @param array $return
      * @param string $specialFieldNameOutput
      */
-    protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields, $typeArray = [])
+    protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields, $typeArray = [], $fieldnamePrefix = '')
     {
         $flexString = $row[$field];
         $data = $this->flexFormService
@@ -424,22 +439,22 @@ class DatabaseEntriesService
 
         foreach ($data as $key => $value) {
             $subarrayName = $row['uid'].'.'.$specialFieldNameOutput.'.'.$key;
-            $this->subarrayToKeyValues($tablename, $field, $row['uid'], $return, $subarrayName, $value, $limitedFields, $typeArray);
+            $this->subarrayToKeyValues($tablename, $field, $row['uid'], $return, $subarrayName, $value, $limitedFields, $typeArray, $fieldnamePrefix);
         }
     }
 
-    protected function subarrayToKeyValues(string $tablename, string $field, $rowUid, &$return, $subarrayName, $value, $limitedFields, $typeArray = [])
+    protected function subarrayToKeyValues(string $tablename, string $field, $rowUid, &$return, $subarrayName, $value, $limitedFields, $typeArray = [], $fieldnamePrefix = '')
     {
         $subarrayFieldName = substr($subarrayName, strlen($rowUid.'.'.$field.'.')); // full name with the parent field - used in export settings
         if (is_string($value)) {
             if (empty($limitedFields) || in_array($subarrayFieldName, $limitedFields)) {
-                $return[$subarrayName]['value'] = $value ?? '';
-                $return[$subarrayName]['label'] = $subarrayName; // TODO
-                $return[$subarrayName]['html'] = false;// TODO
-                $return[$subarrayName]['slug'] = false; // TODO
-                $return[$subarrayName]['table'] = $tablename;
-                $return[$subarrayName]['uid'] = $rowUid ?? '';
-                $return[$subarrayName]['field'] = $subarrayName ?? '';
+                $return[$fieldnamePrefix . $subarrayName]['value'] = $value ?? '';
+                $return[$fieldnamePrefix . $subarrayName]['label'] = $subarrayName; // TODO
+                $return[$fieldnamePrefix . $subarrayName]['html'] = false;// TODO
+                $return[$fieldnamePrefix . $subarrayName]['slug'] = false; // TODO
+                $return[$fieldnamePrefix . $subarrayName]['table'] = $tablename;
+                $return[$fieldnamePrefix . $subarrayName]['uid'] = $rowUid ?? '';
+                $return[$fieldnamePrefix . $subarrayName]['field'] = $fieldnamePrefix . $subarrayName ?? '';
             }
         } else if(is_array($value)) {
             foreach ($value as $newKey => $newValue) {
@@ -454,11 +469,11 @@ class DatabaseEntriesService
                             }
                         }
                         $newKey = $subarrayName . '.' . $newKey;
-                        $this->subarrayToKeyValues($tablename, $field, $rowUid, $return, $newKey, $newValue, $limitedFields, $typeArray);
+                        $this->subarrayToKeyValues($tablename, $field, $rowUid, $return, $newKey, $newValue, $limitedFields, $typeArray, $fieldnamePrefix);
                     }
                 } else {
                     $newKey = $subarrayName . '.' . $newKey;
-                    $this->subarrayToKeyValues($tablename, $field, $rowUid, $return, $newKey, $newValue, $limitedFields, $typeArray);
+                    $this->subarrayToKeyValues($tablename, $field, $rowUid, $return, $newKey, $newValue, $limitedFields, $typeArray, $fieldnamePrefix);
                 }
             }
         }
@@ -744,7 +759,6 @@ class DatabaseEntriesService
         foreach ($listOfFields as $field) {
             $this->getFieldKeyAndValue($tablename, $field, $row, $return, '', $typeArray);
         }
-
         return $return;
     }
 
@@ -763,6 +777,7 @@ class DatabaseEntriesService
             }
 
             $reference = [];
+
             if (!empty($value['table'])){
                 $reference[] = $value['table'];
             }
@@ -772,6 +787,7 @@ class DatabaseEntriesService
             if (!empty($value['field'])){
                 $reference[] = $value['field'];
             }
+
 
             $return[$tablename.'.'.$fieldname] = [
                 'default' => $value['value'],
@@ -1187,14 +1203,24 @@ class DatabaseEntriesService
     public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
     {
         $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
+
         if (!empty($fieldConfig['ds_pointerField'])) {
             $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
+            $noneUsed = true;
             foreach ($pointers as $pointer) {
                 if (!empty($fieldConfig['ds'][$originalRow[$pointer]])) {
                     $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds'][$originalRow[$pointer]], $originalRow);
+                    $noneUsed = false;
+                    break;
                 } else if (!empty($fieldConfig['ds']['*,'.$originalRow[$pointer]])) {
                     $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['*,'.$originalRow[$pointer]], $originalRow);
+                    $noneUsed = false;
+                    break;
                 }
+            }
+
+            if ($noneUsed && !empty($fieldConfig['ds']['default'])) {
+                $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['default'], $originalRow);
             }
         }
     }
@@ -1236,9 +1262,11 @@ class DatabaseEntriesService
         if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
             self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
         }
+
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
+
                 $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
                 $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
                 $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
@@ -1252,17 +1280,22 @@ class DatabaseEntriesService
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
             if (!self::$onlyDebug) {
-                $temp = $queryBuilder
-                    ->update($tablename)
-                    ->where(
-                        $queryBuilder->expr()->eq('uid', $translatedRow['uid'])
-                    );
+                try {
+                    $temp = $queryBuilder
+                        ->update($tablename)
+                        ->where(
+                            $queryBuilder->expr()->eq('uid', $translatedRow['uid'])
+                        );
 
-                foreach ($row as $key => $value) {
-                    $temp = $temp->set($key, $value);
+                    foreach ($row as $key => $value) {
+                        $temp = $temp->set($key, $value);
+                    }
+
+                    $temp->execute();
+                } catch (\Exception $e) {
+                    self::$importStats['fails']++;
+                    self::$importStats['failsMessages'][] = $e->getMessage();
                 }
-
-                $temp->execute();
             }
 
             self::$importStats['updates']++;
@@ -1284,6 +1317,7 @@ class DatabaseEntriesService
         }
 
         if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
+            self::$importStats['failsMessages'][] = 'Default language translation doesn\' exists : '.$tablename .':'.$l10nParent;
             return false;
         }
 
@@ -1512,7 +1546,30 @@ class DatabaseEntriesService
 
     public function recursiveUpdateOfArrayByGivenKey(&$return, array $key, $value)
     {
-        $return[implode('.',$key)]['vDEF'] = $value;
+
+
+        $tempName = [];
+        $missingKeys = $key;
+
+        for ($i = 0; $i < count($key); $i++) {
+            $part = $key[$i];
+            $tempName[] = $part;
+            unset($missingKeys[$i]);
+
+            if (isset($return[implode('.',$tempName)]['el'])) {
+                // repetable value
+                $i++;
+                unset($missingKeys[$i]);
+                if (count($missingKeys) > 0) {
+                    $this->recursiveUpdateOfArrayByGivenKey($return[implode('.', $tempName)]['el'][$key[$i]], explode('.', implode('.', $missingKeys)), $value);
+                } else {
+                    $return[implode('.', $tempName)]['el'][$key[$i]]['vDEF'] = $value;
+                }
+            } else if (isset($return[implode('.',$tempName)]['vDEF'])) {
+                // Simple value
+                $return[implode('.',$tempName)]['vDEF'] = $value;
+            }
+        }
     }
 
     /**
@@ -1537,6 +1594,7 @@ class DatabaseEntriesService
 
             // if $tempKeys[3] is numeric, then the items are subitems, otherwise it seems like flexform
             if ((int) $tempKeys[3] == 0) {
+
                 if (empty($return[$parentTableName][$rowUid][$field])) {
                     $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesOriginal[$parentTableName][$rowUid][$field]));
 
@@ -1548,17 +1606,25 @@ class DatabaseEntriesService
                         }
                     }
                 }
+
                 unset($tempKeys[0]);
                 unset($tempKeys[1]);
                 unset($tempKeys[2]);
                 $keyName = implode('.',$tempKeys);
                 $tabName = 'sDEF';
+                if (!empty($return[$parentTableName][$rowUid][$field]['data']) && count($return[$parentTableName][$rowUid][$field]['data']) == 1) {
+                    $tabName = key($return[$parentTableName][$rowUid][$field]['data']);
+                }
+
+
+
 
                 if (!empty($return[$parentTableName][$rowUid][$field]['data'])) { // malformwd flexform issue
                     foreach ($return[$parentTableName][$rowUid][$field]['data'] as $sheetName => $sheetData) {
                         if (in_array($keyName, array_keys($sheetData['lDEF']))) {
                             $tabName = $sheetName;
                             break;
+
                         }
                     }
 

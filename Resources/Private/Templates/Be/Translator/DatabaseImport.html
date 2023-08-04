@@ -14,6 +14,15 @@
 		<div>UPDATED: {actions.updated}</div>
 		<div>INSERTED: {actions.inserted}</div>
 		<div>FAILS: {actions.fails}</div>
+		<f:if condition="{actions.failsMessages}">
+			<div>
+				<f:for each="{actions.failsMessages}" as="message">
+					<div>
+						{message}
+					</div>
+				</f:for>
+			</div>
+		</f:if>
 	</div>
 </f:section>
 </html>
