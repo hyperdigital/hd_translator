@@ -10,7 +10,30 @@
 </f:section>
 
 <f:section name="content">
-    <div class="hd-translator">
+	<f:asset.script identifier="translator-export-row">
+		<f:format.raw>
+			const sourceTemp = document.getElementById('source-temp');
+			const source = document.getElementById('source');
+			const targetTemp = document.getElementById('target-temp');
+			const target = document.getElementById('target');
+
+			sourceTemp.addEventListener('change', function(e) {
+				const value = this.value;
+				if (value != '') {
+					source.value = value;
+					this.value = '';
+				}
+			});
+			targetTemp.addEventListener('change', function(e) {
+			const value = this.value;
+			if (value != '') {
+			target.value = value;
+			this.value = '';
+			}
+			});
+		</f:format.raw>
+	</f:asset.script>
+    <div>
         <h1>
             <f:translate key="exportTableRow.headlineExport" />: {label}
             <div class="subline">{tablename}:{rowUid}<f:if condition="{rowType}"> (type: {rowType}<f:if condition="{rowTypeCouldBe} && {rowType} != {rowTypeCouldBe}">, could be {rowTypeCouldBe}</f:if>)</f:if></div>
@@ -23,34 +46,67 @@
             <f:then>
                 <div>
                     <f:form action="exportTableRowExport" arguments="{tablename: tablename, rowUid: rowUid}">
-                        <div>
-                            <label>TODO: target language</label>
-                            <f:form.select name="language">
-                                <f:for each="{languages}" as="language" key="key">
-                                    <f:form.select.option value="{key}">{language}</f:form.select.option>
-                                </f:for>
-                            </f:form.select>
-                        </div>
-                        <div>
-                            <button>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                                </svg>
-                                TOOD EXPORT XLF
-                            </button>
-                        </div>
+											<div class="row row-cols-auto align-items-end g-3">
+												<div class="col">
+													<label for="source" class="form-label">Source language</label>
+													<div class="input-group">
+														<f:form.textfield name="source" class="form-control" id="source" value="en" />
+														<f:form.select name="source-temp" class="form-select hd-form-select btn-light" id="source-temp">
+															<f:form.select.option value=""></f:form.select.option>
+															<f:for each="{languages}" as="language" key="key">
+																<f:form.select.option value="{key}">{language}</f:form.select.option>
+															</f:for>
+														</f:form.select>
+													</div>
+												</div>
+												<div class="col">
+													<label for="target" class="form-label">Target language</label>
+													<div class="input-group">
+														<f:form.textfield name="language" class="form-control" id="target" value="en" />
+														<f:form.select name="target-temp" class="form-select hd-form-select btn-light" id="target-temp">
+															<f:form.select.option value=""></f:form.select.option>
+															<f:for each="{languages}" as="language" key="key">
+																<f:form.select.option value="{key}">{language}</f:form.select.option>
+															</f:for>
+														</f:form.select>
+													</div>
+												</div>
+											</div>
+
+											<div  class="mt-3">
+												<button class="btn btn-default">
+					<span class="t3js-icon icon icon-size-small icon-state-default icon-apps-filetree-folder-default" data-identifier="actions-extension">
+					<span class="icon-markup">
+<svg class="icon-color"><use xlink:href="/typo3/sysext/core/Resources/Public/Icons/T3Icons/sprites/actions.svg#actions-extension"></use></svg>
+					</span>
+					</span>
+													Export XLF
+												</button>
+											</div>
+
                     </f:form>
                 </div>
                 <h2><f:translate key="exportTableRow.headlinePreviewValues" /></h2>
-                <div class="hd-translator-databaseexport-preview">
-                    <f:for each="{fields}" as="value" key="key">
-                        <div class="hd-translator-databaseexport-preview-row">
-                            <div class="hd-translator-databaseexport-preview-row-key">{value.label}</div>
-                            <div class="hd-translator-databaseexport-preview-row-value">{value.value}</div>
-                            <div class="hd-translator-databaseexport-preview-row-tablename">{key}</div>
-                        </div>
-                    </f:for>
-                </div>
+							<div class="panel panel-default">
+								<table class="table table-striped table-hover">
+									<thead>
+									<tr>
+										<th>Label</th>
+										<th>Value</th>
+										<th>Key</th>
+									</tr>
+									</thead>
+									<tbody>
+										<f:for each="{fields}" as="value" key="key">
+											<tr>
+												<td><b><small>{value.label}</small></b></td>
+												<td>{value.value}</td>
+												<td><small>{key}</small></td>
+											</tr>
+										</f:for>
+									</tbody>
+								</table>
+							</div>
             </f:then>
         </f:if>
     </div>

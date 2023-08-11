@@ -1,15 +1,87 @@
+<f:asset.script identifier="translator-import">
+	<f:format.raw>
+		const form = document.getElementById('translator-import');
+		const fileuploadButton = document.getElementById('translator-fileupload-button');
+		const fileUpload = document.getElementById('files');
+		const fileUploadPreview = document.getElementById('translator-fileupload-preview');
+
+		fileuploadButton.addEventListener("click", (e) => {
+			e.preventDefault();
+		fileUpload.click();
+		});
+
+		fileUpload.addEventListener("change", (e) => {
+			var output = '';
+
+			Object.keys(fileUpload.files).forEach(key => {
+				output += '<div><small>'+fileUpload.files[key].name+'</small></div>'
+			});
+
+		fileUploadPreview.innerHTML = output;
+		console.log(fileUploadPreview);
+		});
+
+		form.addEventListener("submit", (e) => {
+			e.preventDefault();
+
+			if (fileUpload.files.length == 0) {
+				top.TYPO3.Modal.confirm(
+					'Missing import file',
+					'Select the file for translation import',
+					2,
+					[{
+						text: 'OK',
+						btnClass: 'btn-danger',
+						name: 'ok'
+					}]
+				).on('confirm.button.ok',() => {
+					top.TYPO3.Modal.currentModal.trigger('modal-dismiss');
+				});
+			} else {
+				form.submit();
+			}
+		});
+
+	</f:format.raw>
+</f:asset.script>
+
 <div>
     <h2>Import</h2>
-    <f:form action="databaseImport" enctype="multipart/form-data">
-        TODO: Allowed: xlf or zip
-        <div>
-            <f:form.upload name="files" multiple="1" additionalAttributes="{accept: '.xlf, .zip'}" />
-        </div>
-				<div>
-					Lanugage UID: <f:form.textfield name="targetLanguageUid" value="1" />
-				</div>
-        <f:form.submit value="Import" />
-    </f:form>
+    <f:form action="databaseImport" enctype="multipart/form-data" id="translator-import">
+			<div class="row row-cols-auto align-items-end g-3">
+				<div class="col">
+					<label for="files" class="form-label">Files [xlf, zip]</label>
+					<div class="input-group">
+						<button type="button" id="translator-fileupload-button" class="btn btn-default"><span class="t3js-icon icon icon-size-small icon-state-default icon-actions-upload" data-identifier="actions-upload">
+	<span class="icon-markup">
+<svg class="icon-color"><use xlink:href="/typo3/sysext/core/Resources/Public/Icons/T3Icons/sprites/actions.svg#actions-upload"></use></svg>
+	</span>
 
-    TODO: Missing: importIntoDatabase(data, #ID of target language#)
+</span> Select &amp; upload files</button>
+						<div style="display: none;">
+						<f:form.upload name="files" id="files" multiple="1" additionalAttributes="{accept: '.xlf, .zip'}" />
+						</div>
+					</div>
+				</div>
+				<div class="col">
+					<label for="language-uid" class="form-label">Lanugage UID</label>
+					<div class="input-group">
+						<f:form.textfield name="targetLanguageUid" class="form-control" id="language-uid" value="1" />
+					</div>
+				</div>
+			</div>
+
+			<div class="mt-3" id="translator-fileupload-preview"></div>
+
+			<div  class="mt-3">
+				<button class="btn btn-default">
+					<span class="t3js-icon icon icon-size-small icon-state-default icon-apps-filetree-folder-default" data-identifier="actions-extension-import">
+					<span class="icon-markup">
+<svg class="icon-color"><use xlink:href="/typo3/sysext/core/Resources/Public/Icons/T3Icons/sprites/actions.svg#actions-extension-import"></use></svg>
+					</span>
+					</span>
+					Import
+				</button>
+			</div>
+    </f:form>
 </div>

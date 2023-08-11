@@ -177,7 +177,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $label = $databaseEntriesService->getFilenameFromLabel($tablename, $row);
 
         $cleanRow = $databaseEntriesService->getExportFields($tablename, $row);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
         header('Content-type: text/xml');
         header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
         echo $output;
@@ -237,8 +237,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
         $defaultLanguage = 1;
         $targetLanguage = 'de';
+        $source = 'en';
         if ($this->request->hasArgument('language')) {
             $targetLanguage = $this->request->getArgument('language');
+        }
+        if ($this->request->hasArgument('source-language')) {
+            $source = $this->request->getArgument('source-language');
         }
 
         if ($saveToZip) {
@@ -262,7 +266,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-                $output = $xlfService->dataToXlf($contentArray, $targetLanguage);
+                $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source);
 
                 if ($saveToZip) {
                     $zip->addFromString("page-{$storage}.xlf", $output);
@@ -373,9 +377,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $saveToZip = true;
 
         $defaultLanguage = 1;
+        $sourceLangauge = 0;
         $targetLanguage = 'de';
         if ($this->request->hasArgument('language')) {
             $targetLanguage = $this->request->getArgument('language');
+        }
+        $source = 'en';
+        if ($this->request->hasArgument('source-language')) {
+            $source = $this->request->getArgument('source-language');
         }
 
         if ($saveToZip) {
@@ -395,9 +404,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
 
-                foreach ($databaseEntriesService->getAllComplteteRowsForPid($tablename, (int) $storage, false) as $contentRow) {
+                foreach ($databaseEntriesService->getAllComplteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false) as $contentRow) {
                     $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
-                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRow['uid'], $cleanRow, $targetLanguage, $tablename, $enableTranslatedData);
+                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRow['uid'], $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                     if ($saveToZip) {
                         if (version_compare(PHP_VERSION, '8.0.0') >= 0) {

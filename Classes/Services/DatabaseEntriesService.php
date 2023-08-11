@@ -646,6 +646,9 @@ class DatabaseEntriesService
         } else if (isset($row['fe_group'])) {
             unset($row['fe_group']);
         }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['type'])) {
+            unset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]);
+        }
 
 
         // Base fields
@@ -835,7 +838,7 @@ class DatabaseEntriesService
      * @param $tablename
      * @param bool $enableTranslatedData - if false, always the provided $row data are used
      */
-    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true)
+    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en')
     {
         if ($targetLanguage == 'default') {
             $targetLanguage = 'en';
@@ -849,7 +852,7 @@ class DatabaseEntriesService
 
         $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
 
-        $output = $xlfService->dataToXlf($data, $targetLanguage);
+        $output = $xlfService->dataToXlf($data, $targetLanguage, $sourceLanguage);
 
         return $output;
     }
@@ -1125,7 +1128,7 @@ class DatabaseEntriesService
                                         self::$importStats['inserts']++;
                                     }
                                 } else {
-                                    DebuggerUtility::var_dump($translatedRow);
+//                                    DebuggerUtility::var_dump($translatedRow);
                                 }
                             }
                         }
@@ -1198,12 +1201,63 @@ class DatabaseEntriesService
                 }
             }
         }
+
+
+        foreach (self::$databaseEntriesOriginal as $tablename => $items) {
+            foreach ($items as $id => $data) {
+                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
+                $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                $result = $queryBuilder
+                    ->select('*')
+                    ->from('sys_file_reference')
+                    ->where(
+                        $queryBuilder->expr()->eq('sys_language_uid', 0),
+                        $queryBuilder->expr()->eq('uid_foreign', $id),
+                        $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
+                        $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
+                    )
+                    ->execute();
+
+
+                while($defaultLanguageRow = $result->fetchAssociative()) {
+                    if (!self::$databaseEntriesTranslated[$tablename][$id]['uid']) {
+                        continue;
+                    }
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
+                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                    $result2 = $queryBuilder
+                        ->select('*')
+                        ->from('sys_file_reference')
+                        ->where(
+                            $queryBuilder->expr()->eq('sys_language_uid', $targetLanguage),
+                            $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
+                            $queryBuilder->expr()->eq('uid_foreign', self::$databaseEntriesTranslated[$tablename][$id]['uid']),
+                        )
+                        ->execute();
+                    if (!$result2->fetchAssociative()) {
+                        $defaultLanguageRow['sys_language_uid'] = $targetLanguage;
+                        $defaultLanguageRow['l10n_parent'] = $defaultLanguageRow['uid'];
+                        $defaultLanguageRow['uid_foreign'] = self::$databaseEntriesTranslated[$tablename][$id]['uid'];
+                        $defaultLanguageRow['tstamp'] = $defaultLanguageRow['crdate'] = time();
+
+                        unset($defaultLanguageRow['uid']);
+                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
+                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                        $queryBuilder
+                            ->insert('sys_file_reference')
+                            ->values($defaultLanguageRow)
+                            ->execute();
+                        self::$importStats['inserts']++;
+                    }
+                }
+            }
+        }
+
     }
 
     public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
     {
         $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
-
         if (!empty($fieldConfig['ds_pointerField'])) {
             $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
             $noneUsed = true;
@@ -1266,7 +1320,6 @@ class DatabaseEntriesService
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
-
                 $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
                 $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
                 $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
@@ -1292,6 +1345,23 @@ class DatabaseEntriesService
                     }
 
                     $temp->execute();
+
+                    $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                    $resultTemp = $queryBuilder
+                        ->select('*')
+                        ->from($tablename)
+                        ->where(
+                            $queryBuilder->expr()->eq('uid', $translatedRow['uid'])
+                        )
+                        ->execute();
+                    $rowTemp = $resultTemp->fetchAssociative();
+
+                    if ($rowTemp) {
+                        self::$databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
+                    }
+
                 } catch (\Exception $e) {
                     self::$importStats['fails']++;
                     self::$importStats['failsMessages'][] = $e->getMessage();
@@ -1407,6 +1477,23 @@ class DatabaseEntriesService
                     $row
                 )
                 ->execute();
+
+            $lastUid = $queryBuilder->getConnection()->lastInsertId();
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $resultTemp = $queryBuilder
+                ->select('*')
+                ->from($tablename)
+                ->where(
+                    $queryBuilder->expr()->eq('uid', $lastUid)
+                )
+                ->execute();
+            $rowTemp = $resultTemp->fetchAssociative();
+
+            if ($rowTemp) {
+                self::$databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
+            }
         }
 
 
@@ -1561,6 +1648,14 @@ class DatabaseEntriesService
                 $i++;
                 unset($missingKeys[$i]);
                 if (count($missingKeys) > 0) {
+                    if (count($missingKeys) == 1) {
+                        if (is_string($return[implode('.', $tempName)]['el'][$key[$i]])) {
+                            unset($return[implode('.', $tempName)]['el'][$key[$i]]);
+                            $return[implode('.', $tempName)]['el'][$key[$i]][$key[$i + 1]]['vDEF'] = $value;
+                            return;
+                        }
+                    }
+
                     $this->recursiveUpdateOfArrayByGivenKey($return[implode('.', $tempName)]['el'][$key[$i]], explode('.', implode('.', $missingKeys)), $value);
                 } else {
                     $return[implode('.', $tempName)]['el'][$key[$i]]['vDEF'] = $value;
@@ -1594,7 +1689,6 @@ class DatabaseEntriesService
 
             // if $tempKeys[3] is numeric, then the items are subitems, otherwise it seems like flexform
             if ((int) $tempKeys[3] == 0) {
-
                 if (empty($return[$parentTableName][$rowUid][$field])) {
                     $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesOriginal[$parentTableName][$rowUid][$field]));
 
@@ -1616,18 +1710,15 @@ class DatabaseEntriesService
                     $tabName = key($return[$parentTableName][$rowUid][$field]['data']);
                 }
 
-
-
-
                 if (!empty($return[$parentTableName][$rowUid][$field]['data'])) { // malformwd flexform issue
                     foreach ($return[$parentTableName][$rowUid][$field]['data'] as $sheetName => $sheetData) {
-                        if (in_array($keyName, array_keys($sheetData['lDEF']))) {
-                            $tabName = $sheetName;
-                            break;
-
+                        if ($sheetData['lDEF']) {
+                            if (in_array($keyName, array_keys($sheetData['lDEF']))) {
+                                $tabName = $sheetName;
+                                break;
+                            }
                         }
                     }
-
                     $this->recursiveUpdateOfArrayByGivenKey($return[$parentTableName][$rowUid][$field]['data'][$tabName]['lDEF'], explode('.', implode('.', $tempKeys)), $value);
                 }
             } else {

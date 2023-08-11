@@ -1,50 +1,123 @@
-<div class="hd-translator">
+<f:asset.script identifier="translator-export-row">
+	<f:format.raw>
+		const sourceTemp = document.getElementById('source-temp');
+		const source = document.getElementById('source');
+		const targetTemp = document.getElementById('target-temp');
+		const target = document.getElementById('target');
+
+		sourceTemp.addEventListener('change', function(e) {
+		const value = this.value;
+		if (value != '') {
+		source.value = value;
+		this.value = '';
+		}
+		});
+		targetTemp.addEventListener('change', function(e) {
+		const value = this.value;
+		if (value != '') {
+		target.value = value;
+		this.value = '';
+		}
+		});
+	</f:format.raw>
+</f:asset.script>
+<div>
 	<h1>{f:translate(key: 'exportDatabase.headline')}</h1>
 	<div>
 		<f:form action="databaseExport">
-			<div>
-				<div>
-					<label>Target language</label>
-					<f:form.select name="language">
-						<f:for each="{languages}" as="language" key="key">
-							<f:form.select.option value="{key}">{language}</f:form.select.option>
-						</f:for>
-					</f:form.select>
-				</div>
-			</div>
-			<div>
-				<div>
-					<label for="storages">Page UID (can be comma separated list)</label>
-				</div>
-				<div>
-					<f:form.textfield id="storages" name="storages" value="{currentPage}" />
-				</div>
-			</div>
-			<div>
-				<label for="supages">
-					<f:form.checkbox name="subpages" id="supages" value="1" />
-					<span>Add also subpages</span>
-				</label>
-			</div>
-			<div>
-				<label>{f:translate(key: 'exportDatabase.chooseTablesForExport')}</label>
-				<div>
-					<f:form.select multiple="1" name="tables" class="hd-translator-long_select" required="1">
-						<f:if condition="{tables}">
-							<f:for each="{tables}" as="table">
-								<f:if condition="{table.tableTitle}">
-									<f:form.select.option value="{table.tableName}">
-										<f:translate key="{table.tableTitle}" default="{table.tableName}" />
-										[{table.tableName}]
-									</f:form.select.option>
-								</f:if>
+			<div class="row row-cols-auto align-items-end g-3">
+				<div class="col">
+					<label for="source" class="form-label">Source language</label>
+					<div class="input-group">
+						<f:form.textfield name="source-language" class="form-control" id="source" value="en" />
+						<f:form.select name="source-temp" class="form-select hd-form-select btn-light" id="source-temp">
+							<f:form.select.option value=""></f:form.select.option>
+							<f:for each="{languages}" as="language" key="key">
+								<f:form.select.option value="{key}">{language}</f:form.select.option>
 							</f:for>
-						</f:if>
-					</f:form.select>
+						</f:form.select>
+					</div>
+				</div>
+				<div class="col">
+					<label for="target" class="form-label">Target language</label>
+					<div class="input-group">
+						<f:form.textfield name="language" class="form-control" id="target" value="en" />
+						<f:form.select name="target-temp" class="form-select hd-form-select btn-light" id="target-temp">
+							<f:form.select.option value=""></f:form.select.option>
+							<f:for each="{languages}" as="language" key="key">
+								<f:form.select.option value="{key}">{language}</f:form.select.option>
+							</f:for>
+						</f:form.select>
+					</div>
 				</div>
 			</div>
-			<div>
-				<f:form.submit value="{f:translate(key: 'exportDatabase.exportButton')}" />
+
+			<div class="row row-cols-auto align-items-end g-3 mt-3">
+				<div class="col">
+					<label for="storages" class="form-label">Page UID (can be comma separated list)</label>
+					<div class="input-group">
+						<f:form.textfield id="storages" name="storages" value="{currentPage}" required="1" class="form-control" />
+					</div>
+				</div>
+				<div class="col">
+					<label for="subpages-checkbox" class="form-label">Add also subpages</label>
+					<div class="input-group">
+						<div class="form-wizards-element">
+							<div class="form-check form-check-type-icon-toggle">
+								<f:form.checkbox name="subpages" class="form-check-input" id="subpages-checkbox" value="1" />
+
+								<label class="form-check-label" for="subpages-checkbox">
+											<span class="form-check-label-icon">
+													<span class="form-check-label-icon-checked"><span class="t3js-icon icon icon-size-small icon-state-default icon-actions-check" data-identifier="actions-check">
+		<span class="icon-markup">
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g class="icon-color"><path d="M13.3 4.8l-.7-.7c-.2-.2-.5-.2-.7 0L6.5 9.5 4 6.9c-.2-.2-.5-.2-.7 0l-.6.7c-.2.2-.2.5 0 .7l3.6 3.6c.2.2.5.2.7 0l6.4-6.4c.1-.2.1-.5-.1-.7z"></path></g></svg>
+		</span>
+
+	</span></span>
+													<span class="form-check-label-icon-unchecked"><span class="t3js-icon icon icon-size-small icon-state-default icon-empty-empty" data-identifier="empty-empty">
+		<span class="icon-markup">
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"></svg>
+		</span>
+
+	</span></span>
+											</span>
+								</label>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row row-cols-auto align-items-end g-3 mt-3">
+				<div class="col">
+					<label for="tables" class="form-label">{f:translate(key: 'exportDatabase.chooseTablesForExport')}</label>
+					<div class="input-group">
+						<f:form.select multiple="1" name="tables" id="tables" class="form-select" required="1">
+							<f:if condition="{tables}">
+								<f:for each="{tables}" as="table">
+									<f:if condition="{table.tableTitle}">
+										<f:form.select.option value="{table.tableName}">
+											<f:translate key="{table.tableTitle}" default="{table.tableName}" />
+											[{table.tableName}]
+										</f:form.select.option>
+									</f:if>
+								</f:for>
+							</f:if>
+						</f:form.select>
+					</div>
+				</div>
+			</div>
+
+
+			<div  class="mt-3">
+				<button class="btn btn-default">
+					<span class="t3js-icon icon icon-size-small icon-state-default icon-apps-filetree-folder-default" data-identifier="actions-extension">
+					<span class="icon-markup">
+<svg class="icon-color"><use xlink:href="/typo3/sysext/core/Resources/Public/Icons/T3Icons/sprites/actions.svg#actions-extension"></use></svg>
+					</span>
+					</span>
+					Export
+				</button>
 			</div>
 		</f:form>
 	</div>

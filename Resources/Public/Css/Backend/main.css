@@ -206,3 +206,6 @@
     font-weight: 800;
 	overflow: hidden;
 }
+.form-select.hd-form-select{
+	background-color: var(--bs-btn-bg);
+}
