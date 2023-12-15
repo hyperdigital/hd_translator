@@ -1,0 +1,16 @@
+.. include:: /Includes.rst.txt
+
+0.2.1 - 2023/12/15
+============================
+
+.. only:: html
+
+   .. contents::
+        :local:
+        :depth: 3
+
+FIX: Fix of duplication for filereferences
+---------------------------------------------
+If the filereference used in translated element is not in the same language, then after import the reference was
+duplicated. Removed the language condition, becuase there is used real reference UID, so the connection is still there.
+

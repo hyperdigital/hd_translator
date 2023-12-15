@@ -321,7 +321,7 @@ class DatabaseEntriesService
         foreach ($sortBys as $sortBy) {
             $temp->addOrderBy($sortBy[0], $sortBy[1]);
         }
-          $result = $temp->execute();
+        $result = $temp->execute();
 
         while($row = $result->fetchAssociative()) {
             if ($clean) {
@@ -1225,16 +1225,27 @@ class DatabaseEntriesService
                     }
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+                    $where = [
+                        $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
+                        $queryBuilder->expr()->eq('uid_foreign', self::$databaseEntriesTranslated[$tablename][$id]['uid']),
+                    ];
+
+                    // If issue with languages for sys_file_references
+                    if (false) {
+                        $where[] = $queryBuilder->expr()->eq('sys_language_uid', $targetLanguage);
+                    }
+
                     $result2 = $queryBuilder
                         ->select('*')
                         ->from('sys_file_reference')
                         ->where(
-                            $queryBuilder->expr()->eq('sys_language_uid', $targetLanguage),
-                            $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
-                            $queryBuilder->expr()->eq('uid_foreign', self::$databaseEntriesTranslated[$tablename][$id]['uid']),
+                            ...$where
                         )
                         ->execute();
-                    if (!$result2->fetchAssociative()) {
+                    $output = $result2->fetchAssociative();
+
+                    if (!$output) {
                         $defaultLanguageRow['sys_language_uid'] = $targetLanguage;
                         $defaultLanguageRow['l10n_parent'] = $defaultLanguageRow['uid'];
                         $defaultLanguageRow['uid_foreign'] = self::$databaseEntriesTranslated[$tablename][$id]['uid'];
@@ -1288,17 +1299,17 @@ class DatabaseEntriesService
                 if (!empty($sheetDefinition['ROOT']['el'])) {
                     foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
                         if(!empty($config['TCEforms']['config']['type'])) {
-                           switch ($config['TCEforms']['config']['type']) {
-                               case 'inline':
-                                   $inlineConfig = $config['TCEforms']['config'];
-                                   $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] .'-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
-                                       'config' => $inlineConfig,
-                                       'parentUid' => $originalRow['uid'],
-                                       'parentTable' => $tablename,
-                                       'type' => 'updateChildInlinedReferencesFlexform'
-                                   ];
-                                   break;
-                           }
+                            switch ($config['TCEforms']['config']['type']) {
+                                case 'inline':
+                                    $inlineConfig = $config['TCEforms']['config'];
+                                    $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] .'-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
+                                        'config' => $inlineConfig,
+                                        'parentUid' => $originalRow['uid'],
+                                        'parentTable' => $tablename,
+                                        'type' => 'updateChildInlinedReferencesFlexform'
+                                    ];
+                                    break;
+                            }
                         }
                     }
                 }
