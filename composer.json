@@ -1,7 +1,7 @@
 {
   "name": "hyperdigital/hd_translator",
   "type": "typo3-cms-extension",
-  "description": "",
+  "description": "Translation of static strings from locallang.xlf files and export/import of database related content",
   "license": "GPL-2.0-or-later",
   "require": {
     "typo3/cms-core": ">=12.0 <12.99",

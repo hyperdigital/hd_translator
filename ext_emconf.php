@@ -2,7 +2,7 @@
 
 $EM_CONF[$_EXTKEY] = array(
     'title' => 'Translator',
-    'description' => '',
+    'description' => 'Translation of static strings from locallang.xlf files and export/import of database related content',
     'category' => 'fe',
     'author' => 'Martin Pribyl',
     'author_email' => 'developer@hyperdigital.de',
