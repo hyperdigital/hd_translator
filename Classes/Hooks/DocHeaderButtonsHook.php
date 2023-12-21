@@ -9,66 +9,54 @@ use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Backend\Template\Components\ModifyButtonBarEvent;
+use Psr\Http\Message\ServerRequestInterface;
 
 class DocHeaderButtonsHook
 {
-    public function addExportButton(
-        array $params,
-        ButtonBar $buttonBar
-    ): array {
-        $buttons = $params['buttons'];
+    private function getRequest(): ServerRequestInterface
+    {
+        return $GLOBALS['TYPO3_REQUEST'];
+    }
 
-        $parameters = GeneralUtility::_GP('edit');
+    public function __invoke(ModifyButtonBarEvent $event): void
+    {
+        if ($request = $this->getRequest()) {
+            $currentUid = (int) $request->getQueryParams()['id'];
+            $module = $request->getAttribute('module');
+            $route = $request->getAttribute('route');
 
-        $typo3Version = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Information\Typo3Version::class);
-
-        if (!empty($parameters)) {
-            foreach ($parameters as $tablename => $uidArray) {
-                if (!empty($uidArray)) {
-                    foreach ($uidArray as $uid => $status) {
-                        if ($status == 'edit') {
-                            $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationRow');
-                            $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-                            $button = $buttonBar->makeLinkButton();
-                            $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
-                            $button->setTitle($label);
-                            $button->setShowLabelText($label);
-                            $button->setHref($this->getRowExportLink($uid, $tablename));
-                            $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-                        }
-                        break 2;
+            if ($module && $module->getIdentifier() == 'web_list') {
+                $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
+                $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+                $button = $event->getButtonBar()->makeLinkButton();
+                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+                $button->setTitle($label);
+                $button->setShowLabelText($label);
+                $button->setHref($this->getPageContentExportLink($currentUid));
+                $buttonBar = $event->getButtons();
+                $buttonBar[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
+                $event->setButtons($buttonBar);
+            } else if ($route && $route->getPath() == '/record/edit') {
+                $queryParams = $request->getQueryParams();
+                $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
+                $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+                $button = $event->getButtonBar()->makeLinkButton();
+                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+                $button->setTitle($label);
+                $button->setShowLabelText($label);
+                foreach ($queryParams['edit'] as $table => $idArray) {
+                    foreach ($idArray as $id => $action) {
+                        $button->setHref($this->getRowExportLink($id, $table));
                     }
                 }
+                $buttonBar = $event->getButtons();
+                $buttonBar[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
+                $event->setButtons($buttonBar);
             }
-        } else if (GeneralUtility::_GP('route') == '/module/web/layout') {
-            $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
-            $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-            $button = $buttonBar->makeLinkButton();
-            $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
-            $button->setTitle($label);
-            $button->setShowLabelText($label);
-            $button->setHref($this->getPageContentExportLink(GeneralUtility::_GP('id')));
-            $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-        }
-//
-//        DebuggerUtility::var_dump();
-//        die();
-//return $buttons;
-//        $contentUid = $this->getContentUid();
-//        if (null !== $contentUid) {
-//            /** @var IconFactory $iconFactory */
-//            $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-//            $button = $buttonBar->makeLinkButton();
-//            $button->setIcon($iconFactory->getIcon('ext-dce-dce', Icon::SIZE_SMALL));
-//            $button->setTitle(LocalizationUtility::translate('editDceOfThisContentElement', 'dce'));
-//            $button->setOnClick(
-//                'window.open(\'' . $this->getDceEditLink($contentUid) . '\', \'editDcePopup\', ' .
-//                '\'height=768,width=1024,status=0,menubar=0,scrollbars=1\')'
-//            );
-//            $buttons[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-//        }
 
-        return $buttons;
+
+        }
     }
 
     protected function getRowExportLink($uid, $tablename)
@@ -77,12 +65,10 @@ class DocHeaderButtonsHook
         $uri = $uriBuilder->buildUriFromRoutePath(
             '/module/web/HdTranslatorHdTranslatorEngine',
             [
-                'tx_hdtranslator_web_hdtranslatorhdtranslatorengine' => [
-                    'action' => 'exportTableRowIndex',
-                    'controller' => 'Be\Translator',
-                    'tablename' => $tablename,
-                    'rowUid' => (int)$uid
-                ]
+                'action' => 'exportTableRowIndex',
+                'controller' => 'Be\Translator',
+                'tablename' => $tablename,
+                'rowUid' => (int)$uid
             ]
         );
 
@@ -95,11 +81,9 @@ class DocHeaderButtonsHook
         $uri = $uriBuilder->buildUriFromRoutePath(
             '/module/web/HdTranslatorHdTranslatorEngine',
             [
-                'tx_hdtranslator_web_hdtranslatorhdtranslatorengine' => [
-                    'action' => 'pageContentExport',
-                    'controller' => 'Be\Translator',
-                    'page' => $uid,
-                ]
+                'action' => 'pageContentExport',
+                'controller' => 'Be\Translator',
+                'page' => $uid,
             ]
         );
 

@@ -43,13 +43,6 @@ class TranslationHelper
         }
 
         if ($storage && !empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
-            $currentPage = 0;
-            if (!empty($GLOBALS['TSFE']) && !empty($GLOBALS['TSFE'])) {
-                $currentPage = (int) $GLOBALS['TSFE']->id;
-            } else if ((int)\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id')) {
-                $currentPage = (int)\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id');
-            }
-
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $settings) {
                 foreach ($settings['languages'] as $lang) {
                     if ($lang == 'en' || $lang == 'default') {

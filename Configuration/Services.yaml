@@ -6,3 +6,8 @@ services:
 
   Hyperdigital\HdTranslator\:
     resource: '../Classes/*'
+
+  Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook:
+    tags:
+      - name: event.listener
+        identifier: 'hd-translator/hooks/modify-button-bar'

@@ -39,6 +39,6 @@ class GetFlagNameViewHelper extends AbstractViewHelper
             return 'EXT:hd_translator/Resources/Public/Icons/empty_flag.png';
         }
 
-        return 'EXT:core/Resources/Public/Icons/Flags/'.strtoupper($flag).'.png';
+        return 'EXT:core/Resources/Public/Icons/Flags/'.strtolower($flag).'.webp';
     }
 }

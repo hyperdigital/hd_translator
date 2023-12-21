@@ -6,6 +6,7 @@ namespace Hyperdigital\HdTranslator\Controller\Be;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
+use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Backend\View\BackendTemplateView;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Context\LanguageAspect;
@@ -15,6 +16,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\Page\PageRenderer;
@@ -64,25 +66,24 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $pageData = [];
 
     protected $pageRepository;
+    protected $moduleTemplateFactory;
+    protected $moduleTemplate;
+    protected $uriBuilder;
 
     public function __construct(
         ListUtility     $listUtility,
-        ModuleTemplate  $moduleTemplate,
-        LanguageService $languageService,
+        ModuleTemplateFactory  $moduleTemplateFactory,
         FlexFormService $flexFormService,
-        PageRepository $pageRepository
+        PageRepository $pageRepository,
+        UriBuilder $uriBuilder
     )
     {
         $this->listUtility = $listUtility;
-        $this->moduleTemplate = $moduleTemplate;
-        $this->languageService = $languageService;
+        $this->languageService = $languageService = GeneralUtility::makeInstance(LanguageServiceFactory::class)->createFromUserPreferences($GLOBALS['BE_USER']);;
         $this->flexFormService = $flexFormService;
         $this->pageRepository = $pageRepository;
-
-        if (\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id')) {
-            $this->pageUid = (int)\TYPO3\CMS\Core\Utility\GeneralUtility::_GP('id');
-            $this->pageData = $pageRepository->getPage($this->pageUid, true);
-        }
+        $this->moduleTemplateFactory = $moduleTemplateFactory;
+        $this->uriBuilder = $uriBuilder;
     }
 
     public function initializeAction()
@@ -99,12 +100,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $this->redirect('syncLocallangs');
             }
         }
+
+        $this->moduleTemplate = $this->moduleTemplateFactory->create($this->request);
+
+        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
+        if ($currentPid) {
+            $this->pageUid = (int)$currentPid;
+            $this->pageData = $this->pageRepository->getPage($this->pageUid, true);
+        }
     }
 
     protected function indexMenu()
     {
-        $uriBuilder = $this->objectManager->get(UriBuilder::class);
-        $uriBuilder->setRequest($this->request);
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
 
         $menu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
         $menu->setIdentifier('hd_translator_index');
@@ -163,7 +171,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     /**
@@ -189,7 +197,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->indexMenu();
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function pageContentExportAction()
@@ -204,7 +212,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('languages', $this->listOfPossibleLanguages);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     /**
@@ -329,7 +337,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function databaseAction()
@@ -351,7 +359,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('tables', $tables);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     /**
@@ -640,7 +648,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     public function databaseTableFieldsAction()
     {
-        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
 
         $uriBuilder->setRequest($this->request);
@@ -701,7 +709,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('tables', $fields);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function getAllPagesFromRoot($roots, &$return)
@@ -775,7 +783,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         ]);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     protected function idToDatabaseNames(&$retrun, $id, $value)
@@ -1184,7 +1192,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function listAction(string $category)
     {
-        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
 
         $uriBuilder->setRequest($this->request);
@@ -1237,7 +1245,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
         }
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function syncLocallangsAction()
@@ -1336,7 +1344,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function searchAction($sword)
     {
-        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
 
         $uriBuilder->setRequest($this->request);
@@ -1402,7 +1410,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->view->assign('data', $return);
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     /**
@@ -1532,7 +1540,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
 
-        $uriBuilder = $this->objectManager->get(UriBuilder::class);
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $uriBuilder->setRequest($this->request);
 
         $menu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
@@ -1600,7 +1608,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->moduleTemplate->setContent($this->view->render());
-        return $this->moduleTemplate->renderContent();
+        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function setCategorizatedData(&$output, $key, $value, $fullKey)

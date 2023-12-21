@@ -1,0 +1,38 @@
+<?php
+
+return [
+    'hd_translator_engine' => [
+        'parent' => 'web',
+        'position' => ['after' => 'web_info'],
+        'access' => 'group',
+        'iconIdentifier' => 'hd_translator_icon',
+        'navigationComponentId' => '',
+        'inheritNavigationComponentFromMainModule' => false,
+        'labels' => 'LLL:EXT:hd_translator/Resources/Private/Language/locallang_customizer.xlf',
+        'extensionName' => 'HdTranslator',
+        'path' => '/module/web/HdTranslatorHdTranslatorEngine',
+        'controllerActions' => [
+            \Hyperdigital\HdTranslator\Controller\Be\TranslatorController::class => [
+                'index',
+                'list',
+                'detail',
+                'database',
+                'databaseTableFields',
+                'databaseExport',
+                'databaseImport',
+                'save',
+                'syncLocallangs',
+                'search',
+                'download',
+                'import',
+                'remove',
+                'exportTableRowIndex',
+                'exportTableRowExport',
+                'pageContentExport',
+                'pageContentExportProccess',
+                'databaseImportIndex',
+                'databaseImportAction'
+            ]
+        ],
+    ],
+];

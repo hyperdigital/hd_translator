@@ -1213,7 +1213,6 @@ class DatabaseEntriesService
                     ->where(
                         $queryBuilder->expr()->eq('sys_language_uid', 0),
                         $queryBuilder->expr()->eq('uid_foreign', $id),
-                        $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
                         $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
                     )
                     ->execute();
@@ -1227,7 +1226,6 @@ class DatabaseEntriesService
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
 
                     $where = [
-                        $queryBuilder->expr()->eq('table_local', $queryBuilder->createNamedParameter('sys_file')),
                         $queryBuilder->expr()->eq('uid_foreign', self::$databaseEntriesTranslated[$tablename][$id]['uid']),
                     ];
 
