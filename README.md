@@ -2,7 +2,7 @@
 TYPO3 extension for handling translations
 ## Initialization
 
-Upon installation, a new submodule will be added under the WEB module ([INSERT IMAGE]). Before utilizing
+Upon installation, a new submodule will be added under the WEB module. Before utilizing
 the extension's features, it is essential to specify the location where new translations should be stored.
 Follow these steps:
 
