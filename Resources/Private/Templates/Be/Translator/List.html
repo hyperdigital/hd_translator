@@ -16,44 +16,46 @@
             <f:if condition="{pageData}">
                 <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
             </f:if>
-            <table class="hd-translator-list-table">
-                <f:for each="{data}" key="index" as="file">
-                    <tr>
-                        <td class="hd-translator-list-table-label">{file.label}</td>
-                        <td class="hd-translator-list-table-flags">
-                            <f:if condition="{file.availableLanguages}">
-                                <div class="hd-translator-list-flags-wrap">
-                                    <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
-                                        <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: langShort}">
-                                            <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" class="hd-translator-flag" />
-                                        </f:link.action>
-                                    </f:for>
-                                </div>
-                            </f:if>
-                        </td>
-                        <td  class="hd-translator-list-table-tools">
-                            <f:if condition="{file.languages}">
-                                <div class="popup-action">
-                                    <button>
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" stroke="currentColor"  viewBox="0 0 24 24" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                        <f:translate key="list.add_new" />
-                                    </button>
-                                    <div class="popup-content hidden">
-                                        <f:for each="{file.languages}" as="lang">
-                                            <div class="hd-translator-list-languageitem">
-                                                <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="hd-translator-flag" />
-                                                <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
+            <div>
+                <table class="table table-hover">
+                    <tbody>
+                        <f:for each="{data}" key="index" as="file">
+                            <tr>
+                                <td class="hd-translator-list-table-label" width="50"><b>{file.label}</b></td>
+                                <td class="hd-translator-list-table-flags">
+                                    <f:if condition="{file.availableLanguages}">
+                                        <div class="hd-translator-list-flags-wrap">
+                                            <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
+                                                <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: langShort}">
+                                                    <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" class="hd-translator-flag" />
+                                                </f:link.action>
+                                            </f:for>
+                                        </div>
+                                    </f:if>
+                                </td>
+                                <td  class="hd-translator-list-table-tools">
+                                    <f:if condition="{file.languages}">
+                                        <div class="popup-action">
+                                            <button class="btn btn-default">
+                                                <core:icon identifier="actions-plus" size="small" />
+                                                <f:translate key="list.add_new" />
+                                            </button>
+                                            <div class="popup-content hidden">
+                                                <f:for each="{file.languages}" as="lang">
+                                                    <div class="hd-translator-list-languageitem">
+                                                        <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" height="24" class="hd-translator-flag" />
+                                                        <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
+                                                    </div>
+                                                </f:for>
                                             </div>
-                                        </f:for>
-                                    </div>
-                                </div>
-                            </f:if>
-                        </td>
-                    </tr>
-                </f:for>
-            </table>
+                                        </div>
+                                    </f:if>
+                                </td>
+                            </tr>
+                        </f:for>
+                    </tbody>
+                </table>
+            </div>
         </f:if>
     </div>
     <script>

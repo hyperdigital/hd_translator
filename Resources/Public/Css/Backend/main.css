@@ -4,8 +4,12 @@
     --hdtranslator-main-color: #787575;
     --hdtranslator-dark-color: #333333;
 }
-.hd-translator *{
+.hd-translator .hd-translator-detail-grid *{
     color: var(--hdtranslator-main-color);
+}
+.hd-translator img{
+    max-width: 100%;
+    height: auto;
 }
 .hd-translator h1 .subline{
     font-size: 20px;
@@ -37,19 +41,6 @@
     outline: none;
     border-bottom: 1px solid var(--hdtranslator-dark-color);
 }
-.hd-translator button{
-    background: transparent;
-    border: none;
-    color: var(--hdtranslator-dark-color);
-    font-weight: 600;
-}
-.hd-translator button svg{
-    height: 1rem;
-    width: auto;
-}
-.hd-translator button *{
-    color: var(--hdtranslator-dark-color);
-}
 .popup-action{
     position: relative;
 }
@@ -57,9 +48,8 @@
     position: absolute;
     padding: 10px;
     width: 100%;
-    border: 1px solid var(--hdtranslator-dark-color);
+    border: 1px solid var(--bs-table-border-color);
     background-color: white;
-    font-size: 1.15rem;
     font-weight: 600;
     z-index: 2;
     max-height: 400px;
@@ -80,17 +70,17 @@
     grid-template-columns: repeat(1, minmax(0, 1fr));
     font-size: var(--hdtranslator-font-size);
 }
+.popup-content .hd-translator-list-languageitem{
+    font-size: var(--bs-body-font-size);
+}
 .hd-translator-list-table{
 }
 .hd-translator-list-table td{
     vertical-align: top;
     padding: 2px 4px;
 }
-.hd-translator-list-table .hd-translator-list-table-label{
-    padding-right: 10px;
-	vertical-align: center;
-}
-.hd-translator-list-table .hd-translator-list-table-flags{
+.hd-translator-list-table-label, .hd-translator-list-table-flags{
+    white-space: nowrap;
 }
 .hd-translator-list-table .hd-translator-list-table-tools{
     min-width: 400px;
