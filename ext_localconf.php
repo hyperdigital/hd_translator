@@ -21,8 +21,6 @@ defined('TYPO3') or die();
         ['source' => 'EXT:hd_translator/Resources/Public/Icons/typo3_icon_lang-switch_docheader.svg']
     );
 
-    // Control icons
-    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['GLOBAL']['recStatInfoHooks'][] = \Hyperdigital\HdTranslator\Hooks\RecordListControllHook::class.'->renderListEntry';
     $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'][] =
         \Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook::class . '->addExportButton';
 })();

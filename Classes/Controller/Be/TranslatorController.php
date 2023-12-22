@@ -1645,10 +1645,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
 
         if (file_exists($path)) {
-            unlink($path);
+            rename($path, $path.'.backup');
         }
 
-        $this->redirect('list', null, null, [
+        return $this->redirect('list', null, null, [
             'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
         ]);
     }
@@ -1660,7 +1660,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function importAction($keyTranslation, $languageTranslation)
     {
         if (!$this->request->hasArgument('file')) {
-            $this->redirect('detail',  null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+            return $this->redirect('detail',  null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
         }
         $file = $this->request->getArgument('file');
         $extension = explode('.', $file['name']);
@@ -1735,10 +1735,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if (!empty($data)) {
-            $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data]);
+            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data]);
         }
 
-        $this->redirect('detail', null, null, [
+        return $this->redirect('detail', null, null, [
             'keyTranslation' => $keyTranslation,
             'languageTranslation' => $languageTranslation,
             'emptyImport' => true

@@ -3,6 +3,21 @@
     <file source-language="en" datatype="plaintext" original="messages" date="2020-07-02T09:00:00Z" product-name="hd_translator">
         <header/>
         <body>
+            <trans-unit id="index.missingStorage.headline">
+                <source>Missing storage</source>
+            </trans-unit>
+            <trans-unit id="index.missingStorage.description">
+                <source>Begin by specifying the storage path for the generated translation files. This path is relative to the project root and can be configured through the Extension Configuration.</source>
+            </trans-unit>
+            <trans-unit id="index.missingStorage.goToSettings">
+                <source>Go To Extension Configuration</source>
+            </trans-unit>
+            <trans-unit id="index.headline">
+                <source>Static strings translation</source>
+            </trans-unit>
+            <trans-unit id="index.categories.headline">
+                <source>Categories</source>
+            </trans-unit>
             <trans-unit id="detail.search">
                 <source>Search...</source>
             </trans-unit>
@@ -20,6 +35,9 @@
             </trans-unit>
             <trans-unit id="flashMessages.sucecssfullySaved">
                 <source>Successfully saved</source>
+            </trans-unit>
+            <trans-unit id="flashMessages.notSucecssfullySaved">
+                <source>Something failed</source>
             </trans-unit>
             <trans-unit id="flashMessages.noDataToImport">
                 <source>No Data to import</source>
