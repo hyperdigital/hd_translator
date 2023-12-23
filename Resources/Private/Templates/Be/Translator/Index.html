@@ -24,7 +24,18 @@
                         <table class="table table-hover">
                             <tbody>
                                 <f:for each="{categories}" as="languages" key="category">
-                                    <tr><td><f:link.action action="list" arguments="{category: category}">{category}</f:link.action></td></tr>
+                                    <tr>
+                                        <td><b><f:link.action action="list" arguments="{category: category}">{category}</f:link.action></b></td>
+                                        <td>
+                                            <f:if condition="{languages}">
+                                                <small>
+                                                    <f:for each="{languages}" as="language" iteration="i">
+                                                        {language.label}<f:if condition="!{i.isLast}">, </f:if>
+                                                    </f:for>
+                                                </small>
+                                            </f:if>
+                                        </td>
+                                    </tr>
                                 </f:for>
                             </tbody>
                         </table>

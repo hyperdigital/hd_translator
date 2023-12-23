@@ -26,8 +26,9 @@
                                     <f:if condition="{file.availableLanguages}">
                                         <div class="hd-translator-list-flags-wrap">
                                             <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
-                                                <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: langShort}">
+                                                <f:link.action action="detail" class="btn btn-default" arguments="{keyTranslation: index, languageTranslation: langShort}">
                                                     <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" class="hd-translator-flag" />
+                                                    {lang}
                                                 </f:link.action>
                                             </f:for>
                                         </div>
