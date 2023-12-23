@@ -21,12 +21,13 @@ class DocHeaderButtonsHook
 
     public function __invoke(ModifyButtonBarEvent $event): void
     {
-        if ($request = $this->getRequest()) {
+        $request = $this->getRequest();
+        if ($request && $GLOBALS['BE_USER']->check('modules', 'hd_translator_engine')) {
             $currentUid = (int) $request->getQueryParams()['id'];
             $module = $request->getAttribute('module');
             $route = $request->getAttribute('route');
 
-            if ($module && $module->getIdentifier() == 'web_list') {
+            if ($module && $module->getIdentifier() == 'web_list' && $currentUid > 0) {
                 $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
                 $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
                 $button = $event->getButtonBar()->makeLinkButton();
@@ -45,14 +46,20 @@ class DocHeaderButtonsHook
                 $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
                 $button->setTitle($label);
                 $button->setShowLabelText($label);
+                $enableButton = false;
                 foreach ($queryParams['edit'] as $table => $idArray) {
-                    foreach ($idArray as $id => $action) {
-                        $button->setHref($this->getRowExportLink($id, $table));
+                    if(!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
+                        foreach ($idArray as $id => $action) {
+                            $enableButton = true;
+                            $button->setHref($this->getRowExportLink($id, $table));
+                        }
                     }
                 }
-                $buttonBar = $event->getButtons();
-                $buttonBar[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
-                $event->setButtons($buttonBar);
+                if ($enableButton) {
+                    $buttonBar = $event->getButtons();
+                    $buttonBar[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
+                    $event->setButtons($buttonBar);
+                }
             }
 
 
