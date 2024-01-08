@@ -1415,7 +1415,7 @@ class DatabaseEntriesService
             ) {
                 if (
                     !empty($GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'])
-                    &&  (
+                    && (
                         $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'] == 'inline'
                     )
                 ) {
@@ -1432,6 +1432,19 @@ class DatabaseEntriesService
                             'MM_opposite_field' => $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['MM_opposite_field'] ?? false,
                         ];
                     }
+                    $row[$key] = $parentValue;
+                }
+            } else {
+                // Default values from original language if the value is not set
+                $disabledKeys = ['uid'];
+                if (
+                    !isset($row[$key])
+                    && !in_array($key, $disabledKeys)
+                    && (
+                        empty($GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'])
+                        || $GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'] != 'exclude'
+                    )
+                ) {
                     $row[$key] = $parentValue;
                 }
             }

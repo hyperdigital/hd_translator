@@ -73,6 +73,19 @@ The default list of exported fields from the database is located in the same sec
 ```php
 $GLOBALS['TCA'][$table]['types'][1]['translator_export'] = 'title, subtitle, another_field';
 ```
+#### Different Settings for Different Table Types
+
+In many cases, you may find it necessary to have distinct settings for various content elements. For instance, you might want specific export configurations for a Content Element of type 'Header' as opposed to a 'Text' element. To achieve this level of granularity, utilize the type-specific settings. Here's an example for 'Header' and 'Text' elements within the `tt_content` table:
+
+##### Header Content Element
+```php
+$GLOBALS['TCA']['tt_content']['types']['header']['translator_export'] = 'header, subheader';
+```
+##### Text Content Element
+```php
+$GLOBALS['TCA']['tt_content']['types']['text']['translator_export'] = 'header, subheader, bodytext';
+```
+
 #### Exporting Flexform Fields
 
 When the Flexform is included in the export, it retrieves all fields by default. However, you can limit the exported fields similar to the entire table. Use the following configuration:
