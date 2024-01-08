@@ -15,7 +15,7 @@
       "homepage": "https://www.coma.de/",
       "role": "Developer"
     }
-  ]
+  ],
   "license": "GPL-2.0-or-later",
   "require": {
     "typo3/cms-core": ">=12.0 <12.99",
