@@ -111,13 +111,14 @@ class XlfService
         $xml = simplexml_load_string($input);
         $data = json_decode(json_encode($xml), true);
         $return = [];
+
         if (!empty($data['file']['body']['trans-unit'])) {
             if (!empty($data['file']['body']['trans-unit'][0])) {
                 foreach ($data['file']['body']['trans-unit'] as $item) {
-                    $return[$item['@attributes']['id']] = (!empty($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
+                    $return[$item['@attributes']['id']] = (isset($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
                 }
             } else {
-                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (!empty($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
+                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (isset($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
             }
         }
 
