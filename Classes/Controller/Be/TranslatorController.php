@@ -118,29 +118,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $menu->setIdentifier('hd_translator_index');
 
         // Static strings
-        $item = $menu->makeMenuItem()->setTitle('Static strings')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.index', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('index', null))
             ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Page content export')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.pageContentExport', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('pageContentExport', null))
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Database entries export')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.database', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('database', null))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
-            $item = $menu->makeMenuItem()->setTitle('Single table row export')
+            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.exportTableRowIndex', 'hd_translator'))
                 ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', null))
                 ->setActive('exportTableRowIndex' == $this->request->getControllerActionName() ? 1 : 0);
             $menu->addMenuItem($item);
         }
 
-        $item = $menu->makeMenuItem()->setTitle('Import')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);

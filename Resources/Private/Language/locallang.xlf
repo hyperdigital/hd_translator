@@ -3,6 +3,21 @@
     <file source-language="en" datatype="plaintext" original="messages" date="2020-07-02T09:00:00Z" product-name="hd_translator">
         <header/>
         <body>
+            <trans-unit id="docHeader.index">
+                <source>Static strings</source>
+            </trans-unit>
+            <trans-unit id="docHeader.pageContentExport">
+                <source>Page content export</source>
+            </trans-unit>
+            <trans-unit id="docHeader.database">
+                <source>Database entries export</source>
+            </trans-unit>
+            <trans-unit id="docHeader.exportTableRowIndex">
+                <source>Single table row export</source>
+            </trans-unit>
+            <trans-unit id="docHeader.databaseImportIndex">
+                <source>Database import</source>
+            </trans-unit>
             <trans-unit id="index.missingStorage.headline">
                 <source>Missing storage</source>
             </trans-unit>
@@ -65,6 +80,9 @@
             </trans-unit>
             <trans-unit id="contentExport.headline">
                 <source>Content export</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.index.importHeadline">
+                <source>Database import</source>
             </trans-unit>
         </body>
     </file>
