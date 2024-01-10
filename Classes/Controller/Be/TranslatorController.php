@@ -97,7 +97,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if (file_exists($this->storage . $this->conigurationFile)) {
                 require $this->storage . $this->conigurationFile;
             } else {
-                $this->redirect('syncLocallangs');
+                return $this->redirect('syncLocallangs');
             }
         }
 
@@ -118,29 +118,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $menu->setIdentifier('hd_translator_index');
 
         // Static strings
-        $item = $menu->makeMenuItem()->setTitle('Static strings')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.index', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('index', null))
             ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Page content export')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.pageContentExport', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('pageContentExport', null))
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
-        $item = $menu->makeMenuItem()->setTitle('Database entries export')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.database', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('database', null))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
-            $item = $menu->makeMenuItem()->setTitle('Single table row export')
+            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.exportTableRowIndex', 'hd_translator'))
                 ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', null))
                 ->setActive('exportTableRowIndex' == $this->request->getControllerActionName() ? 1 : 0);
             $menu->addMenuItem($item);
         }
 
-        $item = $menu->makeMenuItem()->setTitle('Import')
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
@@ -1243,6 +1243,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $this->view->assign('data', $data);
             $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
+            $this->view->assign('category', $category);
         }
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
@@ -1269,7 +1270,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         file_put_contents($this->storage . $this->conigurationFile, "<?php\n" . '$GLOBALS["TYPO3_CONF_VARS"]["translator"] = ' . var_export($this->langFiles, true) . ';');
-        $this->redirect('index');
+        return $this->redirect('index');
     }
 
     protected function getAllLangFilesFromPath($extConfig, $path, $extPath, $key)
@@ -1286,7 +1287,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         $this->getAllLangFilesFromPath($extConfig, $path . '/' . $filename, $extPath . '/' . $filename, $key);
                     } else {
                         // Check if it's not default language
-                        if (in_array(explode('.', $filename)[0], array_keys($this->listOfPossibleLanguages))) {
+                        $languagePrefix = explode('.', $filename)[0];
+                        // The language can be also with sublevel like pt-BR
+                        $languagePrefix = explode('-', $languagePrefix)[0];
+                        if (in_array($languagePrefix, array_keys($this->listOfPossibleLanguages))) {
                             continue;
                         }
 
@@ -1603,6 +1607,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $this->view->assign('langaugeKey', $languageTranslation);
             $this->view->assign('translationKey', $keyTranslation);
+            $this->view->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
 
             $this->view->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
         }

@@ -17,7 +17,12 @@
                 <f:then>
                     <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:index.categories.headline" /></h2>
                     <f:if condition="{enabledSync}">
-                        <f:link.action action="syncLocallangs" class="btn btn-default">TODO:Run sync</f:link.action>
+											<p>
+                        <f:link.action action="syncLocallangs" class="btn btn-default">
+													<core:icon identifier="actions-synchronize" size="small" />
+													<f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:index.synchronizeLocalizedFiles" />
+												</f:link.action>
+											</p>
                     </f:if>
                     <f:render partial="Search" arguments="{_all}" />
                     <div>
