@@ -46,7 +46,7 @@
                 <source>Delete translation</source>
             </trans-unit>
             <trans-unit id="list.add_new">
-                <source>Add new</source>
+                <source>Add a new translation</source>
             </trans-unit>
             <trans-unit id="flashMessages.sucecssfullySaved">
                 <source>Successfully saved</source>
@@ -84,6 +84,9 @@
             <trans-unit id="databaseImport.index.importHeadline">
                 <source>Database import</source>
             </trans-unit>
+			<trans-unit id="index.synchronizeLocalizedFiles">
+				<source>Synchronize all files</source>
+			</trans-unit>
         </body>
     </file>
 </xliff>

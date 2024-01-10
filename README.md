@@ -8,12 +8,23 @@ Follow these steps:
 
 1. Navigate to the Extension Configuration section.
 2. Look for the "Storage path (from the root of the project)" option within the HD Translator settings.
-When inserting a relative path in this field, consider that starting point is the project root, 
+When inserting a relative path in this field, consider that starting point is the project root,
 where your project's `composer.json` is stored.
 
 ## Static Strings Translations
+### Previews
+#### All locallang files categories
+![All locallang filed](Documentation/Images/all_locallang_files.PNG "All locallang filed")
 
+#### All locallangs for category
+![All locallang for specific category](Documentation/Images/category.PNG "All locallang for specific category")
+
+#### Example of german translation for one locallang
+![Example of german translation](Documentation/Images/detail.PNG "Example of german translation")
+
+### Specific locallang files
 A key feature of this extension lies in its ability to work seamlessly with `locallang.xlf` files. To enable the handling of specific `locallang.xlf` files, follow these steps:
+
 
 1. Open the `ext_localconf.php` file in your TYPO3 extension.
 
@@ -37,6 +48,20 @@ A key feature of this extension lies in its ability to work seamlessly with `loc
     - `languages`: Define the supported languages for the translations.
 
 Ensure that the provided path is correct and corresponds to the actual location of your `locallang.xlf` file. You can extend the 'languages' array to include additional language codes as required.
+
+### Synchronizing All locallang.xlf Files
+
+The system has the capability to retrieve all accessible `locallang.xlf` files across all extensions, making translation management more efficient. Follow these steps to synchronize the files:
+
+1. In the extension configuration, locate and check the checkbox labeled "All locallang.xlf files."
+
+2. Navigate to the Translator module within the TYPO3 backend.
+
+3. Find the "Synchronize all files" button and click on it.
+
+This action generates settings for all the `locallang.xlf` files, ensuring that the system is aware of and can handle translations from every extension. If you add a new translation file or introduce a new extension, it's essential to click the "Synchronize all files" button again. This process updates the system settings accordingly.
+
+By utilizing this feature, you streamline the management of translations across your TYPO3 project, ensuring that the Translator module is aware of all relevant translation files and extensions.
 
 ### Correct Language Configuration
 

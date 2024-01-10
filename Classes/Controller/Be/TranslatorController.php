@@ -97,7 +97,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if (file_exists($this->storage . $this->conigurationFile)) {
                 require $this->storage . $this->conigurationFile;
             } else {
-                $this->redirect('syncLocallangs');
+                return $this->redirect('syncLocallangs');
             }
         }
 
@@ -1243,6 +1243,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $this->view->assign('data', $data);
             $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
+            $this->view->assign('category', $category);
         }
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
@@ -1269,7 +1270,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         file_put_contents($this->storage . $this->conigurationFile, "<?php\n" . '$GLOBALS["TYPO3_CONF_VARS"]["translator"] = ' . var_export($this->langFiles, true) . ';');
-        $this->redirect('index');
+        return $this->redirect('index');
     }
 
     protected function getAllLangFilesFromPath($extConfig, $path, $extPath, $key)
@@ -1286,7 +1287,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         $this->getAllLangFilesFromPath($extConfig, $path . '/' . $filename, $extPath . '/' . $filename, $key);
                     } else {
                         // Check if it's not default language
-                        if (in_array(explode('.', $filename)[0], array_keys($this->listOfPossibleLanguages))) {
+                        $languagePrefix = explode('.', $filename)[0];
+                        // The language can be also with sublevel like pt-BR
+                        $languagePrefix = explode('-', $languagePrefix)[0];
+                        if (in_array($languagePrefix, array_keys($this->listOfPossibleLanguages))) {
                             continue;
                         }
 
@@ -1603,6 +1607,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $this->view->assign('langaugeKey', $languageTranslation);
             $this->view->assign('translationKey', $keyTranslation);
+            $this->view->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
 
             $this->view->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
         }
