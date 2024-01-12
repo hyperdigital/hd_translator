@@ -202,6 +202,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     public function pageContentExportAction()
     {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
         $this->indexMenu();
         $currentPage = '';
         if ($this->request->hasArgument('page')) {
@@ -210,6 +212,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->view->assign('currentPage', $currentPage);
         $this->view->assign('languages', $this->listOfPossibleLanguages);
+        $entry = $databaseEntriesService->getCompleteCleanRow('pages', (int) $currentPage);
+        $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
+        $this->view->assign('currentLanguageUid', $sourceLanguageUid);
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;

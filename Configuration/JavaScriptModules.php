@@ -2,9 +2,10 @@
 
 return [
     'dependencies' => ['core', 'backend'],
+    'tags' => [
+        'backend.contextmenu',
+    ],
     'imports' => [
-        '@hyperdigital/hd-translator/' => [
-            'path' => 'EXT:my_extension/Resources/Public/JavaScript/',
-        ],
+        '@hyperdigital/hd-translator/' =>  'EXT:hd_translator/Resources/Public/JavaScript/',
     ],
 ];

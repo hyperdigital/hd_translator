@@ -11,3 +11,12 @@ services:
     tags:
       - name: event.listener
         identifier: 'hd-translator/hooks/modify-button-bar'
+        method: 'modifyButtonBarColumns'
+      - name: event.listener
+        identifier: 'hd-translator/recordlist/my-event-listener'
+        method: 'modifyRecordActions'
+
+  Hyperdigital\HdTranslator\ContextMenu\ExportItemProvider:
+    tags:
+      - name: backend.contextmenu.itemprovider
+
