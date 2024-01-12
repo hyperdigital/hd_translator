@@ -121,6 +121,6 @@ $GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] =
 
 ### Displaying Export Buttons
 
-Export buttons will appear next to the save or edit buttons when editing a table entry or within the Page module.
+Export buttons will appear next to the save or edit buttons when editing a table entry or within the Page module. It's also a part of context menues.
 
 Customize the export settings according to your specific requirements to ensure that only the necessary data is included in the exported file.

@@ -123,11 +123,10 @@ class DatabaseEntriesService
             $pageTypes = GeneralUtility::trimExplode(',', $pageTypes);
         }
 
-        $queryGenerator = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\QueryGenerator::class);
+        $pageRepository = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Domain\Repository\PageRepository::class);
 
-        $subpages = $queryGenerator->getTreeList($parentPid, 9999);
+        $subpages = $pageRepository->getPageIdsRecursive([$parentPid], 9999);
         if ($subpages){
-            $subpages = GeneralUtility::trimExplode(',', $subpages);
             foreach ($subpages as $subpage) {
                 if (!in_array($subpage, $storages)) {
                     $storages[] = $subpage;
@@ -170,6 +169,31 @@ class DatabaseEntriesService
         $slug = mb_strtolower($slug, 'utf-8');
 
         return $slug;
+    }
+
+    /**
+     * @param string $tablename name of the table
+     * @param int $rowUid UID of entry
+     */
+    public function getCompleteCleanRow(string $tablename, int $rowUid)
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $orWhere = [];
+        $orWhere[] = $queryBuilder->expr()->eq('uid', $rowUid);
+
+        $result = $queryBuilder
+            ->select('*')
+            ->from($tablename)
+            ->orWhere(
+                ...$orWhere
+            )
+            ->execute();
+
+        $row = $result->fetchAssociative();
+        
+        return $row;
     }
 
     /**
