@@ -432,6 +432,8 @@ class DatabaseEntriesService
                     $return[$specialFieldNameOutput]['uid'] = $row['uid'] ?? '';
                     $return[$specialFieldNameOutput]['field'] = $field ?? '';
                     break;
+                case 'file':
+                    $this->getFileTranslatableData($tablename, $field, $row, $return, $specialFieldNameOutput);
                 case 'inline':
                     $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput);
                     break;
@@ -503,6 +505,32 @@ class DatabaseEntriesService
         }
     }
 
+    public function getFileTranslatableData($tablename, $field, $row, &$return, $specialFieldNameOutput = '')
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $result = $queryBuilder
+            ->select('*')
+            ->from('sys_file_reference')
+            ->where(
+                $queryBuilder->expr()->eq('uid_foreign', $row['uid']),
+                $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
+                $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
+            )
+            ->execute();
+
+
+        while($rowInlined = $result->fetchAssociative()) {
+            $typeArray = [];
+            $listOfFields = $this->getListOfTranslatableFields('sys_file_reference', $rowInlined, $typeArray);
+
+            foreach ($listOfFields as $field) {
+                $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
+                $this->getFieldKeyAndValue('sys_file_reference', $field, $rowInlined, $return, $tempName, $typeArray);
+            }
+        }
+    }
+
     /**
      * @param string $tablename
      * @param string $field
@@ -512,16 +540,6 @@ class DatabaseEntriesService
      */
     protected function getInlinedRowsFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '')
     {
-        /**
-         * @param string $tablename
-         * @param int $parentUid
-         * @param string $foreignField
-         * @param string $foreignSortby
-         * @param string $foreignTableField
-         * @param array $foreignMatchFields
-         * @return mixed
-         */
-
         $foreginTable = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_table'];
         if (
             !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
@@ -1670,6 +1688,7 @@ class DatabaseEntriesService
     public function convertDataToDatabaseTablesArray(array $data, $targetLanguage)
     {
         $return = [];
+
         foreach ($data as $key => $value) {
             $this->databaseTableArrayRecursive($key, $value, $return, $targetLanguage);
         }
@@ -1776,6 +1795,26 @@ class DatabaseEntriesService
                 $row = self::$databaseEntriesOriginal[$parentTableName][$rowUid];
                 if ($row) {
                     switch ($GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['type']) {
+                        case 'file':
+                            $foreginTable = 'sys_file_reference';
+//                            $foreginField = 'uid_foreign';
+//                            $foreginTableField = 'tablenames';
+//                            $fieldField = 'fieldname';
+
+                            $tempKeys[2] = $foreginTable;
+                            unset($tempKeys[0]);
+                            unset($tempKeys[1]);
+
+                            $this->databaseTableArrayRecursive(implode('.', $tempKeys), $value, $return, $targetLanguage);
+
+                            // Update parent table field to store amount of child or coma separated list
+                            $this->updateAfterImport[$parentTableName . '-' . $rowUid . '-' . $field . '-updateChildInlinedReferences'] = [
+                                'table' => $parentTableName,
+                                'uid' => $rowUid,
+                                'field' => $field,
+                                'type' => 'updateChildInlinedReferences'
+                            ];
+
                         case 'inline':
                             $foreginTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table'];
                             if (

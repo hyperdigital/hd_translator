@@ -33,6 +33,9 @@ class ExportItemProvider extends AbstractProvider
         // Current table is: $this->table
         // Current UID is: $this->identifier
 //        return $this->table === 'pages';
+        if ($this->identifier == 0) {
+            return false;
+        }
         return true;
     }
 
