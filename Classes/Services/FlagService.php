@@ -10,7 +10,7 @@ class FlagService
         'ar' => '', // Arabic
         'bs' => '', // Bosnian
         'bg' => '', // Bulgarian
-        'ca' => '', // Catalan
+        'ca' => 'ES', // Catalan
         'ch' => 'CN', // Chinese (Simple)
         'cs' => 'CZ', // Czech
         'cy' => 'GB-WLS', // Welsh
@@ -21,7 +21,7 @@ class FlagService
         'eo' => 'ES', // Esperanto
         'es' => 'ES', // Spanish
         'et' => 'EE', // Estonian
-        'eu' => '', // Basque
+        'eu' => 'ES', // Basque
         'fa' => '', // Persian
         'fi' => 'FI', // Finnish
         'fo' => '', // Faroese
@@ -29,16 +29,16 @@ class FlagService
         'fr_CA' => 'CA', // French (Canada)
         'gl' => '', // Galician
         'he' => 'IL', // Hebrew
-        'hi' => '', // Hindi
+        'hi' => 'IN', // Hindi
         'hr' => 'HR', // Croatian
         'hu' => 'HU', // Hungarian
         'is' => 'IS', // Icelandic
         'it' => 'IT', // Italian
-        'ja' => '', // Japanese
+        'ja' => 'JP', // Japanese
         'ka' => '', // Georgian
         'kl' => '', // Greenlandic
         'km' => '', // Khmer
-        'ko' => '', // Korean
+        'ko' => 'KO', // Korean
         'lt' => '', // Lithuanian
         'lv' => '', // Latvian
         'mi' => '', // Maori
@@ -46,7 +46,7 @@ class FlagService
         'ms' => '', // Malay
         'nl' => '', // Dutch
         'no' => 'NO', // Norwegian
-        'pl' => '', // Polish
+        'pl' => 'PL', // Polish
         'pt' => 'PT', // Portuguese
         'pt_BR' => 'BR', // Brazilian Portuguese
         'ro' => '', // Romanian
@@ -60,7 +60,7 @@ class FlagService
         'sv' => 'SE', // Swedish
         'th' => '', // Thai
         'tr' => '', // Turkish
-        'uk' => '', // Ukrainian
+        'uk' => 'UK', // Ukrainian
         'us' => 'US',
         'vi' => '', // Vietnamese
         'zh' => 'CN', // Chinese (Trad)
