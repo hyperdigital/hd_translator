@@ -22,6 +22,9 @@ class TranslationHelper
             if (substr($return, -1) != '/') {
                 $return .= '/';
             }
+
+            $return = str_replace('//', '/', $return);
+
             if (!file_exists($return)) {
                 mkdir($return);
             }
@@ -51,16 +54,19 @@ class TranslationHelper
                         $filename = $lang.'.'.$key.'.xlf';
                     }
 
-                    $fileanme = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($storage . $filename);
+                    $fileanmePath = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($storage . $filename);
+                    if (empty($fileanmePath)) {
+                        $fileanmePath = $storage . $filename;
+                    }
 
-                    if (file_exists($fileanme)) {
+                    if (file_exists($fileanmePath)) {
                         if ($lang == 'en' || $lang == 'default') {
-                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']]) || !in_array($fileanme, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']])) {
-                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']][] = $fileanme;
+                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']])) {
+                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']][] = $fileanmePath;
                             }
                         } else {
-                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']]) || !in_array($fileanme, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']])) {
-                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']][] = $fileanme;
+                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']])) {
+                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']][] = $fileanmePath;
                             }
                         }
                     }
