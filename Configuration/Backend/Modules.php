@@ -4,7 +4,7 @@ return [
     'hd_translator_engine' => [
         'parent' => 'web',
         'position' => ['after' => 'web_info'],
-        'access' => 'group',
+        'access' => 'user',
         'iconIdentifier' => 'hd_translator_icon',
         'navigationComponentId' => '',
         'inheritNavigationComponentFromMainModule' => false,
