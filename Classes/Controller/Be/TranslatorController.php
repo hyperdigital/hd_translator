@@ -140,10 +140,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $menu->addMenuItem($item);
         }
 
-        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
-            ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
-        $menu->addMenuItem($item);
+        if (
+            $GLOBALS['BE_USER']->isAdmin() ||
+            !$GLOBALS['BE_USER']->check('custom_options', 'tx_hdtranslator:disableDbImport')
+        ) {
+            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
+                ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
+                ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
+            $menu->addMenuItem($item);
+        }
 
 
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
@@ -195,6 +200,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function databaseImportIndexAction()
     {
         $this->indexMenu();
+        if (
+            !$GLOBALS['BE_USER']->isAdmin() &&
+            $GLOBALS['BE_USER']->check('custom_options', 'tx_hdtranslator:disableDbImport')
+        ) {
+            $this->view->assign('noAccess', true);
+        }
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
@@ -743,49 +754,57 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $errors = [];
 
-        if (!$this->request->hasArgument('files')) {
-            $errors[] = 'No file uploaded';
+        if (
+            !$GLOBALS['BE_USER']->isAdmin() &&
+            $GLOBALS['BE_USER']->check('custom_options', 'tx_hdtranslator:disableDbImport')
+        ) {
+            $this->view->assign('noAccess', true);
         } else {
-            $targetLanguage = 1;
-            if ($this->request->hasArgument('targetLanguageUid')) {
-                $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
-            }
-            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-            $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
-            $files = $this->request->getArgument('files');
-            $finfo = new \finfo(FILEINFO_MIME_TYPE);
-            foreach($files as $file) {
-                $ext = $finfo->file($file['tmp_name']);
-                switch($ext){
-                    case 'text/xml':
-                        // XLF
-                        $data = file_get_contents($file['tmp_name']);
-                        $data = $xlfService->xlfToData($data);
-                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        break;
-                    case 'application/zip':
-                        // ZIP of packed translations
-                        $zip = new \ZipArchive();
-                        $zip->open($file['tmp_name']);
-                        for($i = 0; $i < $zip->numFiles; $i++) {
-                            $data = $zip->getFromIndex($i);
+            if (!$this->request->hasArgument('files')) {
+                $errors[] = 'No file uploaded';
+            } else {
+                $targetLanguage = 1;
+                if ($this->request->hasArgument('targetLanguageUid')) {
+                    $targetLanguage = (int)$this->request->getArgument('targetLanguageUid');
+                }
+                $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+                $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
+                $files = $this->request->getArgument('files');
+                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                foreach ($files as $file) {
+                    $ext = $finfo->file($file['tmp_name']);
+                    switch ($ext) {
+                        case 'text/xml':
+                            // XLF
+                            $data = file_get_contents($file['tmp_name']);
                             $data = $xlfService->xlfToData($data);
                             $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        }
-                        break;
+                            break;
+                        case 'application/zip':
+                            // ZIP of packed translations
+                            $zip = new \ZipArchive();
+                            $zip->open($file['tmp_name']);
+                            for ($i = 0; $i < $zip->numFiles; $i++) {
+                                $data = $zip->getFromIndex($i);
+                                $data = $xlfService->xlfToData($data);
+                                $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                            }
+                            break;
+                    }
                 }
             }
-        }
 
-        $this->view->assignMultiple([
-            'actions' => [
-                'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
-                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
-                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
-                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
-            ]
-        ]);
+            $this->view->assignMultiple([
+                'actions' => [
+                    'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
+                    'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
+                    'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
+                    'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
+                ]
+            ]);
+        }
 
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
@@ -1250,6 +1269,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
             $this->view->assign('category', $category);
         }
+        if (
+            !$GLOBALS['BE_USER']->isAdmin() &&
+            $GLOBALS['BE_USER']->check('custom_options', 'tx_hdtranslator:disableNew')
+        ) {
+            $this->view->assign('disableNewTranslation', true);
+        }
         $this->moduleTemplate->setContent($this->view->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
@@ -1539,6 +1564,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             } else {
                 $this->redirect('syncLocallangs');
             }
+        }
+
+        if (
+            !$GLOBALS['BE_USER']->isAdmin() &&
+            $GLOBALS['BE_USER']->check('custom_options', 'tx_hdtranslator:readOnly')
+        ) {
+            $this->view->assign('readonly', true);
         }
 
         if ($saved) {

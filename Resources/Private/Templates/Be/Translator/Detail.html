@@ -133,45 +133,47 @@
                             </div>
                         </div>
                         <div class="toolbar-button-section">
-                            <div class="popup-action">
-                                <f:link.action class="btn btn-default" action="remove" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}">
-                                    <core:icon identifier="actions-delete" size="small" />
-                                    <f:translate key="detail.remove" />
-                                </f:link.action>
-                            </div>
-                            <div class="popup-action">
-                                <button class="btn btn-default">
-                                    <core:icon identifier="actions-extension-import" size="small" />
-                                    <f:translate key="detail.import" />
-                                </button>
-                                <div class="popup-content hidden download-links">
-                                    <f:form action="import" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
-                                        TODO: Allowed: xlf, xls, csv, json
-                                        <f:form.upload name="data[file]" />
-                                        <f:form.submit value="TODO: upload" />
-                                    </f:form>
+                            <f:if condition="!{readonly}">
+                                <div class="popup-action">
+                                    <f:link.action class="btn btn-default" action="remove" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}">
+                                        <core:icon identifier="actions-delete" size="small" />
+                                        <f:translate key="detail.remove" />
+                                    </f:link.action>
                                 </div>
-                            </div>
-                            <div class="popup-action">
-                                <button class="btn btn-default">
-                                    <core:icon identifier="actions-download" size="small" />
-                                    <f:translate key="detail.download" />
-                                </button>
-                                <div class="popup-content hidden download-links">
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">XLF</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">XLS</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">CSV</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">JSON</f:link.action>
+                                <div class="popup-action">
+                                    <button class="btn btn-default">
+                                        <core:icon identifier="actions-extension-import" size="small" />
+                                        <f:translate key="detail.import" />
+                                    </button>
+                                    <div class="popup-content hidden download-links">
+                                        <f:form action="import" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
+                                            TODO: Allowed: xlf, xls, csv, json
+                                            <f:form.upload name="data[file]" />
+                                            <f:form.submit value="TODO: upload" />
+                                        </f:form>
                                     </div>
                                 </div>
-                            </div>
+                                <div class="popup-action">
+                                    <button class="btn btn-default">
+                                        <core:icon identifier="actions-download" size="small" />
+                                        <f:translate key="detail.download" />
+                                    </button>
+                                    <div class="popup-content hidden download-links">
+                                        <div>
+                                            <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">XLF</f:link.action>
+                                        </div>
+                                        <div>
+                                            <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">XLS</f:link.action>
+                                        </div>
+                                        <div>
+                                            <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">CSV</f:link.action>
+                                        </div>
+                                        <div>
+                                            <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">JSON</f:link.action>
+                                        </div>
+                                    </div>
+                                </div>
+                            </f:if>
                         </div>
                     </div>
 
@@ -198,18 +200,36 @@
 												</div>
 											</div>
 										</div>
-                    <form action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}" id="translation-form" method="post" name="data">
-											<f:if condition="{isCategorized}">
-												<f:then>
-													<div class="hd-translator-detail-grid">
-														<f:render section="Categorized" arguments="{_all}" />
-													</div>
-												</f:then>
-												<f:else>
-													<f:render section="NotCategorized" arguments="{_all}" />
-												</f:else>
-											</f:if>
-                    </form>
+                    <f:if condition="!{readonly}">
+                        <f:then>
+                            <form action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}" id="translation-form" method="post" name="data">
+                                <f:if condition="{isCategorized}">
+                                    <f:then>
+                                        <div class="hd-translator-detail-grid">
+                                            <f:render section="Categorized" arguments="{_all}" />
+                                        </div>
+                                    </f:then>
+                                    <f:else>
+                                        <f:render section="NotCategorized" arguments="{_all}" />
+                                    </f:else>
+                                </f:if>
+                            </form>
+                        </f:then>
+                        <f:else>
+                            <div id="translation-form">
+                                <f:if condition="{isCategorized}">
+                                    <f:then>
+                                        <div class="hd-translator-detail-grid">
+                                            <f:render section="Categorized" arguments="{_all}" />
+                                        </div>
+                                    </f:then>
+                                    <f:else>
+                                        <f:render section="NotCategorized" arguments="{_all}" />
+                                    </f:else>
+                                </f:if>
+                            </div>
+                        </f:else>
+                    </f:if>
                 </f:if>
             </f:else>
         </f:if>
@@ -264,7 +284,8 @@
 				key: key,
 				langaugeKey: langaugeKey,
 				originalSource: value.0.source,
-				target: value.0.target
+				target: value.0.target,
+				readonly: readonly
 			}" />
 		</f:for>
 	</div>
@@ -273,7 +294,16 @@
 <f:section name="Item">
 	<div class="hd-translator-detail-grid-item" data-search="{key -> f:format.case(mode: 'lower')} {target -> f:format.case(mode: 'lower')} {originalSource -> f:format.case(mode: 'lower')}">
 		<div class="hd-translator-key">{key}</div>
-		<div class="hd-translator-field"><input name="{key}[{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
+		<div class="hd-translator-field">
+            <f:if condition="!{readonly}">
+                <f:then>
+                    <input name="{key}[{langaugeKey}]" type="text" placeholder="{key}" value="{target}" />
+                </f:then>
+                <f:else>
+                    {target}
+                </f:else>
+            </f:if>
+        </div>
 		<div class="hd-translator-original">{originalSource}</div>
 		<f:if condition="{langaugeKey} != 'default'">
 			<div style="display: none">

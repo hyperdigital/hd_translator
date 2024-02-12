@@ -10,19 +10,26 @@
 </f:section>
 
 <f:section name="content">
-	<div class="hd-translator">
-		<div>UPDATED: {actions.updated}</div>
-		<div>INSERTED: {actions.inserted}</div>
-		<div>FAILS: {actions.fails}</div>
-		<f:if condition="{actions.failsMessages}">
-			<div>
-				<f:for each="{actions.failsMessages}" as="message">
+	<f:if condition="{noAccess}">
+		<f:then>
+			Access denied.
+		</f:then>
+		<f:else>
+			<div class="hd-translator">
+				<div>UPDATED: {actions.updated}</div>
+				<div>INSERTED: {actions.inserted}</div>
+				<div>FAILS: {actions.fails}</div>
+				<f:if condition="{actions.failsMessages}">
 					<div>
-						{message}
+						<f:for each="{actions.failsMessages}" as="message">
+							<div>
+								{message}
+							</div>
+						</f:for>
 					</div>
-				</f:for>
+				</f:if>
 			</div>
-		</f:if>
-	</div>
+		</f:else>
+	</f:if>
 </f:section>
 </html>

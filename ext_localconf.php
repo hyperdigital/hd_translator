@@ -23,4 +23,19 @@ defined('TYPO3') or die();
 
     $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'][] =
         \Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook::class . '->addExportButton';
+
+    $GLOBALS['TYPO3_CONF_VARS']['BE']['customPermOptions']['tx_hdtranslator'] = [
+        'header' => 'HD Translator permissions',
+        'items' => [
+            'disableNew' => [
+                'Disable creating a new translation',
+            ],
+            'readOnly' => [
+                'Read only mode',
+            ],
+            'disableDbImport' => [
+                'Disable import to the database',
+            ],
+        ],
+    ];
 })();

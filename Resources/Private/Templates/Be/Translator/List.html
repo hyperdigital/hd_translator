@@ -36,21 +36,23 @@
                                     </f:if>
                                 </td>
                                 <td  class="hd-translator-list-table-tools">
-                                    <f:if condition="{file.languages}">
-                                        <div class="popup-action">
-                                            <button class="btn btn-default">
-                                                <core:icon identifier="actions-plus" size="small" />
-                                                <f:translate key="list.add_new" />
-                                            </button>
-                                            <div class="popup-content hidden">
-                                                <f:for each="{file.languages}" as="lang">
-                                                    <div class="hd-translator-list-languageitem">
-                                                        <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" loading="lazy" height="24" class="hd-translator-flag" />
-                                                        <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
-                                                    </div>
-                                                </f:for>
+                                    <f:if condition="!{disableNewTranslation}">
+                                        <f:if condition="{file.languages}">
+                                            <div class="popup-action">
+                                                <button class="btn btn-default">
+                                                    <core:icon identifier="actions-plus" size="small" />
+                                                    <f:translate key="list.add_new" />
+                                                </button>
+                                                <div class="popup-content hidden">
+                                                    <f:for each="{file.languages}" as="lang">
+                                                        <div class="hd-translator-list-languageitem">
+                                                            <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" loading="lazy" height="24" class="hd-translator-flag" />
+                                                            <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
+                                                        </div>
+                                                    </f:for>
+                                                </div>
                                             </div>
-                                        </div>
+                                        </f:if>
                                     </f:if>
                                 </td>
                             </tr>
