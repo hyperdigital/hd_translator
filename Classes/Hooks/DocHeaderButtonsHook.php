@@ -26,7 +26,11 @@ class DocHeaderButtonsHook
     {
         $request = $this->getRequest();
         if ($request && $GLOBALS['BE_USER']->check('modules', 'hd_translator_engine')) {
-            $currentUid = (int) $request->getQueryParams()['id'];
+            $params = $request->getQueryParams();
+            $currentUid = 0;
+            if (!empty($params['id'])) {
+                $currentUid = (int)$params['id'];
+            }
             $module = $request->getAttribute('module');
             $route = $request->getAttribute('route');
 
