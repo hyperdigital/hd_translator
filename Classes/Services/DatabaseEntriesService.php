@@ -27,7 +27,7 @@ class DatabaseEntriesService
     public static $onlyDebug = false;
 
 
-    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessagesfailsMessages' => []];
+    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessages' => []];
     protected $updateAfterImport = [];
 
     protected $flexFormService;
