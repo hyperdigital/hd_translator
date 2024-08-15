@@ -59,7 +59,7 @@ class DatabaseEntriesService
             }
         }
 
-        $typeArrayReturn = $typeArray;
+        $typeArrayReturn = $typeArray ?? [];
 
         if (isset($typeArray['translator_export'])) {
             $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
