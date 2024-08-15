@@ -415,13 +415,16 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-
+        $output = '';
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
-
-                foreach ($databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false) as $contentRowUid => $contentRow) {
+                $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false);
+                if(empty($contentRows)) {
+                    $output .= ' No entries in '.$tablename.' for pid '.$storage;
+                }
+                foreach ($contentRows as $contentRowUid => $contentRow) {
                     $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
-                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                    $output .= $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                     if ($saveToZip) {
                         if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
@@ -437,16 +440,23 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if ($saveToZip) {
             $zip->close();
 
-            header('Pragma: public');
-            header('Expires: 0');
-            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-            header('Cache-Control: private', false);
-            header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
-            header('Content-Transfer-Encoding: binary');
-            header('Content-Length: ' . filesize($zipPath));
-            echo file_get_contents($zipPath);
-            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+            //if no records are found, the zip file would be empty, which is not valid
+            //zip file is automatically deleted by ZipArchive, fallback to printing the output
+            if(file_exists($zipPath)) {
+                header('Pragma: public');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Cache-Control: private', false);
+                header('Content-Type: application/zip');
+                header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
+                header('Content-Transfer-Encoding: binary');
+                header('Content-Length: ' . filesize($zipPath));
+                echo file_get_contents($zipPath);
+                \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+            }else {
+                echo $output;
+            }
+
         } else {
             header('Pragma: public');
             header('Expires: 0');
