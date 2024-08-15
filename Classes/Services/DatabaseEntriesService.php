@@ -41,7 +41,7 @@ class DatabaseEntriesService
 
     public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
     {
-        if (!empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
+        if (isset($GLOBALS['TCA'][$tablename]['ctrl']['type']) && !empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
             self::$rowTypeCouldBe = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
         }
         if (
