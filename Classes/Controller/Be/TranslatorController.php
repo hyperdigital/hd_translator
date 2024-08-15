@@ -419,9 +419,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
 
-                foreach ($databaseEntriesService->getAllComplteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false) as $contentRow) {
+                foreach ($databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false) as $contentRowUid => $contentRow) {
                     $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
-                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRow['uid'], $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                     if ($saveToZip) {
                         if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
