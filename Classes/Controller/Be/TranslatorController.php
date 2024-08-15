@@ -319,8 +319,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         } else {
             $this->indexMenu();
 
+            $data = [];
             if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
-                $data = [];
                 foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
                     $category = '-';
                     if (!empty($value['category'])) {
