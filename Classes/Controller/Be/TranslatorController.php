@@ -392,6 +392,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $defaultLanguage = 1;
         $sourceLangauge = 0;
         $targetLanguage = 'de';
+        //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
+        $enableTranslatedData = true;
         if ($this->request->hasArgument('language')) {
             $targetLanguage = $this->request->getArgument('language');
         }
