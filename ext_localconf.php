@@ -8,4 +8,6 @@ defined('TYPO3') or die();
 (function () {
     $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'][] =
         \Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook::class . '->addExportButton';
+
+    $GLOBALS['TYPO3_CONF_VARS']['BE']['stylesheets']['hd_translator'] = 'EXT:hd_translator/Resources/Public/Css/Backend/';
 })();
