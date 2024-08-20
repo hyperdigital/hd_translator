@@ -27,7 +27,7 @@ class DatabaseEntriesService
     public static $onlyDebug = false;
 
 
-    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessagesfailsMessages' => []];
+    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessages' => []];
     protected $updateAfterImport = [];
 
     protected $flexFormService;
@@ -41,7 +41,7 @@ class DatabaseEntriesService
 
     public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
     {
-        if (!empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
+        if (isset($GLOBALS['TCA'][$tablename]['ctrl']['type']) && !empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
             self::$rowTypeCouldBe = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
         }
         if (
@@ -59,7 +59,7 @@ class DatabaseEntriesService
             }
         }
 
-        $typeArrayReturn = $typeArray;
+        $typeArrayReturn = $typeArray ?? [];
 
         if (isset($typeArray['translator_export'])) {
             $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
@@ -298,7 +298,7 @@ class DatabaseEntriesService
      * @param int $pid - PID where the rows are stored (if lower then 0 then it's over the whole database)
      * @param bool $clean - return cleaned rows
      */
-    public function getAllComplteteRowsForPid(string $tablename, int $pid, int $sourceLanguage = 0, bool $clean = false)
+    public function getAllCompleteteRowsForPid(string $tablename, int $pid, int $sourceLanguage = 0, bool $clean = false)
     {
         $return = [];
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
@@ -349,9 +349,9 @@ class DatabaseEntriesService
 
         while($row = $result->fetchAssociative()) {
             if ($clean) {
-                $return[] = $this->getExportFields($tablename, $row);
+                $return[$row['uid']] = $this->getExportFields($tablename, $row);
             } else {
-                $return[] = $row;
+                $return[$row['uid']] = $row;
             }
         }
 
@@ -859,15 +859,15 @@ class DatabaseEntriesService
 
         $realUid = $uid;// PID of other contents
         if ($row['sys_language_uid'] != 0 ) {
-            $realUid = $row['l10n_parent']; // The page is just translation;
+            $realUid = (int)$row['l10n_parent']; // The page is just translation;
         }
         if ($clean) {
             $row = $this->getExportFields('pages', $row);
-            $output = $this->prepareDataFromRow((int) $row['uid'], $row, $targetLanguage, 'pages');
+            $output = $this->prepareDataFromRow($realUid, $row, $targetLanguage, 'pages');
         }
 
-        foreach ($this->getAllComplteteRowsForPid('tt_content', $realUid, $sourceLanguage, $clean) as $contentRow) {
-            $output = array_merge($output, $this->prepareDataFromRow((int) $contentRow['uid'], $contentRow, $targetLanguage, 'tt_content'));
+        foreach ($this->getAllCompleteteRowsForPid('tt_content', $realUid, $sourceLanguage, $clean) as $contentRowUid => $contentRow) {
+            $output = array_merge($output, $this->prepareDataFromRow($contentRowUid, $contentRow, $targetLanguage, 'tt_content'));
         }
 
         return $output;
