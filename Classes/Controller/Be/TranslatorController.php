@@ -658,6 +658,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     $output .= ' No entries in '.$tablename.' for pid '.$storage;
                 }
                 foreach ($contentRows as $contentRowUid => $contentRow) {
+                    if ($saveToZip) {
+                        $output = '';
+                    }
                     $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
                     $output .= $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
