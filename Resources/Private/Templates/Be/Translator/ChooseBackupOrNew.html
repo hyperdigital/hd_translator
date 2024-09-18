@@ -1,0 +1,19 @@
+<html
+        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+        data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
+    <h1>{f:translate(key: 'detail.chooseNewOrBackup')}</h1>
+    <f:link.action action="detail" class="btn btn-default" arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation, forceNew: 1}">
+        <core:icon identifier="actions-plus" size="small" />
+        {f:translate(key: 'detail.chooseNewOrBackup.new')}
+    </f:link.action>
+    <f:link.action action="revertBackup" class="btn btn-default" arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation}">
+        <core:icon identifier="apps-pagetree-folder-contains-board" size="small" />
+        {f:translate(key: 'detail.chooseNewOrBackup.backup')} <f:format.date format="Y-m-d H:i:s">{backupLastEdit}</f:format.date>
+    </f:link.action>
+</f:section>
+</html>

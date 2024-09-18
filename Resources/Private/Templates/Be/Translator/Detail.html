@@ -3,119 +3,11 @@
         xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
         xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
         data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
 
-<f:layout name="Default" />
+<f:section name="Content">
+    <f:asset.script identifier="hd_translator_list" src="EXT:hd_translator/Resources/Public/JavaScript/DetailAction.js" />
 
-<f:section name="headline">
-    <f:asset.script identifier="translator-export-row">
-        <f:format.raw>
-            let save = document.querySelector('a[data-action=save]')
-        if (save){
-            save.addEventListener('click', (event) => {
-							saveAction()
-
-							event.stopPropagation();
-            })
-        }
-
-				document.getElementById('translation-form').addEventListener('submit', (event) => {
-					saveAction()
-					event.stopPropagation();
-				})
-
-				const saveAction = () => {
-        	const fromElement = document.getElementById('translation-form');
-					const formData = new FormData(fromElement);
-					let data = {};
-					formData.forEach((value, key) => (data[key] = value));
-					data = JSON.stringify(data);
-					fetch(fromElement.getAttribute('action'), {
-						method: 'POST',
-						body: data
-						,
-					}).then(function (response) {
-						if (response.ok) {
-							return response.json();
-						}
-						return Promise.reject(response);
-					}).then(function (data) {
-						if (data.success) {
-                            top.TYPO3.Notification.success(
-                            '</f:format.raw><f:translate key="flashMessages.sucecssfullySaved" /><f:format.raw>'
-                            );
-						} else {
-                            top.TYPO3.Notification.error(
-                            '</f:format.raw><f:translate key="flashMessages.notSucecssfullySaved" /><f:format.raw>'
-                            );
-                        }
-					}).catch(function (error) {
-						console.warn(error);
-                        top.TYPO3.Notification.error(
-                        '</f:format.raw><f:translate key="flashMessages.notSucecssfullySaved" /><f:format.raw>'
-                        );
-					});
-				}
-
-
-        [].slice.call(document.querySelectorAll('.popup-action button')).forEach((button) => {
-            button.addEventListener('click', (event) => {
-                let content = button.parentNode.querySelector('.popup-content');
-                if (content.classList.contains('hidden')) {
-                    content.classList.remove('hidden')
-                } else {
-                    content.classList.add('hidden');
-                }
-            })
-        })
-
-        let search = document.querySelector('#hd_translator-search');
-        let dataItems = document.querySelectorAll('.hd-translator-detail-grid-item')
-
-        const searchAction = (event) => {
-            let searchStrings = search.value.toLowerCase().trim().split(' ');
-            if (search.value.length > 2 && searchStrings.length > 0) {
-                dataItems.forEach((item) => {
-                    let allFound = true;
-                    let dataSearchString = item.getAttribute('data-search');
-
-                    searchStrings.forEach((subsearch) => {
-                        let subsearchCleanString = subsearch.trim();
-
-                        if (subsearchCleanString.length > 1) {
-                            if (!dataSearchString.includes(subsearchCleanString)) {
-                                allFound = false;
-                            }
-                        }
-                    })
-
-                    if (!allFound) {
-                        if (!item.classList.contains('hidden')) {
-                            item.classList.add('hidden');
-                        }
-                    } else {
-                        if (item.classList.contains('hidden')) {
-                            item.classList.remove('hidden')
-                        }
-                    }
-                })
-            } else {
-                dataItems.forEach((item) => {
-                    if (item.classList.contains('hidden')) {
-                        item.classList.remove('hidden')
-                    }
-                })
-            }
-        }
-
-        if (search && dataItems) {
-            search.addEventListener('keyup', searchAction );
-            search.addEventListener('change', searchAction );
-        }
-        </f:format.raw>
-    </f:asset.script>
-</f:section>
-
-<f:section name="content">
     <div class="hd-translator">
         <f:if condition="{is_empty}">
             <f:then>
@@ -198,7 +90,12 @@
 												</div>
 											</div>
 										</div>
-                    <form action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}" id="translation-form" method="post" name="data">
+                    <form
+                            action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}"
+                            id="translation-form" method="post" name="data"
+                            data-message-success="{f:translate(key: 'flashMessages.sucecssfullySaved')}"
+                            data-message-error="{f:translate(key: 'flashMessages.notSucecssfullySaved')}"
+                    >
 											<f:if condition="{isCategorized}">
 												<f:then>
 													<div class="hd-translator-detail-grid">

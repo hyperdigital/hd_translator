@@ -45,10 +45,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $conigurationFile = 'locallangConf.php';
     protected $defaultFilename = 'locallang.xlf';
     protected $relativePathToLangFilesInExt = 'Resources/Private/Language';
+    protected $backupExtension = '.backup';
     protected $langFiles = [];
-    protected $listUtility;
     protected $languageService;
-    protected $flexFormService;
 
     /**
      * @var array
@@ -65,28 +64,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $pageUid = 0;
     protected $pageData = [];
 
-    protected $pageRepository;
-    protected $moduleTemplateFactory;
-    protected $moduleTemplate;
-    protected $uriBuilder;
-
     public function __construct(
-        ListUtility     $listUtility,
-        ModuleTemplateFactory  $moduleTemplateFactory,
-        FlexFormService $flexFormService,
-        PageRepository $pageRepository,
-        UriBuilder $uriBuilder
+        protected readonly ListUtility $listUtility,
+        protected readonly ModuleTemplateFactory $moduleTemplateFactory,
+        protected readonly FlexFormService $flexFormService,
+        protected readonly PageRepository $pageRepository,
+        protected UriBuilder $uriBuilder
     )
     {
-        $this->listUtility = $listUtility;
         $this->languageService = $languageService = GeneralUtility::makeInstance(LanguageServiceFactory::class)->createFromUserPreferences($GLOBALS['BE_USER']);;
-        $this->flexFormService = $flexFormService;
-        $this->pageRepository = $pageRepository;
-        $this->moduleTemplateFactory = $moduleTemplateFactory;
-        $this->uriBuilder = $uriBuilder;
     }
 
-    public function initializeAction()
+    public function initializeAction(): void
     {
         parent::initializeAction();
 
@@ -97,7 +86,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if (file_exists($this->storage . $this->conigurationFile)) {
                 require $this->storage . $this->conigurationFile;
             } else {
-                return $this->redirect('syncLocallangs');
+                $this->redirect('syncLocallangs');
             }
         }
 
@@ -110,6 +99,284 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
     }
 
+    // HELPERS
+    /**
+     * @param string $languageTranslation
+     * @param string $keyTranslation
+     *
+     * Description: Get full path of the translation
+     */
+    protected function getTranslationPath($languageTranslation, $keyTranslation)
+    {
+        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
+            $filename = $keyTranslation . '.xlf';
+        } else {
+            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
+        }
+
+        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
+
+        return $path;
+    }
+
+    // STRING TRANSLATIONS
+    /**
+     * Template: Be/Translator/Index
+     * Description: Initial point where came user warning if the storage is missing
+     * or no language is enabled for the translation. If all pass, then a categories list is shown.
+     * The categories leads user into listAction.
+     *
+     */
+    public function indexAction()
+    {
+        if (empty($this->storage)) {
+            $this->moduleTemplate->assign('emptyStorage', 1);
+        } else {
+            $this->indexMenu();
+
+            $data = [];
+            if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
+                foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
+                    $category = '-';
+                    if (!empty($value['category'])) {
+                        $category = $value['category'];
+                    }
+
+                    $data[$category][$key] = [
+                        'label' => (!empty($value['label'])) ? $value['label'] : $key,
+                        'languages' => $value['languages']
+                    ];
+                }
+            }
+
+            if (!empty($this->pageData)) {
+                $this->moduleTemplate->assign('pageData', $this->pageData);
+            }
+            $this->moduleTemplate->assign('categories', $data);
+            $this->moduleTemplate->assign('enabledSync', \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs'));
+        }
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/Index');
+    }
+
+    /**
+     * @param string $category
+     *
+     * Template: Be/Translator/List
+     * Description: Shows available translations for given category as a list of "translation files"
+     * with possibility to choose language for given file.
+     * This leads user into detailAction.
+     */
+    public function listAction(string $category)
+    {
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('index'))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        if (!empty($this->pageData)) {
+            $this->moduleTemplate->assign('pageData', $this->pageData);
+        }
+
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
+            $data = [];
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
+                $categoryData = '-';
+                if (!empty($value['category'])) {
+                    $categoryData = $value['category'];
+                }
+
+                if ($category == $categoryData) {
+                    $data[$key] = [
+                        'label' => (!empty($value['label'])) ? $value['label'] : $key,
+                        'languages' => $value['languages'],
+                        'availableLanguages' => [],
+                    ];
+                    foreach ($this->listOfPossibleLanguages as $langKey => $tempLang) {
+                        if ($langKey == 'en' || $langKey == 'default') {
+                            $filename = $key . '.xlf';
+                        } else {
+                            $filename = $langKey . '.' . $key . '.xlf';
+                        }
+
+                        if (!empty($this->pageUid)) {
+                            $filename = $this->pageUid . '.' . $filename;
+                        }
+
+                        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
+                        if (file_exists($path)) {
+                            $data[$key]['availableLanguages'][$langKey] = $tempLang;
+                        }
+                    }
+                }
+            }
+
+            $this->moduleTemplate->assign('data', $data);
+            $this->moduleTemplate->assign('languagesArray', $this->listOfPossibleLanguages);
+            $this->moduleTemplate->assign('category', $category);
+        }
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/List');
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     * @param boolean $saved
+     * @param boolean $emptyImport
+     * @param boolean $forceNew
+     *
+     * Template: Be/Translator/Detail
+     * Description: Main string translation section.
+     * If the current translation doesn't exist, but there is a backup,
+     * user is redirected into chooseBackupOrNewAction.
+     */
+    public function detailAction($keyTranslation, $languageTranslation, $saved = false, $emptyImport = false, $forceNew = false)
+    {
+        // Check if backup exists
+        if (empty($forceNew)) {
+            $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+
+            if (!file_exists($path) && file_exists($path . $this->backupExtension)) {
+                return $this->redirect('chooseBackupOrNew', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+            }
+        }
+
+        if ($saved) {
+            $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.sucecssfullySaved', 'hd_translator'));
+        }
+        if ($emptyImport) {
+            $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.noDataToImport', 'hd_translator'), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
+        }
+
+
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $uriBuilder->setRequest($this->request);
+
+        $menu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
+        $menu->setIdentifier('hd_translator');
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
+                $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
+                    ->setHref($uriBuilder->reset()->uriFor('detail', ['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang]))
+                    ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
+                $menu->addMenuItem($item);
+            }
+        }
+        $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
+
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        $saveButton = $buttonBar->makeLinkButton()
+            ->setHref('#')
+            ->setDataAttributes([
+                'action' => 'save'
+            ])
+            ->setIcon($iconFactory->getIcon('actions-save', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Save');
+        $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        if (!empty($this->pageData)) {
+            $this->moduleTemplate->assign('pageData', $this->pageData);
+        }
+
+        if (false && !in_array($languageTranslation, $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
+            $this->moduleTemplate->assign('is_empty', true);
+        } else {
+            $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
+            $this->languageService->init($languageTranslation);
+            $data = $this->languageService->includeLLFile($originalLanguageFilePath);
+
+            if (empty($data[$languageTranslation])) {
+                $data[$languageTranslation] = $data['default'];
+            }
+
+            if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
+                $output = [];
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $this->setCategorizatedData($output, $key, $value, $key);
+                }
+                $this->moduleTemplate->assign('data', $output);
+                $this->moduleTemplate->assign('isCategorized', true);
+            } else {
+                $this->moduleTemplate->assign('data', $data);
+            }
+
+            $this->moduleTemplate->assign('langaugeKey', $languageTranslation);
+            $this->moduleTemplate->assign('translationKey', $keyTranslation);
+            $this->moduleTemplate->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
+
+            $this->moduleTemplate->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
+        }
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/Detail');
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     *
+     * Template: Be/Translator/ChooseBackupOrNew
+     * Description: Shown from detailAction if user asks for a new translation, but backup is already available
+     */
+    public function chooseBackupOrNewAction($keyTranslation, $languageTranslation)
+    {
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $uriBuilder->setRequest($this->request);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        $this->moduleTemplate->assignMultiple([
+            'backupLastEdit' => filemtime($path . $this->backupExtension),
+            'keyTranslation' => $keyTranslation,
+            'languageTranslation' => $languageTranslation
+        ]);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/ChooseBackupOrNew');
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     *
+     * Description: Revert the Backuped file and redirect into detailAction
+     */
+    public function revertBackupAction($keyTranslation, $languageTranslation)
+    {
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+        rename($path . $this->backupExtension, $path);
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+
+        return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+    }
+
+
+
+    ///////////////////////////////////
     protected function indexMenu()
     {
         $uriBuilder = $this->uriBuilder->setRequest($this->request);
@@ -149,6 +416,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
     }
 
+
     /**
      * @param string $tablename
      * @param int $rowUid
@@ -162,15 +430,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $label = $databaseEntriesService->getLabel($tablename, $row);
 
-        $this->view->assign('tablename', $tablename);
-        $this->view->assign('rowUid', $rowUid);
-        $this->view->assign('label', $label);
-        $this->view->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
-        $this->view->assign('languages', $this->listOfPossibleLanguages);
-        $this->view->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
-        $this->view->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
+        $this->moduleTemplate->assign('tablename', $tablename);
+        $this->moduleTemplate->assign('rowUid', $rowUid);
+        $this->moduleTemplate->assign('label', $label);
+        $this->moduleTemplate->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
+        $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
+        $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -196,7 +464,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $this->indexMenu();
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -210,13 +478,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $currentPage = $this->request->getArgument('page');
         }
 
-        $this->view->assign('currentPage', $currentPage);
-        $this->view->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('currentPage', $currentPage);
+        $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
         $entry = $databaseEntriesService->getCompleteCleanRow('pages', (int) $currentPage);
         $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
-        $this->view->assign('currentLanguageUid', $sourceLanguageUid);
+        $this->moduleTemplate->assign('currentLanguageUid', $sourceLanguageUid);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -312,44 +580,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         die();
     }
 
-    public function indexAction()
-    {
-        if (empty($this->storage)) {
-            $this->view->assign('emptyStorage', 1);
-        } else {
-            $this->indexMenu();
-
-            $data = [];
-            if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
-                    $category = '-';
-                    if (!empty($value['category'])) {
-                        $category = $value['category'];
-                    }
-
-                    $data[$category][$key] = [
-                        'label' => (!empty($value['label'])) ? $value['label'] : $key,
-                        'languages' => $value['languages']
-                    ];
-                }
-            }
-
-            if (!empty($this->pageData)) {
-                $this->view->assign('pageData', $this->pageData);
-            }
-            $this->view->assign('categories', $data);
-            $this->view->assign('enabledSync', \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs'));
-        }
-
-        $this->moduleTemplate->setContent($this->view->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
-    }
-
     public function databaseAction()
     {
         $this->indexMenu();
 
-        $this->view->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
 
         $tables = [];
         foreach ($GLOBALS['TCA'] as $tableName => $data) {
@@ -361,9 +596,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $this->view->assign('tables', $tables);
+        $this->moduleTemplate->assign('tables', $tables);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -722,10 +957,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
 
-        $this->view->assign('allowedLanguages', $allowedLanguages);
-        $this->view->assign('tables', $fields);
+        $this->moduleTemplate->assign('allowedLanguages', $allowedLanguages);
+        $this->moduleTemplate->assign('tables', $fields);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -790,7 +1025,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $this->view->assignMultiple([
+        $this->moduleTemplate->assignMultiple([
             'actions' => [
                 'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
                 'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
@@ -799,7 +1034,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ]
         ]);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -1131,7 +1366,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $this->view->assign('actions', $output);
+        $this->moduleTemplate->assign('actions', $output);
     }
 
     public function importXlfFile($content)
@@ -1202,68 +1437,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         header('Content-type: text/xml');
         header('Content-Disposition: attachment; filename="temp.xlf"');
         echo $output;
-    }
-
-    /**
-     * @param string $category
-     */
-    public function listAction(string $category)
-    {
-        $uriBuilder = $this->uriBuilder->setRequest($this->request);
-        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-
-        $uriBuilder->setRequest($this->request);
-        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
-        $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('index'))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
-            ->setShowLabelText(true)
-            ->setTitle('Return');
-        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
-
-        if (!empty($this->pageData)) {
-            $this->view->assign('pageData', $this->pageData);
-        }
-
-        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
-            $data = [];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'] as $key => $value) {
-                $categoryData = '-';
-                if (!empty($value['category'])) {
-                    $categoryData = $value['category'];
-                }
-
-                if ($category == $categoryData) {
-                    $data[$key] = [
-                        'label' => (!empty($value['label'])) ? $value['label'] : $key,
-                        'languages' => $value['languages'],
-                        'availableLanguages' => [],
-                    ];
-                    foreach ($this->listOfPossibleLanguages as $langKey => $tempLang) {
-                        if ($langKey == 'en' || $langKey == 'default') {
-                            $filename = $key . '.xlf';
-                        } else {
-                            $filename = $langKey . '.' . $key . '.xlf';
-                        }
-
-                        if (!empty($this->pageUid)) {
-                            $filename = $this->pageUid . '.' . $filename;
-                        }
-
-                        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-                        if (file_exists($path)) {
-                            $data[$key]['availableLanguages'][$langKey] = $tempLang;
-                        }
-                    }
-                }
-            }
-
-            $this->view->assign('data', $data);
-            $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
-            $this->view->assign('category', $category);
-        }
-        $this->moduleTemplate->setContent($this->view->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     public function syncLocallangsAction()
@@ -1427,10 +1600,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $this->view->assign('languagesArray', $this->listOfPossibleLanguages);
-        $this->view->assign('data', $return);
+        $this->moduleTemplate->assign('languagesArray', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('data', $return);
 
-        $this->moduleTemplate->setContent($this->view->render());
+        $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
@@ -1537,102 +1710,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
     }
 
-    /**
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     * @param boolean $saved
-     * @param boolean $emptyImport
-     */
-    public function detailAction($keyTranslation, $languageTranslation, $saved = false, $emptyImport = false)
-    {
-        if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')) {
-            if (file_exists($this->storage . $this->conigurationFile)) {
-                require $this->storage . $this->conigurationFile;
-            } else {
-                $this->redirect('syncLocallangs');
-            }
-        }
-
-        if ($saved) {
-            $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.sucecssfullySaved', 'hd_translator'));
-        }
-        if ($emptyImport) {
-            $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.noDataToImport', 'hd_translator'), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
-        }
-
-
-        $uriBuilder = $this->uriBuilder->setRequest($this->request);
-        $uriBuilder->setRequest($this->request);
-
-        $menu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
-        $menu->setIdentifier('hd_translator');
-        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
-                $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
-                    ->setHref($uriBuilder->reset()->uriFor('detail', ['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang]))
-                    ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
-                $menu->addMenuItem($item);
-            }
-        }
-        $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
-
-        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-
-        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
-        $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
-            ->setShowLabelText(true)
-            ->setTitle('Return');
-        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
-
-        $saveButton = $buttonBar->makeLinkButton()
-            ->setHref('#')
-            ->setDataAttributes([
-                'action' => 'save'
-            ])
-            ->setIcon($iconFactory->getIcon('actions-save', Icon::SIZE_SMALL))
-            ->setShowLabelText(true)
-            ->setTitle('Save');
-        $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
-
-        if (!empty($this->pageData)) {
-            $this->view->assign('pageData', $this->pageData);
-        }
-
-        if (false && !in_array($languageTranslation, $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
-            $this->view->assign('is_empty', true);
-        } else {
-            $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-            $this->languageService->init($languageTranslation);
-            $data = $this->languageService->includeLLFile($originalLanguageFilePath);
-
-            if (empty($data[$languageTranslation])) {
-                $data[$languageTranslation] = $data['default'];
-            }
-
-            if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
-                $output = [];
-                foreach ($data[$languageTranslation] as $key => $value) {
-                    $this->setCategorizatedData($output, $key, $value, $key);
-                }
-                $this->view->assign('data', $output);
-                $this->view->assign('isCategorized', true);
-            } else {
-                $this->view->assign('data', $data);
-            }
-
-            $this->view->assign('langaugeKey', $languageTranslation);
-            $this->view->assign('translationKey', $keyTranslation);
-            $this->view->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
-
-            $this->view->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
-        }
-
-        $this->moduleTemplate->setContent($this->view->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
-    }
-
     public function setCategorizatedData(&$output, $key, $value, $fullKey)
     {
         $keyArray = explode('.', $key);
@@ -1669,6 +1746,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (file_exists($path)) {
             rename($path, $path.'.backup');
         }
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
 
         return $this->redirect('list', null, null, [
             'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
