@@ -420,11 +420,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             foreach($tables as $tablename) {
                 $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false);
                 if(empty($contentRows)) {
-                    $output .= ' No entries in '.$tablename.' for pid '.$storage;
+                    $output = ' No entries in '.$tablename.' for pid '.$storage;
                 }
                 foreach ($contentRows as $contentRowUid => $contentRow) {
                     $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
-                    $output .= $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                    $output = $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                     if ($saveToZip) {
                         if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
