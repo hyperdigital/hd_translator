@@ -598,6 +598,51 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         die();
     }
 
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     *
+     * Description: remove current translation by renaming the file into backup
+     */
+    public function removeAction($keyTranslation, $languageTranslation)
+    {
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+
+        if (file_exists($path)) {
+            rename($path, $path . $this->backupExtension);
+        }
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+
+        return $this->redirect('list', null, null, [
+            'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
+        ]);
+    }
+
+    // DATABASE RELATED ACTIONS
+    /**
+     * Template: Be/Translator/PageContentExport
+     * Description: Initialization of page export.
+     * It's triggered by docheader tool bar, page tree context menu or from indexAction over action selector
+     */
+    public function pageContentExportAction()
+    {
+        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
+        $this->indexMenu();
+        $currentPage = '';
+        if ($this->request->hasArgument('page')) {
+            $currentPage = $this->request->getArgument('page');
+        }
+
+        $this->moduleTemplate->assign('currentPage', $currentPage);
+        $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
+        $entry = $databaseEntriesService->getCompleteCleanRow('pages', (int) $currentPage);
+        $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
+        $this->moduleTemplate->assign('currentLanguageUid', $sourceLanguageUid);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/PageContentExport');
+    }
+
 
 
     ///////////////////////////////////
@@ -687,26 +732,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function databaseImportIndexAction()
     {
         $this->indexMenu();
-
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
-    }
-
-    public function pageContentExportAction()
-    {
-        $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-
-        $this->indexMenu();
-        $currentPage = '';
-        if ($this->request->hasArgument('page')) {
-            $currentPage = $this->request->getArgument('page');
-        }
-
-        $this->moduleTemplate->assign('currentPage', $currentPage);
-        $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
-        $entry = $databaseEntriesService->getCompleteCleanRow('pages', (int) $currentPage);
-        $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
-        $this->moduleTemplate->assign('currentLanguageUid', $sourceLanguageUid);
 
         $this->moduleTemplate->setContent($this->moduleTemplate->render());
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
@@ -1851,30 +1876,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 ];
             }
         }
-    }
-
-    /**
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     */
-    public function removeAction($keyTranslation, $languageTranslation)
-    {
-        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
-            $filename = $keyTranslation . '.xlf';
-        } else {
-            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
-        }
-
-        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-
-        if (file_exists($path)) {
-            rename($path, $path.'.backup');
-        }
-        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
-
-        return $this->redirect('list', null, null, [
-            'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
-        ]);
     }
 
     protected function dataToXlf($keyTranslation, $languageTranslation, $data = null, $sourceLanguage = 'en')
