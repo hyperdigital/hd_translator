@@ -37,10 +37,17 @@
                                     <f:translate key="detail.import" />
                                 </button>
                                 <div class="popup-content hidden download-links">
-                                    <f:form action="import" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
-                                        TODO: Allowed: xlf, xls, csv, json
-                                        <f:form.upload name="data[file]" />
-                                        <f:form.submit value="TODO: upload" />
+                                    <f:form action="import" class="import-upload-form" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
+                                        <f:form.upload name="file" class="hidden js-hd_translator-fileupload-target" additionalAttributes="{accept: '.xlf'}" />
+                                        <div><f:translate key="detail.import.description" arguments="{0: 'xlf'}" /></div>
+                                        <div>
+                                            <button type="button" class="btn btn-default btn-sm js-hd_translator-fileupload-popup">
+                                                <core:icon identifier="actions-upload" size="small" />
+                                                <f:translate key="detail.import.chooseFile" />
+                                            </button>
+                                        </div>
+                                        <div class="file-name-display"></div>
+                                        <div><button class="btn btn-default"><f:translate key="detail.import.upload" /></button></div>
                                     </f:form>
                                 </div>
                             </div>

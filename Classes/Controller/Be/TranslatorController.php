@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Hyperdigital\HdTranslator\Controller\Be;
 
+use Hyperdigital\HdTranslator\Services\XlfService;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
@@ -117,6 +118,25 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
 
         return $path;
+    }
+
+    /**
+     * @param $value
+     * @param $array
+     * @param $keys
+     *
+     * Description: Cleanup multidimensional array
+     */
+    public function multidimensionalArray($value, &$array, $keys)
+    {
+        if (count($keys) == 1) {
+            $array[$keys[0]] = $value;
+        } else {
+            $nextKey = $keys[0];
+            unset($keys[0]);
+            $keys = array_values($keys);
+            $this->multidimensionalArray($value, $array[$nextKey], $keys);
+        }
     }
 
     // STRING TRANSLATIONS
@@ -362,6 +382,105 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     /**
      * @param string $keyTranslation
      * @param string $languageTranslation
+     * @param string $format
+     *
+     * Description: Export current translation file into specific format
+     */
+    public function downloadAction($keyTranslation, $languageTranslation, $format)
+    {
+        $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
+        $this->languageService->init($languageTranslation);
+        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
+        $downloadFilename = explode('/', $originalLanguageFilePath);
+        $downloadFilename = explode('.', $downloadFilename[count($downloadFilename) - 1]);
+        unset($downloadFilename[count($downloadFilename) - 1]);
+        $downloadFilename = implode('.', $downloadFilename);
+        if ($languageTranslation != 'en' && $languageTranslation != 'default') {
+            $downloadFilename = $languageTranslation . '.' . $downloadFilename;
+        }
+
+        switch ($format) {
+            case 'xls':
+                $spreadsheet = new Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+
+                $iterator = 0;
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $iterator++;
+                    $sheet->setCellValue("A{$iterator}", $key);
+                    $sheet->setCellValue("B{$iterator}", $value[0]['source']);
+                    $sheet->setCellValue("C{$iterator}", $value[0]['target']);
+                }
+                $writer = new Xlsx($spreadsheet);
+
+                $downloadFilename = $downloadFilename . '.xlsx';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                $writer->save('php://output');
+                exit();
+                break;
+            case 'csv':
+                $realData = [];
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $tempData = [];
+                    $tempData[] = $key;
+                    $tempData[] = $value[0]['source'];
+                    $tempData[] = $value[0]['target'];
+                    $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
+                }
+
+                $downloadFilename = $downloadFilename . '.csv';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                echo implode(PHP_EOL, $realData);
+                exit();
+                break;
+            case 'json':
+                $downloadFilename = $downloadFilename . '.json';
+                header('Content-Description: File Transfer');
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Expires: 0');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                echo json_encode($data[$languageTranslation], JSON_PRETTY_PRINT);
+                exit();
+                break;
+            case 'xlf':
+                $absolutePath = $this->getTranslationPath($languageTranslation, $keyTranslation);
+                $downloadFilename = $downloadFilename . '.xlf';
+
+                if (file_exists($absolutePath)) {
+                    header('Content-Description: File Transfer');
+                    header('Content-Type: application/octet-stream');
+                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
+                    header('Content-Transfer-Encoding: binary');
+                    header('Expires: 0');
+                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Pragma: public');
+                    header('Content-Length: ' . filesize($absolutePath)); //Absolute URL
+                    ob_clean();
+                    flush();
+                    readfile($absolutePath); //Absolute URL
+                }
+                exit();
+        }
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
      *
      * Description: Revert the Backuped file and redirect into detailAction
      */
@@ -372,6 +491,111 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
 
         return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+    }
+
+    /**
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     *
+     * Description: Posted file imports new translation strings, then it's redirected to the detailAction.
+     */
+    public function importAction($keyTranslation, $languageTranslation)
+    {
+        $file = false;
+        if ($this->request->getUploadedFiles()) {
+            $file = $this->request->getUploadedFiles()['file'] ?? false;
+        }
+
+        if (!$file) {
+            return $this->redirect('detail',  null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+        }
+
+        $extension = explode('.', $file->getClientFilename());
+        $extension = strtolower($extension[count($extension) - 1]);
+        $content = (string) $file->getStream();
+        $data = [];
+
+        switch($extension) {
+            case 'xlf':
+                $xlfService = GeneralUtility::makeInstance(XlfService::class);
+                $data = $xlfService->xlfToData($content, ['default', $languageTranslation]);
+                break;
+        }
+
+        if (!empty($data)) {
+            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data, 'redirectToDetail' => true]);
+        }
+
+        return $this->redirect('detail', null, null, [
+            'keyTranslation' => $keyTranslation,
+            'languageTranslation' => $languageTranslation,
+            'emptyImport' => true
+        ]);
+    }
+
+    /**
+     * @\TYPO3\CMS\Extbase\Annotation\IgnoreValidation("data")
+     *
+     * @param string $keyTranslation
+     * @param string $languageTranslation
+     * @param array $data
+     *
+     * Description: Main save action of the static strings.
+     */
+    public function saveAction($keyTranslation, $languageTranslation, $data = null)
+    {
+        if (empty($data) && $this->request->hasArgument('data')) {
+            $data = $this->request->getArgument('data');
+        }
+        if (empty($data)) {
+            $content = file_get_contents('php://input');
+            $content = json_decode($content);
+            $string = '';
+            $temp = [];
+            foreach ($content as $key => $value) {
+                $key = str_replace(']', '', $key);
+                $keys = explode('[', $key);
+
+                $this->multidimensionalArray($value, $temp, $keys);
+            }
+            if (!empty($temp)) {
+                $data = $temp;
+            }
+        }
+
+        if (empty($data)) {
+            if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
+                return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+            }
+            echo json_encode(['success' => 0]);
+            die();
+        }
+
+        $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
+
+        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
+            $filename = $keyTranslation . '.xlf';
+        } else {
+            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
+        }
+
+        if (!empty($this->pageUid)) {
+            $filename = $this->pageUid . '.' . $filename;
+        }
+
+        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
+        if (empty($path)) {
+            $path = $this->storage . $filename;
+        }
+        file_put_contents($path, $xlfFileExport);
+
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+
+        if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
+            return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+        }
+        echo json_encode(['success' => 1]);
+        die();
     }
 
 
@@ -1610,109 +1834,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
-    /**
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     * @param string $format
-     */
-    public function downloadAction($keyTranslation, $languageTranslation, $format)
-    {
-        $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-        $this->languageService->init($languageTranslation);
-        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
-        $downloadFilename = explode('/', $originalLanguageFilePath);
-        $downloadFilename = explode('.', $downloadFilename[count($downloadFilename) - 1]);
-        unset($downloadFilename[count($downloadFilename) - 1]);
-        $downloadFilename = implode('.', $downloadFilename);
-        if ($languageTranslation != 'en' && $languageTranslation != 'default') {
-            $downloadFilename = $languageTranslation . '.' . $downloadFilename;
-        }
-
-        switch ($format) {
-            case 'xls':
-                $spreadsheet = new Spreadsheet();
-                $sheet = $spreadsheet->getActiveSheet();
-
-                $iterator = 0;
-                foreach ($data[$languageTranslation] as $key => $value) {
-                    $iterator++;
-                    $sheet->setCellValue("A{$iterator}", $key);
-                    $sheet->setCellValue("B{$iterator}", $value[0]['source']);
-                    $sheet->setCellValue("C{$iterator}", $value[0]['target']);
-                }
-                $writer = new Xlsx($spreadsheet);
-
-                $downloadFilename = $downloadFilename . '.xlsx';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
-                $writer->save('php://output');
-                exit();
-                break;
-            case 'csv':
-                $realData = [];
-                foreach ($data[$languageTranslation] as $key => $value) {
-                    $tempData = [];
-                    $tempData[] = $key;
-                    $tempData[] = $value[0]['source'];
-                    $tempData[] = $value[0]['target'];
-                    $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
-                }
-
-                $downloadFilename = $downloadFilename . '.csv';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
-                echo implode(PHP_EOL, $realData);
-                exit();
-                break;
-            case 'json':
-                $downloadFilename = $downloadFilename . '.json';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
-                echo json_encode($data[$languageTranslation], JSON_PRETTY_PRINT);
-                exit();
-                break;
-            case 'xlf':
-                if ($languageTranslation == 'en' || $languageTranslation == 'default') {
-                    $filename = $keyTranslation . '.xlf';
-                } else {
-                    $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
-                }
-
-                $downloadFilename = $downloadFilename . '.xlf';
-
-                $absolutePath = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-                if (file_exists($absolutePath)) {
-                    header('Content-Description: File Transfer');
-                    header('Content-Type: application/octet-stream');
-                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                    header('Content-Transfer-Encoding: binary');
-                    header('Expires: 0');
-                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                    header('Pragma: public');
-                    header('Content-Length: ' . filesize($absolutePath)); //Absolute URL
-                    ob_clean();
-                    flush();
-                    readfile($absolutePath); //Absolute URL
-                }
-                exit();
-        }
-    }
-
     public function setCategorizatedData(&$output, $key, $value, $fullKey)
     {
         $keyArray = explode('.', $key);
@@ -1753,98 +1874,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         return $this->redirect('list', null, null, [
             'category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']
-        ]);
-    }
-
-    /**
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     */
-    public function importAction($keyTranslation, $languageTranslation)
-    {
-        if (!$this->request->hasArgument('file')) {
-            return $this->redirect('detail',  null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
-        }
-        $file = $this->request->getArgument('file');
-        $extension = explode('.', $file['name']);
-        $extension = strtolower($extension[count($extension) - 1]);
-        $filePath = $file['tmp_name'];
-        $content = file_get_contents($filePath);
-        $data = [];
-
-        switch($extension) {
-            case 'xlf':
-                $doc = new \DOMDocument();
-                $doc->loadXML($content);
-                $items = $doc->getElementsByTagName('trans-unit');
-                if ($items) {
-                    foreach ($items as $item) {
-                        $key = $item->getAttribute('id');
-
-                        $source = '';
-                        $sourceData = $item->getElementsByTagName('source');
-                        if ($sourceData[0]) {
-                            $source = $sourceData[0]->textContent;
-                        }
-                        $target = $source;
-                        $targetData = $item->getElementsByTagName('target');
-                        if ($targetData[0]) {
-                            $target = $targetData[0]->textContent;
-                        }
-
-                        $data[$key] = [
-                            'default' => $source,
-                            $languageTranslation => $target
-                        ];
-                    }
-                }
-                break;
-            case 'json':
-                $dataArray = json_decode($content);
-                if ($dataArray) {
-                    foreach ($dataArray as $key => $value) {
-                        $data[$key] = [
-                            'default' => $value[0]->source,
-                            $languageTranslation => $value[0]->target
-                        ];
-                    }
-                }
-                break;
-            case 'csv':
-                $dataArray = \TYPO3\CMS\Core\Utility\CsvUtility::csvToArray($content);
-                if ($dataArray) {
-                    foreach ($dataArray as $value) {
-                        $data[$value[0]] = [
-                            'default' => $value[1],
-                            $languageTranslation => $value[2]
-                        ];
-                    }
-                }
-                break;
-            case 'xls':
-            case 'xlsx':
-                $temp = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-                $temp = $temp->load($filePath);
-                $temp = $temp->getActiveSheet();
-                $rows = $temp->toArray();
-
-                foreach($rows as $key => $value) {
-                    $data[$value[0]] = [
-                        'default' => $value[1],
-                        $languageTranslation => $value[2]
-                    ];
-                }
-                break;
-        }
-
-        if (!empty($data)) {
-            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data]);
-        }
-
-        return $this->redirect('detail', null, null, [
-            'keyTranslation' => $keyTranslation,
-            'languageTranslation' => $languageTranslation,
-            'emptyImport' => true
         ]);
     }
 
@@ -1924,76 +1953,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $domtree->appendChild($root);
 
         return $domtree->saveXML();
-    }
-
-    public function multidimensionalArray($value, &$array, $keys)
-    {
-        if (count($keys) == 1) {
-            $array[$keys[0]] = $value;
-        } else {
-            $nextKey = $keys[0];
-            unset($keys[0]);
-            $keys = array_values($keys);
-            $this->multidimensionalArray($value, $array[$nextKey], $keys);
-        }
-    }
-
-
-    /**
-     * @\TYPO3\CMS\Extbase\Annotation\IgnoreValidation("data")
-     *
-     * @param string $keyTranslation
-     * @param string $languageTranslation
-     * @param array $data
-     */
-    public function saveAction($keyTranslation, $languageTranslation, $data = null)
-    {
-        if (empty($data) && $this->request->hasArgument('data')) {
-            $data = $this->request->getArgument('data');
-        }
-        if (empty($data)) {
-            $content = file_get_contents('php://input');
-            $content = json_decode($content);
-            $string = '';
-            $temp = [];
-            foreach ($content as $key => $value) {
-                $key = str_replace(']', '', $key);
-                $keys = explode('[', $key);
-
-                $this->multidimensionalArray($value, $temp, $keys);
-            }
-            if (!empty($temp)) {
-                $data = $temp;
-            }
-        }
-
-        if (empty($data)) {
-            echo json_encode(['success' => 0]);
-            die();
-        }
-
-        $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
-
-        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
-            $filename = $keyTranslation . '.xlf';
-        } else {
-            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
-        }
-
-        if (!empty($this->pageUid)) {
-            $filename = $this->pageUid . '.' . $filename;
-        }
-
-        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-        if (empty($path)) {
-            $path = $this->storage . $filename;
-        }
-        file_put_contents($path, $xlfFileExport);
-
-        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
-
-        echo json_encode(['success' => 1]);
-        die();
     }
 
     protected function exec_enabled() {

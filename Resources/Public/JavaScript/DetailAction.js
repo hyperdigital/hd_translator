@@ -45,17 +45,36 @@ const saveAction = () => {
     });
 }
 
+document.querySelectorAll('.popup-action button').forEach((button) => {
+    button.addEventListener('click', function(event) {
+        const content = button.parentNode.querySelector('.popup-content');
+        content.classList.toggle('hidden');
+        document.addEventListener('click', function closeOnClickOutside(e) {
+            if (!content.contains(e.target) && !button.contains(e.target)) {
+                content.classList.add('hidden');
+                document.removeEventListener('click', closeOnClickOutside);
+            }
+        });
+    });
+});
 
-[].slice.call(document.querySelectorAll('.popup-action button')).forEach((button) => {
-    button.addEventListener('click', (event) => {
-        let content = button.parentNode.querySelector('.popup-content');
-        if (content.classList.contains('hidden')) {
-            content.classList.remove('hidden')
-        } else {
-            content.classList.add('hidden');
-        }
-    })
-})
+document.querySelectorAll('.js-hd_translator-fileupload-popup').forEach((button) => {
+    button.addEventListener('click', () => {
+        // Find the file input element with the class "js-hd_translator-fileupload-target"
+        const fileInput = button.closest('form').querySelector('.js-hd_translator-fileupload-target');
+
+        // Trigger the file input click when the button is clicked
+        fileInput.click();
+
+        // Add a change event listener to the file input to display the filename
+        fileInput.addEventListener('change', () => {
+            const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+            console.log('Selected file:', fileName);
+            // You can display the file name somewhere on the page, for example:
+            button.closest('form').querySelector('.file-name-display').textContent = fileName;
+        });
+    });
+});
 
 let search = document.querySelector('#hd_translator-search');
 let dataItems = document.querySelectorAll('.hd-translator-detail-grid-item')

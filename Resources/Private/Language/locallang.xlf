@@ -42,6 +42,15 @@
             <trans-unit id="detail.import">
                 <source>Import</source>
             </trans-unit>
+            <trans-unit id="detail.import.description">
+                <source>Allowed extensions to import: %s</source>
+            </trans-unit>
+            <trans-unit id="detail.import.chooseFile">
+                <source>Choose file</source>
+            </trans-unit>
+            <trans-unit id="detail.import.upload">
+                <source>Upload</source>
+            </trans-unit>
             <trans-unit id="detail.remove">
                 <source>Delete translation</source>
             </trans-unit>

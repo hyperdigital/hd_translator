@@ -105,20 +105,46 @@ class XlfService
 
     /**
      * @param string $input
+     * @param array $sourceAndTarget - [sourceKey (default), targetKey (de)]
      */
-    public function xlfToData(string $input)
+    public function xlfToData(string $input, $sourceAndTarget = [])
     {
         $xml = simplexml_load_string($input);
         $data = json_decode(json_encode($xml), true);
         $return = [];
+        $enableSource = false;
+
+        if (!empty($sourceAndTarget)) {
+            $enableSource = true;
+            $source = $sourceAndTarget[0];
+            $target = $sourceAndTarget[1];
+        }
 
         if (!empty($data['file']['body']['trans-unit'])) {
             if (!empty($data['file']['body']['trans-unit'][0])) {
                 foreach ($data['file']['body']['trans-unit'] as $item) {
-                    $return[$item['@attributes']['id']] = (isset($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
+                    if ($enableSource) {
+                        $insert = [
+                            $source => ((isset($item['source']) && !is_array($item['source'])) ? $item['source'] : ''),
+                            $target => ((isset($item['target']) && !is_array($item['target'])) ? $item['target'] : '')
+                        ];
+                    } else {
+                        $insert = (isset($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
+                    }
+
+                    $return[$item['@attributes']['id']] = $insert;
                 }
             } else {
-                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (isset($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
+                if ($enableSource) {
+                    $insert = [
+                        $source => ((isset($data['file']['body']['trans-unit']['source'])) ? $data['file']['body']['trans-unit']['source'] : ''),
+                        $target => ((isset($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '')
+                    ];
+                } else {
+                    $insert = (isset($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
+                }
+
+                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = $insert;
             }
         }
 
