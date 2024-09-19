@@ -572,21 +572,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
-
-        if ($languageTranslation == 'en' || $languageTranslation == 'default') {
-            $filename = $keyTranslation . '.xlf';
-        } else {
-            $filename = $languageTranslation . '.' . $keyTranslation . '.xlf';
-        }
-
-        if (!empty($this->pageUid)) {
-            $filename = $this->pageUid . '.' . $filename;
-        }
-
-        $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-        if (empty($path)) {
-            $path = $this->storage . $filename;
-        }
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
         file_put_contents($path, $xlfFileExport);
 
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
@@ -774,6 +760,84 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         die();
     }
 
+    /**
+     * Description: Database import initial screen
+     */
+    public function databaseImportIndexAction()
+    {
+        $this->indexMenu();
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseImportIndex');
+    }
+
+    /**
+     * Description: Submitted file for database import
+     */
+    public function databaseImportAction()
+    {
+        $errors = [];
+        $files = false;
+        if ($this->request->getUploadedFiles()) {
+            $files = $this->request->getUploadedFiles()['files'] ?? false;
+        }
+
+        if (!$files) {
+            $errors[] = 'No file uploaded';
+        } else {
+            $targetLanguage = 1;
+            if ($this->request->hasArgument('targetLanguageUid')) {
+                $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
+            }
+            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+            $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+
+            foreach($files as $file) {
+                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+
+                $extension = explode('.', $file->getClientFilename());
+                $extension = strtolower($extension[count($extension) - 1]);
+
+                switch($extension){
+                    case 'xlf':
+                        // XLF
+                        $data = (string) $file->getStream();
+                        $data = $xlfService->xlfToData($data);
+                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                        break;
+                    case 'zip':
+                        $zipFolder = Environment::getVarPath() . '/translation/';
+                        if (!file_exists($zipFolder)) {
+                            mkdir($zipFolder);
+                        }
+                        $file->moveTo($zipFolder.$file->getClientFilename());
+                        // ZIP of packed translations
+                        $zip = new \ZipArchive();
+                        $zip->open($zipFolder.$file->getClientFilename());
+                        for($i = 0; $i < $zip->numFiles; $i++) {
+                            $data = $zip->getFromIndex($i);
+                            $data = $xlfService->xlfToData($data);
+                            $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                        }
+                        break;
+                }
+            }
+        }
+        if (!empty($zipFolder) && file_exists($zipFolder)) {
+            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+        }
+
+        $this->moduleTemplate->assignMultiple([
+            'actions' => [
+                'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
+                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
+                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
+                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
+            ]
+        ]);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseImport');
+    }
+
 
 
     ///////////////////////////////////
@@ -858,14 +922,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
         echo $output;
         die();
-    }
-
-    public function databaseImportIndexAction()
-    {
-        $this->indexMenu();
-
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     /**
@@ -1046,58 +1102,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $this->getAllPagesFromRoot($row['uid'], $return);
             }
         }
-    }
-
-    public function databaseImportAction()
-    {
-        $errors = [];
-
-        if (!$this->request->hasArgument('files')) {
-            $errors[] = 'No file uploaded';
-        } else {
-            $targetLanguage = 1;
-            if ($this->request->hasArgument('targetLanguageUid')) {
-                $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
-            }
-            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-            $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-
-            $files = $this->request->getArgument('files');
-            $finfo = new \finfo(FILEINFO_MIME_TYPE);
-            foreach($files as $file) {
-                $ext = $finfo->file($file['tmp_name']);
-                switch($ext){
-                    case 'text/xml':
-                        // XLF
-                        $data = file_get_contents($file['tmp_name']);
-                        $data = $xlfService->xlfToData($data);
-                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        break;
-                    case 'application/zip':
-                        // ZIP of packed translations
-                        $zip = new \ZipArchive();
-                        $zip->open($file['tmp_name']);
-                        for($i = 0; $i < $zip->numFiles; $i++) {
-                            $data = $zip->getFromIndex($i);
-                            $data = $xlfService->xlfToData($data);
-                            $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        }
-                        break;
-                }
-            }
-        }
-
-        $this->moduleTemplate->assignMultiple([
-            'actions' => [
-                'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
-                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
-                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
-                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
-            ]
-        ]);
-
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
     }
 
     protected function idToDatabaseNames(&$retrun, $id, $value)

@@ -1335,7 +1335,13 @@ class DatabaseEntriesService
         $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
 
         if (!empty($row[$key]['data'])) {
-            foreach ($flexFormArray['sheets'] as $sheetName => $sheetDefinition) {
+            $sheets = [];
+            if(!empty($flexFormArray['sheets'])) {
+                $sheets = $flexFormArray['sheets'];
+            } else {
+                $sheets[] = $flexFormArray;
+            }
+            foreach ($sheets as $sheetName => $sheetDefinition) {
                 if (!empty($sheetDefinition['ROOT']['el'])) {
                     foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
                         if(!empty($config['TCEforms']['config']['type'])) {
@@ -1371,7 +1377,7 @@ class DatabaseEntriesService
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
-                $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
+                $flexFormTools = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools::class);
                 $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
                 $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
             }
