@@ -424,6 +424,13 @@ class DatabaseEntriesService
                 case 'input':
                 case 'text':
                 case 'slug':
+                case 'color':
+                case 'datetime':
+                case 'email':
+                case 'json':
+                case 'link':
+                case 'number':
+                case 'password':
                     $return[$specialFieldNameOutput]['value'] = $row[$field] ?? '';
                     $return[$specialFieldNameOutput]['label'] = $this->getFieldLabel($field, $row, $tablename);
                     $return[$specialFieldNameOutput]['html'] = $this->fieldCanContainHtml($field, $row, $tablename);
