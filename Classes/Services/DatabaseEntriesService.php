@@ -1459,6 +1459,7 @@ class DatabaseEntriesService
                 && (
                     empty($GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'])
                     || $GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'] != 'exclude'
+                    || ($tablename == 'tt_content' && $key == 'CType')
                 )
             ) {
                 if (
