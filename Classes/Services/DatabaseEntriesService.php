@@ -917,7 +917,12 @@ class DatabaseEntriesService
         if ($data) {
             foreach ($data as $tablename => $rows) {
                 foreach ($rows as $l10nParent => $row) {
-                    $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+                    try {
+                        $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+                    } catch (\Throwable $th) {
+                        self::$importStats['fails']++;
+                        self::$importStats['failsMessages'][] = $th->getMessage();
+                    }
                 }
             }
         }
