@@ -46,6 +46,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $conigurationFile = 'locallangConf.php';
     protected $defaultFilename = 'locallang.xlf';
     protected $relativePathToLangFilesInExt = 'Resources/Private/Language';
+    protected $relativePathToLangFilesInExtContentBlocks = 'ContentBlocks/ContentElements';
     protected $backupExtension = '.backup';
     protected $langFiles = [];
     protected $languageService;
@@ -1523,13 +1524,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if ($baseFolder) {
                 $this->getAllLangFilesFromPath($extConfig, $baseFolder, 'EXT:' . $key . '/' . $this->relativePathToLangFilesInExt, $key);
             }
+            $baseFolder = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName('EXT:' . $key . '/' . $this->relativePathToLangFilesInExtContentBlocks);
+            if ($baseFolder) {
+                $this->getAllLangFilesFromPath($extConfig, $baseFolder, 'EXT:' . $key . '/' . $this->relativePathToLangFilesInExtContentBlocks, $key, true);
+            }
         }
 
         file_put_contents($this->storage . $this->conigurationFile, "<?php\n" . '$GLOBALS["TYPO3_CONF_VARS"]["translator"] = ' . var_export($this->langFiles, true) . ';');
         return $this->redirect('index');
     }
 
-    protected function getAllLangFilesFromPath($extConfig, $path, $extPath, $key)
+    protected function getAllLangFilesFromPath($extConfig, $path, $extPath, $key, $contentBlocks = false)
     {
         if (file_exists($path)) {
             $files = scandir($path);
@@ -1540,31 +1545,47 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     }
 
                     if (is_dir($path . '/' . $filename)) {
-                        $this->getAllLangFilesFromPath($extConfig, $path . '/' . $filename, $extPath . '/' . $filename, $key);
+                        $this->getAllLangFilesFromPath($extConfig, $path . '/' . $filename, $extPath . '/' . $filename, $key, $contentBlocks);
                     } else {
-                        // Check if it's not default language
-                        $languagePrefix = explode('.', $filename)[0];
-                        // The language can be also with sublevel like pt-BR
-                        $languagePrefix = explode('-', $languagePrefix)[0];
-                        if (in_array($languagePrefix, array_keys($this->listOfPossibleLanguages))) {
-                            continue;
-                        }
+                        $languageExt = explode('.', $filename);
+                        $languageExt = $languageExt[count($languageExt) - 1];
 
-                        $label = $extConfig->getExtensionKey();
-                        if ($extConfig->getTitle()) {
-                            $label = $extConfig->getTitle();
-                        }
+                        if ($languageExt == 'xlf') {
+                            // Check if it's not default language
+                            $languagePrefix = explode('.', $filename)[0];
+                            // The language can be also with sublevel like pt-BR
+                            $languagePrefix = explode('-', $languagePrefix)[0];
+                            if (in_array($languagePrefix, array_keys($this->listOfPossibleLanguages))) {
+                                continue;
+                            }
 
-                        if ($filename != $this->defaultFilename) {
-                            $label .= ': ' . $this->filenameToPrettyPrint($filename);
-                        }
+                            $label = $extConfig->getExtensionKey();
+                            if ($extConfig->getTitle()) {
+                                $label = $extConfig->getTitle();
+                            }
 
-                        $this->langFiles[$this->filepathToIdentifier($extPath . '/' . $filename)] = [
-                            'label' => $label,
-                            'path' => $extPath . '/' . $filename,
-                            'category' => $key,
-                            'languages' => array_keys($this->listOfPossibleLanguages)
-                        ];
+                            // File is stored in ContentBlocks/ContentElements/XX/language/labels.xlf and we need to get XX
+                            if ($contentBlocks) {
+                                $pathParts = explode('/', $path);
+                                while ($pathParts[count($pathParts) - 1] != 'language') {
+                                    unset($pathParts[count($pathParts) - 1]);
+                                }
+                                if (!empty($pathParts)) {
+                                    $label .= ' - ' . $pathParts[count($pathParts) - 2];
+                                }
+                            }
+
+                            if ($filename != $this->defaultFilename) {
+                                $label .= ': ' . $this->filenameToPrettyPrint($filename);
+                            }
+
+                            $this->langFiles[$this->filepathToIdentifier($extPath . '/' . $filename)] = [
+                                'label' => $label,
+                                'path' => $extPath . '/' . $filename,
+                                'category' => $key,
+                                'languages' => array_keys($this->listOfPossibleLanguages)
+                            ];
+                        }
                     }
                 }
             }
