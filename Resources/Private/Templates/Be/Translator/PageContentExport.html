@@ -1,26 +1,14 @@
-<f:asset.script identifier="translator-export-row">
-	<f:format.raw>
-		const sourceTemp = document.getElementById('source-temp');
-		const source = document.getElementById('source-language');
-		const targetTemp = document.getElementById('target-temp');
-		const target = document.getElementById('target');
+<html
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 
-		sourceTemp.addEventListener('change', function(e) {
-		const value = this.value;
-		if (value != '') {
-		source.value = value;
-		this.value = '';
-		}
-		});
-		targetTemp.addEventListener('change', function(e) {
-		const value = this.value;
-		if (value != '') {
-		target.value = value;
-		this.value = '';
-		}
-		});
-	</f:format.raw>
-</f:asset.script>
+<f:layout name="Module" />
+
+<f:section name="Content">
+
+<f:asset.script identifier="hd_translator_page_export" src="EXT:hd_translator/Resources/Public/JavaScript/PageContentExport.js" />
 
 <div>
     <h1>{f:translate(key: 'contentExport.headline')}</h1>
@@ -107,3 +95,6 @@
         </f:form>
     </div>
 </div>
+</f:section>
+
+</html>

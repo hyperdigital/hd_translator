@@ -16,6 +16,8 @@ return [
                 'index',
                 'list',
                 'detail',
+                'chooseBackupOrNew',
+                'revertBackup',
                 'database',
                 'databaseTableFields',
                 'databaseExport',

@@ -189,7 +189,7 @@ class DatabaseEntriesService
             ->orWhere(
                 ...$orWhere
             )
-            ->execute();
+            ->executeQuery();
 
         $row = $result->fetchAssociative();
         
@@ -229,7 +229,7 @@ class DatabaseEntriesService
             ->andWhere(
                 $queryBuilder->expr()->eq($langaugeField, $sourceLanguage)
             )
-            ->execute();
+            ->executeQuery();
 
         $row = $result->fetchAssociative();
 
@@ -241,7 +241,7 @@ class DatabaseEntriesService
                 ->where(
                     $queryBuilder->expr()->eq('uid', $rowUid)
                 )
-                ->execute();
+                ->executeQuery();
             $row = $result->fetchAssociative();
         }
 
@@ -286,7 +286,7 @@ class DatabaseEntriesService
                 $queryBuilder->expr()->eq($parentUidField, $l10nParent),
                 $queryBuilder->expr()->eq($langaugeField, $targetLanguage)
             )
-            ->execute();
+            ->executeQuery();
 
         $row = $result->fetchAssociative();
 
@@ -345,7 +345,7 @@ class DatabaseEntriesService
         foreach ($sortBys as $sortBy) {
             $temp->addOrderBy($sortBy[0], $sortBy[1]);
         }
-        $result = $temp->execute();
+        $result = $temp->executeQuery();
 
         while($row = $result->fetchAssociative()) {
             if ($clean) {
@@ -389,7 +389,7 @@ class DatabaseEntriesService
             ->where(
                 ...$where
             )
-            ->execute();
+            ->executeQuery();
 
         $return = [];
         while($row = $result->fetchAssociative()) {
@@ -424,6 +424,13 @@ class DatabaseEntriesService
                 case 'input':
                 case 'text':
                 case 'slug':
+                case 'color':
+                case 'datetime':
+                case 'email':
+                case 'json':
+                case 'link':
+                case 'number':
+                case 'password':
                     $return[$specialFieldNameOutput]['value'] = $row[$field] ?? '';
                     $return[$specialFieldNameOutput]['label'] = $this->getFieldLabel($field, $row, $tablename);
                     $return[$specialFieldNameOutput]['html'] = $this->fieldCanContainHtml($field, $row, $tablename);
@@ -517,7 +524,7 @@ class DatabaseEntriesService
                 $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
                 $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
             )
-            ->execute();
+            ->executeQuery();
 
 
         while($rowInlined = $result->fetchAssociative()) {
@@ -911,11 +918,11 @@ class DatabaseEntriesService
             foreach ($data as $tablename => $rows) {
                 foreach ($rows as $l10nParent => $row) {
                     try {
-						$this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
-					} catch (\Throwable $th) {
-						self::$importStats['fails']++;
-						self::$importStats['failsMessages'][] = $th->getMessage();
-					}
+                        $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+                    } catch (\Throwable $th) {
+                        self::$importStats['fails']++;
+                        self::$importStats['failsMessages'][] = $th->getMessage();
+                    }
                 }
             }
         }
@@ -1023,7 +1030,7 @@ class DatabaseEntriesService
                             ->andWhere(
                                 ...$where
                             )
-                            ->execute();
+                            ->executeQuery();
 
                         $childern = [];
                         while($tempRow = $result->fetchAssociative()) {
@@ -1038,7 +1045,7 @@ class DatabaseEntriesService
                                     ->where(
                                         $queryBuilder->expr()->eq('uid', $tempRow['uid'])
                                     )
-                                    ->execute();
+                                    ->executeQuery();
                             }
                         }
                         // update parent inline field => if INT then amount of children, if VARCHAR then list of uids
@@ -1051,7 +1058,7 @@ class DatabaseEntriesService
                                 ->where(
                                     $queryBuilder->expr()->eq('uid', $row['uid'])
                                 )
-                                ->execute();
+                                ->executeQuery();
                         }
                         break;
                     case 'updateChildInlinedReferencesFlexform':
@@ -1109,7 +1116,7 @@ class DatabaseEntriesService
                             );
                         }
 
-                        $result = $temp->execute();
+                        $result = $temp->executeQuery();
 
                         // check if copies are needed
                         if ($result->fetchOne() == 0) {
@@ -1157,7 +1164,7 @@ class DatabaseEntriesService
                                 );
                             }
 
-                            $result = $temp->execute();
+                            $result = $temp->executeQuery();
                             while($row = $result->fetchAssociative()) {
                                 if ($translatedRow['uid']) {
                                     unset($row['uid']);
@@ -1171,7 +1178,7 @@ class DatabaseEntriesService
                                         $affectedRows = $queryBuilder
                                             ->insert($foreginTable)
                                             ->values($row)
-                                            ->execute();
+                                            ->executeQuery();
                                         self::$importStats['inserts']++;
                                     }
                                 } else {
@@ -1209,7 +1216,7 @@ class DatabaseEntriesService
                         ->where(
                             $queryBuilder->expr()->eq($localFieldMm, $mmRelation['local_uid'])
                         )
-                        ->execute();
+                        ->executeQuery();
 
                     $newUid = self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']]['uid'];
                     while($newUid && $row = $result->fetchAssociative()) {
@@ -1223,7 +1230,7 @@ class DatabaseEntriesService
                                 $queryBuilder->expr()->eq($localFieldMm, $newUid),
                                 $queryBuilder->expr()->eq($foreginFieldMm, $row['uid_foreign'])
                             )
-                            ->execute();
+                            ->executeQuery();
                         if (!$result2->fetchAssociative()) {
                             if (!self::$onlyDebug) {
                                 $row[$localFieldMm] = $newUid;
@@ -1238,7 +1245,7 @@ class DatabaseEntriesService
                                         ->values(
                                             $row
                                         )
-                                        ->execute();
+                                        ->executeQuery();
                                 } catch (\Exception $e) {
 
                                 }
@@ -1262,7 +1269,7 @@ class DatabaseEntriesService
                         $queryBuilder->expr()->eq('uid_foreign', $id),
                         $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
                     )
-                    ->execute();
+                    ->executeQuery();
 
 
                 while($defaultLanguageRow = $result->fetchAssociative()) {
@@ -1287,7 +1294,7 @@ class DatabaseEntriesService
                         ->where(
                             ...$where
                         )
-                        ->execute();
+                        ->executeQuery();
                     $output = $result2->fetchAssociative();
 
                     if (!$output) {
@@ -1302,7 +1309,7 @@ class DatabaseEntriesService
                         $queryBuilder
                             ->insert('sys_file_reference')
                             ->values($defaultLanguageRow)
-                            ->execute();
+                            ->executeQuery();
                         self::$importStats['inserts']++;
                     }
                 }
@@ -1340,7 +1347,13 @@ class DatabaseEntriesService
         $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
 
         if (!empty($row[$key]['data'])) {
-            foreach ($flexFormArray['sheets'] as $sheetName => $sheetDefinition) {
+            $sheets = [];
+            if(!empty($flexFormArray['sheets'])) {
+                $sheets = $flexFormArray['sheets'];
+            } else {
+                $sheets[] = $flexFormArray;
+            }
+            foreach ($sheets as $sheetName => $sheetDefinition) {
                 if (!empty($sheetDefinition['ROOT']['el'])) {
                     foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
                         if(!empty($config['TCEforms']['config']['type'])) {
@@ -1376,7 +1389,7 @@ class DatabaseEntriesService
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
-                $flexFormTools = new \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools();
+                $flexFormTools = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools::class);
                 $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
                 $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
             }
@@ -1400,7 +1413,7 @@ class DatabaseEntriesService
                         $temp = $temp->set($key, $value);
                     }
 
-                    $temp->execute();
+                    $temp->executeQuery();
 
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1411,7 +1424,7 @@ class DatabaseEntriesService
                         ->where(
                             $queryBuilder->expr()->eq('uid', $translatedRow['uid'])
                         )
-                        ->execute();
+                        ->executeQuery();
                     $rowTemp = $resultTemp->fetchAssociative();
 
                     if ($rowTemp) {
@@ -1458,6 +1471,7 @@ class DatabaseEntriesService
                 && (
                     empty($GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'])
                     || $GLOBALS['TCA'][$tablename]['columns'][$key]['l10n_mode'] != 'exclude'
+                    || ($tablename == 'tt_content' && $key == 'CType')
                 )
             ) {
                 if (
@@ -1545,7 +1559,7 @@ class DatabaseEntriesService
                 ->values(
                     $row
                 )
-                ->execute();
+                ->executeQuery();
 
             $lastUid = $queryBuilder->getConnection()->lastInsertId();
 
@@ -1557,7 +1571,7 @@ class DatabaseEntriesService
                 ->where(
                     $queryBuilder->expr()->eq('uid', $lastUid)
                 )
-                ->execute();
+                ->executeQuery();
             $rowTemp = $resultTemp->fetchAssociative();
 
             if ($rowTemp) {
@@ -1673,7 +1687,7 @@ class DatabaseEntriesService
                             ->values(
                                 $row
                             )
-                            ->execute();
+                            ->executeQuery();
                     }
 
                     $this->updateAfterImport[$parentTableName . '-' . $l10nParent . '-' . $field . '-updateChildInlinedReferences'] = [

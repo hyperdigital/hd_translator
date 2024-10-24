@@ -5,12 +5,11 @@
         xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
         data-namespace-typo3-fluid="true">
 
-<f:layout name="Default" />
+<f:layout name="Module" />
 
-<f:section name="headline">
-</f:section>
+<f:section name="Content">
+    <f:asset.script identifier="hd_translator_list" src="EXT:hd_translator/Resources/Public/JavaScript/ListAction.js" />
 
-<f:section name="content">
     <div class="hd-translator">
 			<f:if condition="{category} && {category} != '-'"><h1>{category}</h1></f:if>
         <f:if condition="{data}">
@@ -60,20 +59,5 @@
             </div>
         </f:if>
     </div>
-    <script>
-        let popups = document.querySelectorAll('.popup-action');
-        if (popups){
-            popups.forEach(function(element){
-                element.querySelector('button').addEventListener('click', (event) => {
-                    let content = element.querySelector('.popup-content');
-                    if (content.classList.contains('hidden')) {
-                        content.classList.remove('hidden')
-                    } else {
-                        content.classList.add('hidden');
-                    }
-                })
-            })
-        }
-    </script>
 </f:section>
 </html>

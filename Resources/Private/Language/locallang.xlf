@@ -42,8 +42,26 @@
             <trans-unit id="detail.import">
                 <source>Import</source>
             </trans-unit>
+            <trans-unit id="detail.import.description">
+                <source>Allowed extensions to import: %s</source>
+            </trans-unit>
+            <trans-unit id="detail.import.chooseFile">
+                <source>Choose file</source>
+            </trans-unit>
+            <trans-unit id="detail.import.upload">
+                <source>Upload</source>
+            </trans-unit>
             <trans-unit id="detail.remove">
                 <source>Delete translation</source>
+            </trans-unit>
+            <trans-unit id="detail.chooseNewOrBackup">
+                <source>We found one backuped file. Do you want to use this backup instead of a new translation?</source>
+            </trans-unit>
+            <trans-unit id="detail.chooseNewOrBackup.backup">
+                <source>Backup from</source>
+            </trans-unit>
+            <trans-unit id="detail.chooseNewOrBackup.new">
+                <source>New translation</source>
             </trans-unit>
             <trans-unit id="list.add_new">
                 <source>Add a new translation</source>

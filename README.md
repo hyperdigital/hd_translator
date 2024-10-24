@@ -1,5 +1,9 @@
 # Translator
 TYPO3 extension for handling translations. It allows editors to edit static strings from XLF files (usually placed in *EXT:/Resources/Private/Languages*) or to export database entries, edit them over translation tool/agency in the xlf format and then import it again back to TYPO3.
+
+## Changelog
+[2.0.0](Documentation/Changelog/2.0.0.md)
+
 ## Initialization
 
 Upon installation, a new submodule will be added under the WEB module. Before utilizing
@@ -86,6 +90,10 @@ $GLOBALS['TYPO3_CONF_VARS']['SYS']['localization']['locales']['user']['us'] = 'E
 Important Components:
 - 'us': This serves as the language key used in translation files.
 - 'English US': Represents the name of the language.
+
+### Translation Removal and Backup
+
+When you remove a translation, the system automatically creates a backup of the deleted translation. If you attempt to create the same translation again, you will be prompted with an option to either restore the backup or generate a new translation from scratch.
 
 ## Database Export
 
