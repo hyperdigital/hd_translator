@@ -192,7 +192,7 @@ class DatabaseEntriesService
             ->execute();
 
         $row = $result->fetchAssociative();
-        
+
         return $row;
     }
 
@@ -911,11 +911,11 @@ class DatabaseEntriesService
             foreach ($data as $tablename => $rows) {
                 foreach ($rows as $l10nParent => $row) {
                     try {
-						$this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
-					} catch (\Throwable $th) {
-						self::$importStats['fails']++;
-						self::$importStats['failsMessages'][] = $th->getMessage();
-					}
+                        $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
+                    } catch (\Throwable $th) {
+                        self::$importStats['fails']++;
+                        self::$importStats['failsMessages'][] = $th->getMessage();
+                    }
                 }
             }
         }
@@ -1313,6 +1313,7 @@ class DatabaseEntriesService
 
     public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
     {
+
         $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
         if (!empty($fieldConfig['ds_pointerField'])) {
             $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
@@ -1332,23 +1333,35 @@ class DatabaseEntriesService
             if ($noneUsed && !empty($fieldConfig['ds']['default'])) {
                 $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['default'], $originalRow);
             }
+            die('xxx');
         }
     }
 
     public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fleformDefinition, $originalRow)
     {
         $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
+        if (!empty($row[$key]['data']) && !empty($flexFormArray)) {
+            // Default settings doesn't have sheet, so setup default sheet
+            if (!isset($flexFormArray['sheets'])) {
+                $flexFormArray['sheets'] = [$flexFormArray];
+            }
 
-        if (!empty($row[$key]['data'])) {
             foreach ($flexFormArray['sheets'] as $sheetName => $sheetDefinition) {
                 if (!empty($sheetDefinition['ROOT']['el'])) {
                     foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
-                        if(!empty($config['TCEforms']['config']['type'])) {
-                            switch ($config['TCEforms']['config']['type']) {
+                        // Default settings can ommit TCEforms part
+                        $tempConfig = false;
+                        if (!empty($config['config']['type'])) {
+                            $tempConfig = $config;
+                        } elseif (!empty($config['TCEforms']['config']['type'])) {
+                            $tempConfig = $config['TCEforms']['config'];
+                        }
+
+                        if (!empty($tempConfig['type'])) {
+                            switch ($tempConfig['type']) {
                                 case 'inline':
-                                    $inlineConfig = $config['TCEforms']['config'];
-                                    $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] .'-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
-                                        'config' => $inlineConfig,
+                                    $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] . '-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
+                                        'config' => $tempConfig,
                                         'parentUid' => $originalRow['uid'],
                                         'parentTable' => $tablename,
                                         'type' => 'updateChildInlinedReferencesFlexform'
