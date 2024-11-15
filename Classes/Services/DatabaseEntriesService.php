@@ -1345,23 +1345,28 @@ class DatabaseEntriesService
     public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fleformDefinition, $originalRow)
     {
         $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
-
-        if (!empty($row[$key]['data'])) {
-            $sheets = [];
-            if(!empty($flexFormArray['sheets'])) {
-                $sheets = $flexFormArray['sheets'];
-            } else {
-                $sheets[] = $flexFormArray;
+        if (!empty($row[$key]['data']) && !empty($flexFormArray)) {
+            // Default settings doesn't have sheet, so setup default sheet
+            if (!isset($flexFormArray['sheets'])) {
+                $flexFormArray['sheets'] = [$flexFormArray];
             }
-            foreach ($sheets as $sheetName => $sheetDefinition) {
+
+            foreach ($flexFormArray['sheets'] as $sheetName => $sheetDefinition) {
                 if (!empty($sheetDefinition['ROOT']['el'])) {
                     foreach ($sheetDefinition['ROOT']['el'] as $name => $config) {
-                        if(!empty($config['TCEforms']['config']['type'])) {
-                            switch ($config['TCEforms']['config']['type']) {
+                        // Default settings can ommit TCEforms part
+                        $tempConfig = false;
+                        if (!empty($config['config']['type'])) {
+                            $tempConfig = $config;
+                        } elseif (!empty($config['TCEforms']['config']['type'])) {
+                            $tempConfig = $config['TCEforms']['config'];
+                        }
+
+                        if (!empty($tempConfig['type'])) {
+                            switch ($tempConfig['type']) {
                                 case 'inline':
-                                    $inlineConfig = $config['TCEforms']['config'];
-                                    $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] .'-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
-                                        'config' => $inlineConfig,
+                                    $this->updateAfterImport[$tablename . '-' . $originalRow['uid'] . '-' . $row[$key] . '-' . count($this->updateAfterImport) . '-updateFlexFormReferences'] = [
+                                        'config' => $tempConfig,
                                         'parentUid' => $originalRow['uid'],
                                         'parentTable' => $tablename,
                                         'type' => 'updateChildInlinedReferencesFlexform'
