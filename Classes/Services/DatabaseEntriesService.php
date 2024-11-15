@@ -1333,7 +1333,6 @@ class DatabaseEntriesService
             if ($noneUsed && !empty($fieldConfig['ds']['default'])) {
                 $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['default'], $originalRow);
             }
-            die('xxx');
         }
     }
 
