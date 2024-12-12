@@ -21,6 +21,13 @@ class DatabaseEntriesService
     public static $rowTypeCouldBe = '';
     protected $updateMmRelations = [];
 
+    // Ignore  $GLOBALS['TCA'][$table]['types'][1]['translator_export']
+    protected $ignoreExportFields = false;
+    public function setIgnoreExportFields($exportSettings)
+    {
+        $this->ignoreExportFields = $exportSettings;
+    }
+
     /**
      * @var bool this will disable inserting or updating data
      */
@@ -61,7 +68,7 @@ class DatabaseEntriesService
 
         $typeArrayReturn = $typeArray ?? [];
 
-        if (isset($typeArray['translator_export'])) {
+        if (isset($typeArray['translator_export']) && $this->ignoreExportFields == false) {
             $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_export']);
         }  else {
             $listOfFields = $this->getListOfFieldsFromRow($tablename, $row);
@@ -192,7 +199,7 @@ class DatabaseEntriesService
             ->execute();
 
         $row = $result->fetchAssociative();
-
+        
         return $row;
     }
 
@@ -326,6 +333,7 @@ class DatabaseEntriesService
             $sortByTemp = $GLOBALS['TCA'][$tablename]['ctrl']['default_sortby'];
         }
 
+        $sortByTemp = str_replace('ORDER BY ', '', $sortByTemp);
         $sortByTemp = GeneralUtility::trimExplode(',', $sortByTemp);
         $sortBys = [];
         foreach ($sortByTemp as $val) {

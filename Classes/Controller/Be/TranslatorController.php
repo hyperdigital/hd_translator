@@ -244,6 +244,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $sourceLanguage = $this->request->getArgument('source');
         }
 
+        if ($this->request->hasArgument('ignoreExport')) {
+            $databaseEntriesService->setIgnoreExportFields((bool) $this->request->getArgument('ignoreExport'));
+        }
+
         $saveToZip = false;
         if (count($storages) > 1) {
             $saveToZip = true;
@@ -400,6 +404,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $source = 'en';
         if ($this->request->hasArgument('source-language')) {
             $source = $this->request->getArgument('source-language');
+        }
+        if ($this->request->hasArgument('ignoreExport')) {
+            $databaseEntriesService->setIgnoreExportFields((bool) $this->request->getArgument('ignoreExport'));
         }
 
         if ($saveToZip) {
