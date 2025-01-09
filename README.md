@@ -137,7 +137,7 @@ Customize the export settings according to your specific requirements to ensure 
 ## Database Import
 
 ### Disable fields from possible update
-This feature is useful when you want to avoid overwriting existing page slugs. During the import of database entries, the data is inserted into the database as usual. However, if you attempt to re-import the same table, the specified fields in the list will be skipped to prevent duplication or unintended changes.
+This feature is useful when you want to avoid overwriting existing page slugs. During the import of database entries, the data is inserted into the database as usual. However, if you attempt to re-import the same table, the specified fields in the list will be skipped to prevent unintended changes.
 ```php
 $GLOBALS['TCA']['pages']['types'][1]['translator_import_ignore'] = 'slug,url';
 ```
