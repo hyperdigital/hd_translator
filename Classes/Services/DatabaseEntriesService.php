@@ -77,6 +77,33 @@ class DatabaseEntriesService
         return $listOfFields;
     }
 
+    protected function getFieldsDisabledFromUpdate($tablename, $row)
+    {
+        $listOfFields = [];
+        if (
+            !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
+            && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]) // types has value for this field
+            && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['translator_import_ignore'])
+        ) {
+            $typeArray = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]];
+        } else {
+            if (isset($GLOBALS['TCA'][$tablename]['types']['1']['translator_import_ignore'])) {
+                $typeArray = $GLOBALS['TCA'][$tablename]['types']['1'];
+            }
+        }
+
+        $typeArrayReturn = $typeArray ?? [];
+
+        if (isset($typeArray['translator_import_ignore']) && $this->ignoreExportFields == false) {
+            $listOfFields = GeneralUtility::trimExplode(',',$typeArray['translator_import_ignore']);
+        }  else {
+            $listOfFields = [];
+        }
+
+        return $listOfFields;
+    }
+
     /**
      * @param string $tablename  name of the table
      * @param int|array $row UID of entry or the whole row
@@ -1047,19 +1074,25 @@ class DatabaseEntriesService
                             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
                             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                             if (!self::$onlyDebug) {
-                                $temp = $queryBuilder
-                                    ->update($foreginTable)
-                                    ->set($foreginField, $row['uid'])
-                                    ->where(
-                                        $queryBuilder->expr()->eq('uid', $tempRow['uid'])
-                                    )
-                                    ->executeQuery();
+                                try {
+                                    $temp = $queryBuilder
+                                        ->update($foreginTable)
+                                        ->set($foreginField, $row['uid'])
+                                        ->where(
+                                            $queryBuilder->expr()->eq('uid', $tempRow['uid'])
+                                        )
+                                        ->executeQuery();
+                                } catch (\Exception $e) {
+                                    self::$importStats['fails']++;
+                                    self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
+                                }
                             }
                         }
                         // update parent inline field => if INT then amount of children, if VARCHAR then list of uids
                         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($parentTableName)->createQueryBuilder();
                         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                         if (!self::$onlyDebug) {
+                            try {
                             $temp = $queryBuilder
                                 ->update($parentTableName)
                                 ->set($field, count($childern))
@@ -1067,6 +1100,10 @@ class DatabaseEntriesService
                                     $queryBuilder->expr()->eq('uid', $row['uid'])
                                 )
                                 ->executeQuery();
+                            } catch (\Exception $e) {
+                                self::$importStats['fails']++;
+                                self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
+                            }
                         }
                         break;
                     case 'updateChildInlinedReferencesFlexform':
@@ -1411,6 +1448,8 @@ class DatabaseEntriesService
         $translatedRow = $this->getTranslatedCompleteRow($tablename, $l10nParent, $targetLanguage);
 
         if (!empty($translatedRow)) {
+            $disabledFieldsForUpdate = $this->getFieldsDisabledFromUpdate($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
+
             // Only Update row
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1423,7 +1462,9 @@ class DatabaseEntriesService
                         );
 
                     foreach ($row as $key => $value) {
-                        $temp = $temp->set($key, $value);
+                        if (!in_array($key, $disabledFieldsForUpdate)) {
+                            $temp = $temp->set($key, $value);
+                        }
                     }
 
                     $temp->executeQuery();

@@ -133,3 +133,11 @@ $GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] =
 Export buttons will appear next to the save or edit buttons when editing a table entry or within the Page module. It's also a part of context menues.
 
 Customize the export settings according to your specific requirements to ensure that only the necessary data is included in the exported file.
+
+## Database Import
+
+### Disable fields from possible update
+This feature is useful when you want to avoid overwriting existing page slugs. During the import of database entries, the data is inserted into the database as usual. However, if you attempt to re-import the same table, the specified fields in the list will be skipped to prevent duplication or unintended changes.
+```php
+$GLOBALS['TCA']['pages']['types'][1]['translator_import_ignore'] = 'slug,url';
+```
