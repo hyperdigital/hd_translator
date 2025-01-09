@@ -119,6 +119,14 @@ When the Flexform is included in the export, it retrieves all fields by default.
 $GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] = 'settings.text, settings.header';
 ```
 
+##### Disable updates of fields
+This feature can be helpful when you don't want to override exisitng page slugs. When you are importing database entries,
+the insert to the database will be as usual, but when you want to import the same table again, the fields from the list would be ignored.
+```php
+$GLOBALS['TCA']['pages']['types'][1]['translator_import_ignore'] = 'slug,url';
+```
+
+
 ### Displaying Export Buttons
 
 Export buttons will appear next to the save or edit buttons when editing a table entry or within the Page module. It's also a part of context menues.
