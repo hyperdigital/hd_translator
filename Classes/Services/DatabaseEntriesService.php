@@ -760,7 +760,12 @@ class DatabaseEntriesService
             $row = $this->getCompleteRow($tablename, $row);
         }
 
-        $return = $GLOBALS['TCA'][$tablename]['columns'][$fieldname]['label'];
+        $return = $fieldname;
+
+        if (!empty($GLOBALS['TCA'][$tablename]['columns'][$fieldname]['label'])) {
+            $return = $GLOBALS['TCA'][$tablename]['columns'][$fieldname]['label'];
+        }
+
         if (
             !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
             && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]) // row has this field
