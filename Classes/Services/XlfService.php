@@ -50,10 +50,21 @@ class XlfService
             $notes = [];
 
             if (!empty($value['_label'])) {
-                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.label') . ': ' . $value['_label'];
+                $notes['label'] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.label') . ': ' . $value['_label'];
                 $item->setAttribute('resname', $value['_label']);
 
             }
+            if (!empty($value['_maxLength'])) {
+                $notes['maxLength'] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.maxLength') . ': ' . $value['_maxLength'];
+
+                $prop = $domtree->createElement('prop');
+                $prop->setAttribute('group', 'validation');
+                $prop->setAttribute('type', 'max-length');
+                $length = $domtree->createTextNode($value['_maxLength']);
+                $prop->appendChild($length);
+                $item->appendChild($prop);
+            }
+
             if (!empty($value['_html'])) {
                 $item->setAttribute('datatype', 'html');
             }
@@ -86,12 +97,43 @@ class XlfService
             }
 
             if (!empty($notes)) {
-                $noteLabel = $domtree->createElement('note');
-                $noteText = $domtree->createTextNode(implode("\n", $notes));
-                $noteLabel->appendChild($noteText);
-                $item->appendChild($noteLabel);
-            }
+                $i = 1;
+                $contextGroup = $domtree->createElement('context-group');
+                $contextGroup->setAttribute('purpose', 'location');
+                $hasContext = false;
+                foreach ($notes as $noteKey => $note) {
+                    $priority = $i;
 
+                    if ($noteKey == 'label') {
+                        $contextLabel = $domtree->createElement('context');
+                        $contextLabel->setAttribute('context-type', 'recordtitle');
+                        $labelText = $domtree->createTextNode($note);
+                        $contextLabel->appendChild($labelText);
+                        $contextGroup->appendChild($contextLabel);
+                        $hasContext = true;
+                    } else if ($noteKey == 'database') {
+                        $contextLabel = $domtree->createElement('context');
+                        $contextLabel->setAttribute('context-type', 'database');
+                        $labelText = $domtree->createTextNode((string) $note);
+                        $contextLabel->appendChild($labelText);
+                        $contextGroup->appendChild($contextLabel);
+                        $hasContext = true;
+                        // This doesn't need to be in note
+                        continue;
+                    }
+
+                    $noteLabel = $domtree->createElement('note');
+                    $noteLabel->setAttribute('priority', $priority);
+                    $noteText = $domtree->createTextNode($note);
+                    $noteLabel->appendChild($noteText);
+                    $item->appendChild($noteLabel);
+
+                    $i++;
+                }
+                if ($hasContext) {
+                    $item->appendChild($contextGroup);
+                }
+            }
 
             $body->appendChild($item);
         }

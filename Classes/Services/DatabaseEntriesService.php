@@ -199,7 +199,7 @@ class DatabaseEntriesService
             ->execute();
 
         $row = $result->fetchAssociative();
-        
+
         return $row;
     }
 
@@ -428,6 +428,15 @@ class DatabaseEntriesService
 
         if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'])) {
             // Switch by TCA type of the field
+            $return[$specialFieldNameOutput]['fieldType'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'];
+
+            if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'])) {
+                $return[$specialFieldNameOutput]['fieldTypeMax'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'];
+            }
+            if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'])) {
+                $return[$specialFieldNameOutput]['translator_note'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'];
+            }
+
             switch ($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type']) {
                 case 'input':
                 case 'text':
@@ -454,6 +463,7 @@ class DatabaseEntriesService
                     $fieldPrefix = substr($specialFieldNameOutput, 0, -1 * strlen( $row['uid'].'.'.$field));
 
                     $this->getFlexformKeysAndValues($tablename, $field, $row, $return, $field, $limitedFields, $typeArray, $fieldPrefix);
+                    break;
             }
         }
     }
@@ -482,6 +492,10 @@ class DatabaseEntriesService
         $subarrayFieldName = substr($subarrayName, strlen($rowUid.'.'.$field.'.')); // full name with the parent field - used in export settings
         if (is_string($value)) {
             if (empty($limitedFields) || in_array($subarrayFieldName, $limitedFields)) {
+                if (!empty($typeArray['translator_export_column_notes'][$field][$subarrayFieldName])) {
+                    $return[$fieldnamePrefix . $subarrayName]['translator_note'] = $typeArray['translator_export_column_notes'][$field][$subarrayFieldName];
+                }
+
                 $return[$fieldnamePrefix . $subarrayName]['value'] = $value ?? '';
                 $return[$fieldnamePrefix . $subarrayName]['label'] = $subarrayName; // TODO
                 $return[$fieldnamePrefix . $subarrayName]['html'] = false;// TODO
@@ -827,14 +841,31 @@ class DatabaseEntriesService
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $uid);
         }
-
+        
         foreach ($row as $fieldname => $value) {
             $notes = [];
             if ($value['slug']) {
-                $notes[] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
+                $notes['slug'] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
+            }
+            $notes['database'] = true;
+
+            if (!empty($value['translator_note'])) {
+                $notes['custom_note'] = $value['translator_note'];
             }
 
             $reference = [];
+
+            $maxLength = false;
+            if (!empty($value['fieldType'])) {
+                switch ($value['fieldType']) {
+                    case 'input':
+                        $maxLength = 255;
+                        break;
+                }
+            }
+            if (!empty($value['fieldTypeMax'])) {
+                $maxLength = $value['fieldTypeMax'];
+            }
 
             if (!empty($value['table'])){
                 $reference[] = $value['table'];
@@ -846,13 +877,13 @@ class DatabaseEntriesService
                 $reference[] = $value['field'];
             }
 
-
             $return[$tablename.'.'.$fieldname] = [
                 'default' => $value['value'],
                 $targetLanguage => $translatedData[$fieldname] ?? $value['value'],
                 '_label' => $value['label'],
                 '_html' => $value['html'],
                 '_notes' => $notes,
+                '_maxLength' => $maxLength,
                 '_table_reference' => LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.table_reference') . ': ' . implode(':', $reference)
             ];
         }

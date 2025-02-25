@@ -119,6 +119,20 @@ When the Flexform is included in the export, it retrieves all fields by default.
 $GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] = 'settings.text, settings.header';
 ```
 
+#### Custom Notes for fields
+
+If the fields requires some special note, it's possible to add into notes by different options:
+
+##### Pure TCA config
+```php
+$GLOBALS['TCA']['tt_content']['columns']['header']['config']['translator_note'] = 'Here is a note for translators';
+```
+
+##### Flexfrom config
+```php
+$GLOBALS['TCA'][$table]['types'][1]['translator_export_column_notes']['pi_flexform']['settings.text'] = 'Here is a note for translators';
+```
+
 ##### Disable updates of fields
 This feature can be helpful when you don't want to override exisitng page slugs. When you are importing database entries,
 the insert to the database will be as usual, but when you want to import the same table again, the fields from the list would be ignored.
