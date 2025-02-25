@@ -2,8 +2,9 @@
 TYPO3 extension for handling translations. It allows editors to edit static strings from XLF files (usually placed in *EXT:/Resources/Private/Languages*) or to export database entries, edit them over translation tool/agency in the xlf format and then import it again back to TYPO3.
 
 ## Changelog
-[2.0.2](Documentation/Changelog/2.0.2.md)
-[2.0.0](Documentation/Changelog/2.0.0.md)
+- [Release 2.0.5](Documentation/Changelog/2.0.5.md)
+- [Release 2.0.2](Documentation/Changelog/2.0.2.md)
+- [Release 2.0.0](Documentation/Changelog/2.0.0.md)
 
 ## Initialization
 
@@ -127,6 +128,21 @@ When the Flexform is included in the export, it retrieves all fields by default.
 ```php
 $GLOBALS['TCA'][$table]['types'][1]['translator_export_column']['pi_flexform'] = 'settings.text, settings.header';
 ```
+
+#### Custom Notes for fields
+
+If the fields requires some special note, it's possible to add into notes by different options:
+
+##### Pure TCA config
+```php
+$GLOBALS['TCA']['tt_content']['columns']['header']['config']['translator_note'] = 'Here is a note for translators';
+```
+
+##### Flexfrom config
+```php
+$GLOBALS['TCA'][$table]['types'][1]['translator_export_column_notes']['pi_flexform']['settings.text'] = 'Here is a note for translators';
+```
+
 
 ### Displaying Export Buttons
 
