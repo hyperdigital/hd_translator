@@ -65,6 +65,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     protected $pageUid = 0;
     protected $pageData = [];
+    protected $moduleTemplate;
 
     public function __construct(
         protected readonly ListUtility $listUtility,
