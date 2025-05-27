@@ -1499,7 +1499,7 @@ class DatabaseEntriesService
                         );
 
                     foreach ($row as $key => $value) {
-                        if (!in_array($key, $disabledFieldsForUpdate)) {
+                        if (!in_array($key, $disabledFieldsForUpdate) && !empty($value)) {
                             $temp = $temp->set($key, $value);
                         }
                     }
@@ -1525,6 +1525,7 @@ class DatabaseEntriesService
                 } catch (\Exception $e) {
                     self::$importStats['fails']++;
                     self::$importStats['failsMessages'][] = $e->getMessage();
+                    return;
                 }
             }
 
