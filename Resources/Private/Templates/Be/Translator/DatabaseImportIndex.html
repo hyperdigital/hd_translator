@@ -32,6 +32,15 @@
 							<f:form.textfield name="targetLanguageUid" class="form-control" id="language-uid" value="1" />
 						</div>
 					</div>
+					<div class="col">
+						<label for="language-source" class="form-label">Translation source</label>
+						<div class="input-group">
+							<f:form.select name="translationSource" class="form-control" id="language-source">
+								<f:form.select.option value="target" selected="1">target</f:form.select.option>
+								<f:form.select.option value="source">source</f:form.select.option>
+							</f:form.select>
+						</div>
+					</div>
 				</div>
 
 				<div class="mt-3" id="translator-fileupload-preview"></div>

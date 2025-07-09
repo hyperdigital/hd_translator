@@ -796,6 +796,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
             $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
             $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+            $sourcePart = 'target';
+            if ($this->request->hasArgument('translationSource')) {
+                $sourcePart = $this->request->getArgument('translationSource');
+            }
 
             foreach($files as $file) {
                 $finfo = new \finfo(FILEINFO_MIME_TYPE);
@@ -807,7 +811,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     case 'xlf':
                         // XLF
                         $data = (string) $file->getStream();
-                        $data = $xlfService->xlfToData($data);
+                        $data = $xlfService->xlfToData($data, [], $sourcePart);
                         $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         break;
                     case 'zip':
@@ -821,7 +825,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         $zip->open($zipFolder.$file->getClientFilename());
                         for($i = 0; $i < $zip->numFiles; $i++) {
                             $data = $zip->getFromIndex($i);
-                            $data = $xlfService->xlfToData($data);
+                            $data = $xlfService->xlfToData($data, [], $sourcePart);
                             $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         }
                         break;
