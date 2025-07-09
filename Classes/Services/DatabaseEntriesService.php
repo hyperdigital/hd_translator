@@ -841,7 +841,7 @@ class DatabaseEntriesService
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $uid);
         }
-        
+
         foreach ($row as $fieldname => $value) {
             $notes = [];
             if ($value['slug']) {

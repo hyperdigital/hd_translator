@@ -777,13 +777,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $files = $this->request->getArgument('files');
             $finfo = new \finfo(FILEINFO_MIME_TYPE);
+
+            $sourcePart = 'target';
+            if ($this->request->hasArgument('translationSource')) {
+                $sourcePart = $this->request->getArgument('translationSource');
+            }
+
             foreach($files as $file) {
                 $ext = $finfo->file($file['tmp_name']);
                 switch($ext){
                     case 'text/xml':
                         // XLF
                         $data = file_get_contents($file['tmp_name']);
-                        $data = $xlfService->xlfToData($data);
+                        $data = $xlfService->xlfToData($data, $sourcePart);
                         $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         break;
                     case 'application/zip':
@@ -792,7 +798,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         $zip->open($file['tmp_name']);
                         for($i = 0; $i < $zip->numFiles; $i++) {
                             $data = $zip->getFromIndex($i);
-                            $data = $xlfService->xlfToData($data);
+                            $data = $xlfService->xlfToData($data, $sourcePart);
                             $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                         }
                         break;

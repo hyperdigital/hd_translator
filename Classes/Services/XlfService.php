@@ -147,8 +147,10 @@ class XlfService
 
     /**
      * @param string $input
+     * @param string $sourcePath the xml tag where is stored the wanted translation
+     *                           usually <target> but also <source> (written without < and >) 
      */
-    public function xlfToData(string $input)
+    public function xlfToData(string $input, string $sourcePath = 'target')
     {
         $xml = simplexml_load_string($input);
         $data = json_decode(json_encode($xml), true);
@@ -157,10 +159,10 @@ class XlfService
         if (!empty($data['file']['body']['trans-unit'])) {
             if (!empty($data['file']['body']['trans-unit'][0])) {
                 foreach ($data['file']['body']['trans-unit'] as $item) {
-                    $return[$item['@attributes']['id']] = (isset($item['target']) && !is_array($item['target'])) ? $item['target'] : '';
+                    $return[$item['@attributes']['id']] = (isset($item[$sourcePath]) && !is_array($item[$sourcePath])) ? $item[$sourcePath] : '';
                 }
             } else {
-                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (isset($data['file']['body']['trans-unit']['target'])) ? $data['file']['body']['trans-unit']['target'] : '';
+                $return[$data['file']['body']['trans-unit']['@attributes']['id']] = (isset($data['file']['body']['trans-unit'][$sourcePath])) ? $data['file']['body']['trans-unit'][$sourcePath] : '';
             }
         }
 
