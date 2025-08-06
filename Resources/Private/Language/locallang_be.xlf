@@ -33,6 +33,9 @@
 			<trans-unit id="control.exportTranslationRow">
 				<source>Export translation</source>
 			</trans-unit>
+            <trans-unit id="deeplApiKey">
+                <source>Deepl api key for AI translations</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Hyperdigital\HdTranslator\Controller\Be;
 
+use Hyperdigital\HdTranslator\Services\DeeplApiService;
 use Hyperdigital\HdTranslator\Services\XlfService;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
@@ -66,6 +67,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $pageUid = 0;
     protected $pageData = [];
     protected $moduleTemplate;
+    protected $deeplApiKey;
 
     public function __construct(
         protected readonly ListUtility $listUtility,
@@ -84,6 +86,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->storage = \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getStoragePath();
         $this->listOfPossibleLanguages = GeneralUtility::makeInstance(Locales::class)->getLanguages();
+        $this->deeplApiKey = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'deeplApiKey') ?? '';
 
         if (empty($this->storage) && \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')) {
             if (file_exists($this->storage . $this->conigurationFile)) {
@@ -886,6 +889,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
+        if (!empty($this->deeplApiKey)) {
+            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplTranslations', 'hd_translator'))
+                ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', null))
+                ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']) ? 1 : 0);
+            $menu->addMenuItem($item);
+        }
+
 
         $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($menu);
     }
@@ -913,7 +923,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
         $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
+        return $this->htmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
@@ -1807,5 +1817,119 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected function exec_enabled() {
         $disabled = explode(',', ini_get('disable_functions'));
         return !in_array('exec', $disabled);
+    }
+
+    public function deeplTranslationsListAction()
+    {
+        $this->indexMenu();
+
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $languages = $deeplApiService->getAvailableLanguagesWithAmounts();
+        $this->moduleTemplate->assign('languages', $languages);
+        $this->moduleTemplate->assign('apiKey', $this->deeplApiKey);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplTranslationsList');
+    }
+
+    public function deeplSyncLanguagesAction()
+    {
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $deeplApiService->syncAvailableLanguages();
+
+        return $this->redirect('deeplTranslationsList');
+    }
+
+    public function deeplRemoveAllStringsAction(string $language = '')
+    {
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $deeplApiService->removeAllTranslations($language);
+
+        return $this->redirect('deeplTranslationsList');
+    }
+
+    public function deeplTranslationLanguageAction(string $language = '')
+    {
+        $this->view->assign('language', $language);
+
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', ['language' => $language]))
+            ->setIcon($iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Remove all strings');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+    //        $this->indexMenu();
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $strings = $deeplApiService->getAllTranslationsForLanguage($language);
+        $currentLanguage = $deeplApiService->getLanguageByCode($language);
+        $this->moduleTemplate->assign('strings', $strings);
+        $this->moduleTemplate->assign('currentLanguage', $currentLanguage);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplTranslationLanguage');
+    }
+
+    public function deeplShowTranslationsOfOriginalAction(int $string)
+    {
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+    //        $this->indexMenu();
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $source = $deeplApiService->getTranslationByUid($string);
+        $this->moduleTemplate->assign('source', $source);
+
+        if ($source['original_source']) {
+            $translations = $deeplApiService->getTranslationsBySource($source['original_source']);
+            $this->moduleTemplate->assign('translations', $translations);
+        }
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplShowTranslationsOfOriginal');
+    }
+
+    public function deeplOriginalSourcesAction()
+    {
+        $uriBuilder = $this->uriBuilder->setRequest($this->request);
+        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+
+        $uriBuilder->setRequest($this->request);
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+        $returnButton = $buttonBar->makeLinkButton()
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setShowLabelText(true)
+            ->setTitle('Return');
+        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+    //        $this->indexMenu();
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $sources = $deeplApiService->getUniqueOriginals();
+
+        $this->moduleTemplate->assign('sources', $sources);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplOriginalSources');
+
     }
 }

@@ -10,4 +10,10 @@ defined('TYPO3') or die();
         \Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook::class . '->addExportButton';
 
     $GLOBALS['TYPO3_CONF_VARS']['BE']['stylesheets']['hd_translator'] = 'EXT:hd_translator/Resources/Public/Css/Backend/';
+
+    $GLOBALS['TYPO3_CONF_VARS']['FE']['eID_include']['_hdtranslator_fetchSupportedLanguages'] =
+        \Hyperdigital\HdTranslator\Eid\DeeplApiEid::class . '::fetchSupportedLanguages';
+
+    $GLOBALS['TYPO3_CONF_VARS']['FE']['eID_include']['_hdtranslator_translate'] =
+        \Hyperdigital\HdTranslator\Eid\DeeplApiEid::class . '::translate';
 })();

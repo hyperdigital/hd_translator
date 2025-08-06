@@ -1,0 +1,73 @@
+<html
+        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+        xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
+        data-namespace-typo3-fluid="true">
+
+<f:layout name="Module" />
+
+<f:section name="Content">
+    <f:if condition="{apiKey}">
+        <f:else>
+            <f:render section="setupDeepl" />
+        </f:else>
+        <f:then>
+            <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.headline" /></h1>
+            <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.description" /></p>
+
+            <f:if condition="{languages}">
+                <f:else>
+                    <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.noAvailableLanguages" /></h2>
+                    <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.noAvailableLanguages.description" /></p>
+                    <p><f:link.action action="deeplSyncLanguages" class="btn btn-default"><f:translate key="deepl.syncLanguages" /></f:link.action></p>
+                </f:else>
+                <f:then>
+                    <p>
+                        <f:link.action action="deeplSyncLanguages" class="btn btn-default"><f:translate key="deepl.syncLanguages" /></f:link.action>
+                        <f:link.action action="deeplOriginalSources" class="btn btn-default">Search by original sources</f:link.action>
+                    </p>
+
+                    <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.availableLanugages" /></h2>
+
+                    <table class="table table-hover">
+                        <thead>
+                        <tr>
+                            <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.langauges" /></th>
+                            <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.translation_count" /></th>
+                            <th class="col-control"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <f:for each="{languages}" as="language">
+                            <tr>
+                                <td><f:link.action action="deeplTranslationLanguage" arguments="{language: language.language}">[{language.language}] {language.name}</f:link.action></td>
+                                <td>{language.translations_count}</td>
+                                <td class="col-control">
+                                    <div class="btn-group" role="group">
+                                        <f:link.action action="deeplTranslationLanguage" class="btn btn-default" arguments="{language: language.language}">
+                                            <core:icon identifier="actions-view-page" size="small" />
+                                        </f:link.action>
+                                        <be:link.editRecord uid="{language.uid}" class="btn btn-default" returnUrl="{currentUri}" table="tx_hdtranslator_ai_languages">
+                                            <core:icon identifier="actions-open" size="small" />
+                                        </be:link.editRecord>
+                                    </div>
+                                </td>
+                            </tr>
+                        </f:for>
+                        </tbody>
+                    </table>
+                </f:then>
+            </f:if>
+        </f:then>
+    </f:if>
+</f:section>
+
+<f:section name="setupDeepl">
+    <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.missingKey.headline" /></h1>
+    <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.missingKey.description" /></p>
+    <p>
+        <f:be.link route="tools_toolssettings" class="btn btn-default"><core:icon identifier="actions-arrow-right" size="small" /><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:index.missingStorage.goToSettings" /></f:be.link>
+    </p>
+</f:section>
+</html>
