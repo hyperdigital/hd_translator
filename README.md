@@ -146,3 +146,70 @@ $GLOBALS['TCA']['pages']['types'][1]['translator_import_ignore'] = 'slug,url';
 Export buttons will appear next to the save or edit buttons when editing a table entry or within the Page module. It's also a part of context menues.
 
 Customize the export settings according to your specific requirements to ensure that only the necessary data is included in the exported file.
+## DeepL AI Translation
+
+This extension enables AI-powered translations using DeepL **in the frontend only**. To get started, complete the setup steps below:
+
+1. **Add your DeepL API key**  
+   Go to your DeepL account → [API Keys](https://www.deepl.com/de/your-account/keys) and copy your key into the extension’s configuration.
+2. **Enable AI Translations**  
+   In the TYPO3 backend, open the **Translator** module and switch the header tab to **AI Translations**.
+3. **Synchronize languages**  
+   Click **Synchronize available languages**. This will fetch all supported languages and make them available for translation.
+
+Once that’s done, you’ll see a list of languages along with any existing translations.
+
+---
+
+### Using Translations in the Frontend
+
+Under the hood:
+
+- Your page content is parsed by JavaScript into individual strings.
+- Each string is sent to a data processor.
+- The processor checks if a translation already exists in the database:
+  - **If yes**, it returns the cached translation.
+  - **If no**, it queries DeepL and stores the result for future use.
+
+This caching strategy prevents you from hitting DeepL’s API limits too quickly.
+
+To enable on-the-fly translation, include the provided TypoScript static file in your site template. Then you can call these JS functions:
+
+```js
+// Translate the entire page into German (code “de”)
+hdtranslator_translateWholePage('de');
+// → Asynchronously scans the DOM in segments and replaces text in order.
+
+// Translate a single string
+hdtranslator_translateText('Translate me this content', 'de');
+// → Returns a Promise resolving to the translated string.
+
+// Fetch supported DeepL languages
+hdtranslator_fetchSupportedLanguages()
+  .then(languages => console.log(languages))
+  .catch(err => console.error('Failed to load languages:', err));
+```
+
+### PHP API Usage
+You can also call DeepL directly in PHP via the `DeeplApiService`:
+```php
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use Hyperdigital\HdTranslator\Services\DeeplApiService;
+
+// 1) Get all available languages
+/** @var DeeplApiService $deeplApi */
+$deeplApi = GeneralUtility::makeInstance(DeeplApiService::class);
+$languages = $deeplApi->getAvailableLanguages(true);
+
+// 2) Translate one or more texts
+$texts = ['Translate me this content'];
+$translations = $deeplApi->translateTexts($texts, 'de');
+```
+
+### Editing Existing Translations
+1. In the Translator module, open the AI Translations tab.
+2. Select the target language from the dropdown.
+3. Locate the string you want to update:
+    a) Click the translated text to open a TYPO3 editing form.
+    b) Or click the original (source) text to view all translations across every language.
+4. Edit and save—your changes will appear on the frontend immediately.

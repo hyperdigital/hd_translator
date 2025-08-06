@@ -31,7 +31,13 @@ return [
                 'pageContentExport',
                 'pageContentExportProccess',
                 'databaseImportIndex',
-                'databaseImportAction'
+                'databaseImportAction',
+                'deeplTranslationsList',
+                'deeplSyncLanguages',
+                'deeplTranslationLanguage',
+                'deeplShowTranslationsOfOriginal',
+                'deeplOriginalSources',
+                'deeplRemoveAllStrings'
             ]
         ],
     ],

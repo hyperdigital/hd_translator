@@ -1,0 +1,50 @@
+<html
+	xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+	xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+	xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+	xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
+	data-namespace-typo3-fluid="true">
+
+<f:layout name="Default" />
+
+<f:section name="headline">
+</f:section>
+
+<f:section name="content">
+
+	<h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.headline" /></h1>
+	<h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.subheadline" /></h2>
+	<p>{source.original_source}</p>
+
+	<h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.availableTranslations" /></h2>
+	<f:if condition="{translations}">
+		<f:else>
+			<p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.noTranslationsFound" /></p>
+		</f:else>
+		<f:then>
+			<table  class="table table-hover">
+				<thead>
+				<tr>
+					<th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.table.language" /></th>
+					<th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.table.translation" /></th>
+				</tr>
+				</thead>
+				<tbody>
+				<f:for each="{translations}" as="string">
+					<tr>
+						<td>
+							<f:link.action action="deeplTranslationLanguage" arguments="{language: string.target_language}">{string.target_language}</f:link.action>
+						</td>
+						<td>
+							<be:link.editRecord uid="{string.uid}" returnUrl="{currentUri}" table="tx_hdtranslator_ai_translation">
+								{string.translation}
+							</be:link.editRecord>
+						</td>
+					</tr>
+				</f:for>
+				</tbody>
+			</table>
+		</f:then>
+	</f:if>
+</f:section>
+</html>

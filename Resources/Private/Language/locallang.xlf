@@ -18,6 +18,9 @@
             <trans-unit id="docHeader.databaseImportIndex">
                 <source>Database import</source>
             </trans-unit>
+			<trans-unit id="docHeader.deeplTranslations">
+				<source>AI translations</source>
+			</trans-unit>
             <trans-unit id="index.missingStorage.headline">
                 <source>Missing storage</source>
             </trans-unit>
@@ -86,6 +89,69 @@
             </trans-unit>
 			<trans-unit id="index.synchronizeLocalizedFiles">
 				<source>Synchronize all files</source>
+			</trans-unit>
+			<trans-unit id="deepl.missingKey.headline">
+				<source>Missing Deepl apiKey</source>
+			</trans-unit>
+			<trans-unit id="deepl.missingKey.description">
+				<source>If you want to use frontend translations over deepl, you have to specify first deepl api key. This key can be configured through the Extension Configuration.</source>
+			</trans-unit>
+			<trans-unit id="deepl.syncLanguages">
+				<source>Synchronize available languages</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.headline">
+				<source>Deepl AI translations</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.description">
+				<source>AI translation directly in frontend over Deepl.</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.noAvailableLanguages">
+				<source>There are no available languages</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.noAvailableLanguages.description">
+				<source>First to enable AI languages you need to synchronize them.</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.availableLanugages">
+				<source>Available langauges</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.table.langauges">
+				<source>Languages</source>
+			</trans-unit>
+			<trans-unit id="deepl.index.table.translation_count">
+				<source>Amount of translations</source>
+			</trans-unit>
+			<trans-unit id="deepl.language.headline">
+				<source>Deepl AI translations for %s langauge</source>
+			</trans-unit>
+			<trans-unit id="deepl.language.nothingTranslated">
+				<source>There is nothing translated in %s language yet.</source>
+			</trans-unit>
+			<trans-unit id="deepl.language.table.translation">
+				<source>Translation</source>
+			</trans-unit>
+			<trans-unit id="deepl.language.table.source">
+				<source>Source string</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.headline">
+				<source>Deepl AI translations for original string</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.subheadline">
+				<source>Original source</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.availableTranslations">
+				<source>Available translations</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.noTranslationsFound">
+				<source>No translation found.</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.table.language">
+				<source>Language</source>
+			</trans-unit>
+			<trans-unit id="deepl.original.table.translation">
+				<source>Translation</source>
+			</trans-unit>
+			<trans-unit id="deepl.originalSources.headline">
+				<source>Deepl AI translations - original sources</source>
 			</trans-unit>
         </body>
     </file>
