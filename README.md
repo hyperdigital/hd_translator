@@ -182,13 +182,20 @@ hdtranslator_translateWholePage('de');
 
 // Translate a single string
 hdtranslator_translateText('Translate me this content', 'de');
-// → Returns a Promise resolving to the translated string.
+  .then(translation => console.log(translation))
+  .catch(err => console.error('Failed to load translation:', err));
 
 // Fetch supported DeepL languages
 hdtranslator_fetchSupportedLanguages()
   .then(languages => console.log(languages))
   .catch(err => console.error('Failed to load languages:', err));
 ```
+
+For the function `hdtranslator_translateWholePage` you can ommit specific strings by:
+- class="notranslate"
+- data-notranslate
+- translate="no"
+
 
 ### PHP API Usage
 You can also call DeepL directly in PHP via the `DeeplApiService`:
