@@ -1285,7 +1285,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     }
                     $fieldsToBeIgnored[] = $langaugeField;
 
+                    // Prepare custom debug log file path (fallback if PSR-3 file writer is inactive)
+                    $hdLogFile = \TYPO3\CMS\Core\Core\Environment::getProjectPath() . '/var/log/hd_translator.log';
+
                     foreach ($uids as $uid => $fields) {
+                        // Obtain a logger to trace the code flow for debugging colPos resolution
+                        // Using a local logger instance to avoid class-level changes
+                        $logger = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)->getLogger(__CLASS__);
                         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
                         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                         $tempQuery = $queryBuilder->select('uid')->from($table);
@@ -1310,6 +1316,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
 
                         if (!empty($result['uid'])) {
+                            @file_put_contents($hdLogFile, json_encode(['tag'=>'update_start','table'=>$table,'candidateUid'=>$uid,'translatedUid'=>$result['uid'],'languageUid'=>$languageUid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+                            // UPDATE FLOW: We found a translated record for the given target uid
+                            $logger->info('hd_translator: update flow start', [
+                                'table' => $table,
+                                'sourceUidCandidate' => $uid,
+                                'translatedUid' => $result['uid'],
+                                'languageUid' => $languageUid,
+                            ]);
                             // ONLY UPDATE QUERY
                             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
                             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1357,8 +1371,72 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             if (!empty($this->originalData[$table][$uid]['CType']) && empty($fieldsToSync['CType'])) {
                                 $tempQueryUpdate->set('CType', $this->originalData[$table][$uid]['CType']);
                             }
-                            if (!empty($this->originalData[$table][$uid]['colPos']) && empty($fieldsToSync['colPos'])) {
-                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$uid]['colPos']);
+                            // Always inherit colPos from the parent record. Preference order:
+                            // 1) l18n_parent (as requested), 2) l10n_parent, 3) l10n_source, 4) fallback to original uid
+                            $transRowQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                            $transRowQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                            $transRow = $transRowQb
+                                ->select('l18n_parent', 'l10n_parent', 'l10n_source')
+                                ->from($table)
+                                ->where(
+                                    $transRowQb->expr()->eq('uid', $result['uid'])
+                                )
+                                ->execute()
+                                ->fetch();
+                            $logger->info('hd_translator: translated row parent fields', [
+                                'translatedUid' => $result['uid'],
+                                'l18n_parent' => $transRow['l18n_parent'] ?? null,
+                                'l10n_parent' => $transRow['l10n_parent'] ?? null,
+                                'l10n_source' => $transRow['l10n_source'] ?? null,
+                            ]);
+                            @file_put_contents($hdLogFile, json_encode(['tag'=>'parent_fields','translatedUid'=>$result['uid'],'l18n_parent'=>$transRow['l18n_parent'] ?? null,'l10n_parent'=>$transRow['l10n_parent'] ?? null,'l10n_source'=>$transRow['l10n_source'] ?? null,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+
+                            $sourceUid = null;
+                            if (!empty($transRow['l18n_parent'])) {
+                                $sourceUid = (int)$transRow['l18n_parent'];
+                            } elseif (!empty($transRow['l10n_parent'])) {
+                                $sourceUid = (int)$transRow['l10n_parent'];
+                            } elseif (!empty($transRow['l10n_source'])) {
+                                $sourceUid = (int)$transRow['l10n_source'];
+                            } else {
+                                $sourceUid = (int)$uid;
+                            }
+
+                            // Ensure originalData is hydrated for the resolved source uid
+                            if (empty($this->originalData[$table][$sourceUid])) {
+                                $srcQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                                $srcQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                                $srcRow = $srcQb
+                                    ->select('*')
+                                    ->from($table)
+                                    ->where(
+                                        $srcQb->expr()->eq('uid', $sourceUid)
+                                    )
+                                    ->execute()
+                                    ->fetch();
+                                if ($srcRow) {
+                                    $this->superOriginalData[$table][$sourceUid] = $this->originalData[$table][$sourceUid] = $srcRow;
+                                }
+                            }
+                            $srcColPos = $this->originalData[$table][$sourceUid]['colPos'] ?? null;
+                            $logger->info('hd_translator: resolved source for colPos', [
+                                'sourceUid' => $sourceUid,
+                                'sourceColPos' => $srcColPos,
+                            ]);
+                            @file_put_contents($hdLogFile, json_encode(['tag'=>'resolved_source','sourceUid'=>$sourceUid,'sourceColPos'=>$srcColPos,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+
+                            if (isset($this->originalData[$table][$sourceUid]['colPos'])) {
+                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$sourceUid]['colPos']);
+                                $logger->info('hd_translator: setting colPos on update', [
+                                    'translatedUid' => $result['uid'],
+                                    'colPosSet' => $this->originalData[$table][$sourceUid]['colPos'],
+                                ]);
+                                @file_put_contents($hdLogFile, json_encode(['tag'=>'set_colpos_update','translatedUid'=>$result['uid'],'colPosSet'=>$this->originalData[$table][$sourceUid]['colPos'],'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+                            } else {
+                                $logger->info('hd_translator: no colPos found on source, skipping set', [
+                                    'sourceUid' => $sourceUid,
+                                ]);
+                                @file_put_contents($hdLogFile, json_encode(['tag'=>'no_colpos_source','sourceUid'=>$sourceUid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
                             }
                             if (!empty($this->originalData[$table][$uid]['list_type']) && empty($fieldsToSync['list_type'])) {
                                 $tempQueryUpdate->set('list_type', $this->originalData[$table][$uid]['list_type']);
@@ -1366,14 +1444,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             if (isset($this->originalData[$table][$uid]['l10n_source'])) {
                                 $tempQueryUpdate->set('l10n_source', $uid);
                             }
-
-//                            if ($this->originalData[$table][$uid]['uid'] == 15664) {
-//                                echo '<pre>';
-//                                var_dump(htmlentities($fieldsToSync['pi_flexform']));
-//                                var_dump(htmlentities($this->superOriginalData[$table][$uid]['pi_flexform']));
-//                                echo '</pre>';
-//                                die();
-//                            }
 
                             $tempQueryUpdate->execute();
                             $output['updated'][] = $table.':'.$result['uid'] .' fields:'.implode(',',$fieldNames);
@@ -1432,8 +1502,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                     if (!empty($originalData['CType']) && empty($insert['CType'])) {
                                         $insert['CType'] = $originalData['CType'];
                                     }
-                                    if (!empty($originalData['colPos']) && empty($insert['colPos'])) {
+                                    // Always inherit colPos from the original record on insert as well
+                                    if (array_key_exists('colPos', $originalData)) {
                                         $insert['colPos'] = $originalData['colPos'];
+                                        $logger->info('hd_translator: setting colPos on insert', [
+                                            'newLanguageUid' => $languageUid,
+                                            'sourceUid' => $uid,
+                                            'colPosSet' => $originalData['colPos'],
+                                        ]);
+                                        @file_put_contents($hdLogFile, json_encode(['tag'=>'set_colpos_insert','sourceUid'=>$uid,'colPosSet'=>$originalData['colPos'],'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
+                                    } else {
+                                        $logger->info('hd_translator: original record has no colPos on insert');
+                                        @file_put_contents($hdLogFile, json_encode(['tag'=>'no_colpos_original_on_insert','sourceUid'=>$uid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
                                     }
                                     if (!empty($originalData['list_type']) && empty($insert['list_type'])) {
                                         $insert['list_type'] = $originalData['list_type'];

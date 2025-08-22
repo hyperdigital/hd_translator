@@ -177,6 +177,18 @@ class XlfService
                         $insert = (isset($item[$sourcePath]) && !is_array($item[$sourcePath])) ? $item[$sourcePath] : '';
                     }
 
+                    // Skip empty trans-unit items: if both source and target are empty (or target is empty when source is disabled)
+                    // This prevents creating entries for completely empty translation nodes
+                    $isEmpty = false;
+                    if ($enableSource) {
+                        $isEmpty = (trim((string)($insert[$source] ?? '')) === '' && trim((string)($insert[$target] ?? '')) === '');
+                    } else {
+                        $isEmpty = (trim((string)$insert) === '');
+                    }
+                    if ($isEmpty) {
+                        continue;
+                    }
+
                     $return[$item['@attributes']['id']] = $insert;
                 }
             } else {
@@ -187,6 +199,16 @@ class XlfService
                     ];
                 } else {
                     $insert = (isset($data['file']['body']['trans-unit'][$sourcePath])) ? $data['file']['body']['trans-unit'][$sourcePath] : '';
+                }
+                // Skip empty single trans-unit: same rule as above
+                $isEmpty = false;
+                if ($enableSource) {
+                    $isEmpty = (trim((string)($insert[$source] ?? '')) === '' && trim((string)($insert[$target] ?? '')) === '');
+                } else {
+                    $isEmpty = (trim((string)$insert) === '');
+                }
+                if ($isEmpty) {
+                    return $return;
                 }
 
                 $return[$data['file']['body']['trans-unit']['@attributes']['id']] = $insert;
