@@ -1285,13 +1285,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     }
                     $fieldsToBeIgnored[] = $langaugeField;
 
-                    // Prepare custom debug log file path (fallback if PSR-3 file writer is inactive)
-                    $hdLogFile = \TYPO3\CMS\Core\Core\Environment::getProjectPath() . '/var/log/hd_translator.log';
-
                     foreach ($uids as $uid => $fields) {
-                        // Obtain a logger to trace the code flow for debugging colPos resolution
-                        // Using a local logger instance to avoid class-level changes
-                        $logger = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)->getLogger(__CLASS__);
                         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
                         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                         $tempQuery = $queryBuilder->select('uid')->from($table);
@@ -1316,14 +1310,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
 
                         if (!empty($result['uid'])) {
-                            @file_put_contents($hdLogFile, json_encode(['tag'=>'update_start','table'=>$table,'candidateUid'=>$uid,'translatedUid'=>$result['uid'],'languageUid'=>$languageUid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
-                            // UPDATE FLOW: We found a translated record for the given target uid
-                            $logger->info('hd_translator: update flow start', [
-                                'table' => $table,
-                                'sourceUidCandidate' => $uid,
-                                'translatedUid' => $result['uid'],
-                                'languageUid' => $languageUid,
-                            ]);
                             // ONLY UPDATE QUERY
                             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
                             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1341,8 +1327,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                     $fieldData = explode('.', $field);
                                     if (!empty($fieldData[1])) {
                                         $newSettings = $this->keysToSubarray($fieldData, $value, $this->originalData[$table][$uid][$fieldData[0]]);
-//                                        DebuggerUtility::var_dump($newSettings);
-//                                        die();
                                         $fieldsToSync[$fieldData[0]] = $newSettings;
                                     } else {
                                         $fieldNames[] = $field;
@@ -1383,14 +1367,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                 )
                                 ->execute()
                                 ->fetch();
-                            $logger->info('hd_translator: translated row parent fields', [
-                                'translatedUid' => $result['uid'],
-                                'l18n_parent' => $transRow['l18n_parent'] ?? null,
-                                'l10n_parent' => $transRow['l10n_parent'] ?? null,
-                                'l10n_source' => $transRow['l10n_source'] ?? null,
-                            ]);
-                            @file_put_contents($hdLogFile, json_encode(['tag'=>'parent_fields','translatedUid'=>$result['uid'],'l18n_parent'=>$transRow['l18n_parent'] ?? null,'l10n_parent'=>$transRow['l10n_parent'] ?? null,'l10n_source'=>$transRow['l10n_source'] ?? null,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
-
                             $sourceUid = null;
                             if (!empty($transRow['l18n_parent'])) {
                                 $sourceUid = (int)$transRow['l18n_parent'];
@@ -1419,24 +1395,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                 }
                             }
                             $srcColPos = $this->originalData[$table][$sourceUid]['colPos'] ?? null;
-                            $logger->info('hd_translator: resolved source for colPos', [
-                                'sourceUid' => $sourceUid,
-                                'sourceColPos' => $srcColPos,
-                            ]);
-                            @file_put_contents($hdLogFile, json_encode(['tag'=>'resolved_source','sourceUid'=>$sourceUid,'sourceColPos'=>$srcColPos,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
 
                             if (isset($this->originalData[$table][$sourceUid]['colPos'])) {
                                 $tempQueryUpdate->set('colPos', $this->originalData[$table][$sourceUid]['colPos']);
-                                $logger->info('hd_translator: setting colPos on update', [
-                                    'translatedUid' => $result['uid'],
-                                    'colPosSet' => $this->originalData[$table][$sourceUid]['colPos'],
-                                ]);
-                                @file_put_contents($hdLogFile, json_encode(['tag'=>'set_colpos_update','translatedUid'=>$result['uid'],'colPosSet'=>$this->originalData[$table][$sourceUid]['colPos'],'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
-                            } else {
-                                $logger->info('hd_translator: no colPos found on source, skipping set', [
-                                    'sourceUid' => $sourceUid,
-                                ]);
-                                @file_put_contents($hdLogFile, json_encode(['tag'=>'no_colpos_source','sourceUid'=>$sourceUid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
                             }
                             if (!empty($this->originalData[$table][$uid]['list_type']) && empty($fieldsToSync['list_type'])) {
                                 $tempQueryUpdate->set('list_type', $this->originalData[$table][$uid]['list_type']);
@@ -1505,16 +1466,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                     // Always inherit colPos from the original record on insert as well
                                     if (array_key_exists('colPos', $originalData)) {
                                         $insert['colPos'] = $originalData['colPos'];
-                                        $logger->info('hd_translator: setting colPos on insert', [
-                                            'newLanguageUid' => $languageUid,
-                                            'sourceUid' => $uid,
-                                            'colPosSet' => $originalData['colPos'],
-                                        ]);
-                                        @file_put_contents($hdLogFile, json_encode(['tag'=>'set_colpos_insert','sourceUid'=>$uid,'colPosSet'=>$originalData['colPos'],'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
-                                    } else {
-                                        $logger->info('hd_translator: original record has no colPos on insert');
-                                        @file_put_contents($hdLogFile, json_encode(['tag'=>'no_colpos_original_on_insert','sourceUid'=>$uid,'ts'=>time()], JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
-                                    }
+                                    }   
                                     if (!empty($originalData['list_type']) && empty($insert['list_type'])) {
                                         $insert['list_type'] = $originalData['list_type'];
                                     }
