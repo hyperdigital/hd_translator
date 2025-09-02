@@ -12,6 +12,8 @@ use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Core\Service\FlexFormService;
+use Psr\Log\LoggerInterface;
+use TYPO3\CMS\Core\Log\LogManager;
 
 class DatabaseEntriesService
 {
@@ -38,12 +40,52 @@ class DatabaseEntriesService
     protected $updateAfterImport = [];
 
     protected $flexFormService;
+    /**
+     * Logger instance. We use TYPO3 LogManager when available and
+     * additionally write a fallback file log to var/log/hd_translator.log
+     * to ensure visibility during imports.
+     * @var LoggerInterface|null
+     */
+    protected $logger = null;
 
     public function __construct(
         FlexFormService $flexFormService
     )
     {
         $this->flexFormService = $flexFormService;
+    }
+
+    /**
+     * Lazy initialize TYPO3 logger
+     */
+    protected function getLogger(): LoggerInterface
+    {
+        if ($this->logger === null) {
+            try {
+                /** @var LogManager $logManager */
+                $logManager = GeneralUtility::makeInstance(LogManager::class);
+                $this->logger = $logManager->getLogger(__CLASS__);
+            } catch (\Throwable $e) {
+                // Ignore logger initialization errors in production
+            }
+        }
+        return $this->logger;
+    }
+
+    /**
+     * Minimal production logging using TYPO3 logger only.
+     * No fallback file logging to keep runtime lean.
+     */
+    protected function log(string $level, string $message, array $context = []): void
+    {
+        try {
+            $logger = $this->getLogger();
+            if ($logger && method_exists($logger, $level)) {
+                $logger->{$level}($message, $context);
+            }
+        } catch (\Throwable $e) {
+            // Swallow logging failures in production
+        }
     }
 
     public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
@@ -1484,6 +1526,15 @@ class DatabaseEntriesService
 
         $translatedRow = $this->getTranslatedCompleteRow($tablename, $l10nParent, $targetLanguage);
 
+        // Enforce colPos inheritance for tt_content before update
+        if ($tablename === 'tt_content') {
+            $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+            if ($origColPos !== null) {
+                // Ensure row carries the original colPos (even if 0)
+                $row['colPos'] = (int)$origColPos;
+            }
+        }
+
         if (!empty($translatedRow)) {
             $disabledFieldsForUpdate = $this->getFieldsDisabledFromUpdate($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
 
@@ -1501,6 +1552,14 @@ class DatabaseEntriesService
                     foreach ($row as $key => $value) {
                         if (!in_array($key, $disabledFieldsForUpdate) && !empty($value)) {
                             $temp = $temp->set($key, $value);
+                        }
+                    }
+
+                    // Explicitly set colPos for tt_content regardless of empty() check above
+                    if ($tablename === 'tt_content') {
+                        $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+                        if ($origColPos !== null) {
+                            $temp = $temp->set('colPos', (int)$origColPos);
                         }
                     }
 
@@ -1525,6 +1584,11 @@ class DatabaseEntriesService
                 } catch (\Exception $e) {
                     self::$importStats['fails']++;
                     self::$importStats['failsMessages'][] = $e->getMessage();
+                    $this->log('error', 'Import: update failed', [
+                        'table' => $tablename,
+                        'l10nParent' => (int)$l10nParent,
+                        'error' => $e->getMessage(),
+                    ]);
                     return;
                 }
             }
@@ -1636,6 +1700,14 @@ class DatabaseEntriesService
 //        }
         $row[$parentUidField] = $l10nParent;
         $row[$langaugeField] = $targetLanguage;
+
+        // Enforce colPos inheritance for tt_content before insert
+        if ($tablename === 'tt_content') {
+            $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+            if ($origColPos !== null) {
+                $row['colPos'] = (int)$origColPos;
+            }
+        }
 
         foreach ($row as $tempKey => $tempValue) {
             if ($tempValue === true) {

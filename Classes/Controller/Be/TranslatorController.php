@@ -1327,8 +1327,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                     $fieldData = explode('.', $field);
                                     if (!empty($fieldData[1])) {
                                         $newSettings = $this->keysToSubarray($fieldData, $value, $this->originalData[$table][$uid][$fieldData[0]]);
-//                                        DebuggerUtility::var_dump($newSettings);
-//                                        die();
                                         $fieldsToSync[$fieldData[0]] = $newSettings;
                                     } else {
                                         $fieldNames[] = $field;
@@ -1357,8 +1355,49 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             if (!empty($this->originalData[$table][$uid]['CType']) && empty($fieldsToSync['CType'])) {
                                 $tempQueryUpdate->set('CType', $this->originalData[$table][$uid]['CType']);
                             }
-                            if (!empty($this->originalData[$table][$uid]['colPos']) && empty($fieldsToSync['colPos'])) {
-                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$uid]['colPos']);
+                            // Always inherit colPos from the parent record. Preference order:
+                            // 1) l18n_parent (as requested), 2) l10n_parent, 3) l10n_source, 4) fallback to original uid
+                            $transRowQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                            $transRowQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                            $transRow = $transRowQb
+                                ->select('l18n_parent', 'l10n_parent', 'l10n_source')
+                                ->from($table)
+                                ->where(
+                                    $transRowQb->expr()->eq('uid', $result['uid'])
+                                )
+                                ->execute()
+                                ->fetch();
+                            $sourceUid = null;
+                            if (!empty($transRow['l18n_parent'])) {
+                                $sourceUid = (int)$transRow['l18n_parent'];
+                            } elseif (!empty($transRow['l10n_parent'])) {
+                                $sourceUid = (int)$transRow['l10n_parent'];
+                            } elseif (!empty($transRow['l10n_source'])) {
+                                $sourceUid = (int)$transRow['l10n_source'];
+                            } else {
+                                $sourceUid = (int)$uid;
+                            }
+
+                            // Ensure originalData is hydrated for the resolved source uid
+                            if (empty($this->originalData[$table][$sourceUid])) {
+                                $srcQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
+                                $srcQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                                $srcRow = $srcQb
+                                    ->select('*')
+                                    ->from($table)
+                                    ->where(
+                                        $srcQb->expr()->eq('uid', $sourceUid)
+                                    )
+                                    ->execute()
+                                    ->fetch();
+                                if ($srcRow) {
+                                    $this->superOriginalData[$table][$sourceUid] = $this->originalData[$table][$sourceUid] = $srcRow;
+                                }
+                            }
+                            $srcColPos = $this->originalData[$table][$sourceUid]['colPos'] ?? null;
+
+                            if (isset($this->originalData[$table][$sourceUid]['colPos'])) {
+                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$sourceUid]['colPos']);
                             }
                             if (!empty($this->originalData[$table][$uid]['list_type']) && empty($fieldsToSync['list_type'])) {
                                 $tempQueryUpdate->set('list_type', $this->originalData[$table][$uid]['list_type']);
@@ -1366,14 +1405,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             if (isset($this->originalData[$table][$uid]['l10n_source'])) {
                                 $tempQueryUpdate->set('l10n_source', $uid);
                             }
-
-//                            if ($this->originalData[$table][$uid]['uid'] == 15664) {
-//                                echo '<pre>';
-//                                var_dump(htmlentities($fieldsToSync['pi_flexform']));
-//                                var_dump(htmlentities($this->superOriginalData[$table][$uid]['pi_flexform']));
-//                                echo '</pre>';
-//                                die();
-//                            }
 
                             $tempQueryUpdate->execute();
                             $output['updated'][] = $table.':'.$result['uid'] .' fields:'.implode(',',$fieldNames);
@@ -1432,9 +1463,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                                     if (!empty($originalData['CType']) && empty($insert['CType'])) {
                                         $insert['CType'] = $originalData['CType'];
                                     }
-                                    if (!empty($originalData['colPos']) && empty($insert['colPos'])) {
+                                    // Always inherit colPos from the original record on insert as well
+                                    if (array_key_exists('colPos', $originalData)) {
                                         $insert['colPos'] = $originalData['colPos'];
-                                    }
+                                    }   
                                     if (!empty($originalData['list_type']) && empty($insert['list_type'])) {
                                         $insert['list_type'] = $originalData['list_type'];
                                     }
