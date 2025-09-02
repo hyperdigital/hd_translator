@@ -10,7 +10,19 @@ use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 
 class DeeplApiService
 {
-    protected $baseUrl = 'https://api-free.deepl.com/v2/';
+    /**
+     * @var string Deepl api version - https://developers.deepl.com/docs/getting-started/auth
+     */
+    protected $version = 'v2';
+
+    /**
+     * @var string Deepl api endpoint - https://developers.deepl.com/docs/getting-started/auth
+     */
+    protected $baseUrl = '';
+
+    /**
+     * @var string Deepl Api key - set over extension settings
+     */
     protected $deeplApiKey = '';
 
     public function __construct(string $deeplApiKey = '' )
@@ -19,6 +31,14 @@ class DeeplApiService
             $this->deeplApiKey = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'deeplApiKey') ?? '';
         } else {
             $this->deeplApiKey = $deeplApiKey;
+        }
+
+        if (substr($this->deeplApiKey, -3) == ':fx') {
+            // Free version
+            $this->baseUrl = 'https://api-free.deepl.com/'.$this->version.'/';
+        } else {
+            // Pro version
+            $this->baseUrl = 'https://api.deepl.com/'.$this->version.'/';
         }
     }
 
