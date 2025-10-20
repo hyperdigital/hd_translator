@@ -48,6 +48,9 @@ class DatabaseEntriesService
      */
     protected $logger = null;
 
+     // MySQL table settings
+    protected $tableSchemes = [];
+
     public function __construct(
         FlexFormService $flexFormService
     )
@@ -763,6 +766,9 @@ class DatabaseEntriesService
             unset($row[$GLOBALS['TCA'][$tablename]['ctrl']['delete']]);
         } else if (isset($row['deleted'])) {
             unset($row['deleted']);
+        }
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['editlock'])) {
+            unset($row[$GLOBALS['TCA'][$tablename]['ctrl']['editlock']]);
         }
 
         // CTRL editable fields
@@ -1534,6 +1540,9 @@ class DatabaseEntriesService
                 $row['colPos'] = (int)$origColPos;
             }
         }
+        if (empty($this->tableSchemes[$tablename])) {
+            $this->initTableScheme($tablename);
+        }
 
         if (!empty($translatedRow)) {
             $disabledFieldsForUpdate = $this->getFieldsDisabledFromUpdate($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
@@ -1550,6 +1559,15 @@ class DatabaseEntriesService
                         );
 
                     foreach ($row as $key => $value) {
+                        // 0 or '' -> skip
+                        if (empty($value)) {
+                            $column = $this->tableSchemes[$tablename][$key];
+                            if ($fieldType = strtolower($column->getType()->getName())) {
+                                if ($value === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
+                                    continue;
+                                }
+                            }
+                        }
                         if (!in_array($key, $disabledFieldsForUpdate) && !empty($value)) {
                             $temp = $temp->set($key, $value);
                         }
@@ -1605,8 +1623,24 @@ class DatabaseEntriesService
         }
     }
 
+    protected function initTableScheme($tablename)
+    {
+        $connection = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(
+            \TYPO3\CMS\Core\Database\ConnectionPool::class
+        )->getConnectionForTable($tablename);
+
+        $schemaManager = $connection->createSchemaManager();
+        $columns = $schemaManager->listTableColumns($tablename);
+
+        $this->tableSchemes[$tablename] = $columns;
+    }
+    
     public function insertIntoTable($tablename, $l10nParent, $row, $targetLanguage)
     {
+        if (empty($this->tableSchemes[$tablename])) {
+            $this->initTableScheme($tablename);
+        }
+        
         if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
             self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
         }
@@ -1693,6 +1727,12 @@ class DatabaseEntriesService
         ) {
             $row[$GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField']] = json_encode(self::$databaseEntriesOriginal[$tablename][$l10nParent]);
         }
+        // Remove edit lock
+        if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['editlock'])
+            && isset($row[$GLOBALS['TCA'][$tablename]['ctrl']['editlock']])
+        ) {
+            unset($row[$GLOBALS['TCA'][$tablename]['ctrl']['editlock']]);
+        }
 
         $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['pid'];
 //        if ($tablename == 'pages') {
@@ -1712,6 +1752,15 @@ class DatabaseEntriesService
         foreach ($row as $tempKey => $tempValue) {
             if ($tempValue === true) {
                 unset($row[$tempKey]);
+            }
+            // 0 or ''
+            if (empty($tempValue)) {
+                $column = $this->tableSchemes[$tablename][$tempKey];
+                if ($fieldType = strtolower($column->getType()->getName())) {
+                    if ($tempValue === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
+                        unset($row[$tempKey]);
+                    }
+                }
             }
         }
 
