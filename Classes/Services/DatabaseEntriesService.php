@@ -1562,9 +1562,11 @@ class DatabaseEntriesService
                         // 0 or '' -> skip
                         if (empty($value)) {
                             $column = $this->tableSchemes[$tablename][$key];
-                            if ($fieldType = strtolower($column->getType()->getName())) {
-                                if ($value === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
-                                    continue;
+                            if ($column) {
+                                if ($fieldType = strtolower($column->getType()->getName())) {
+                                    if ($value === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -1756,9 +1758,11 @@ class DatabaseEntriesService
             // 0 or ''
             if (empty($tempValue)) {
                 $column = $this->tableSchemes[$tablename][$tempKey];
-                if ($fieldType = strtolower($column->getType()->getName())) {
-                    if ($tempValue === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
-                        unset($row[$tempKey]);
+                if ($column) {
+                    if ($fieldType = strtolower($column->getType()->getName())) {
+                        if ($tempValue === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
+                            unset($row[$tempKey]);
+                        }
                     }
                 }
             }
