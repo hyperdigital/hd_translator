@@ -38,7 +38,7 @@ class FlagService
         'ka' => '', // Georgian
         'kl' => '', // Greenlandic
         'km' => '', // Khmer
-        'ko' => 'KO', // Korean
+        'ko' => 'KR', // Korean
         'lt' => '', // Lithuanian
         'lv' => '', // Latvian
         'mi' => '', // Maori
@@ -60,7 +60,7 @@ class FlagService
         'sv' => 'SE', // Swedish
         'th' => '', // Thai
         'tr' => '', // Turkish
-        'uk' => 'UK', // Ukrainian
+        'uk' => 'UA', // Ukrainian
         'us' => 'US',
         'vi' => '', // Vietnamese
         'zh' => 'CN', // Chinese (Trad)
