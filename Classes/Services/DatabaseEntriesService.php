@@ -324,7 +324,7 @@ class DatabaseEntriesService
             $row = $result->fetchAssociative();
         }
 
-        //setup default lanugage uid
+        //setup default language uid
         if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
             $parentUidField = 'uid';
         }
@@ -427,9 +427,19 @@ class DatabaseEntriesService
         }
         $result = $temp->executeQuery();
 
-        while($row = $result->fetchAssociative()) {
+        while ($row = $result->fetchAssociative()) {
             if ($clean) {
-                $return[$row['uid']] = $this->getExportFields($tablename, $row);
+                // Use default-language UID for export keys so import can map by default UID
+                $defaultUid = (int)$row['uid'];
+                if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])
+                    && isset($row[$parentUidField])
+                    && (int)($row[$langaugeField] ?? 0) !== 0
+                ) {
+                    $defaultUid = (int)$row[$parentUidField];
+                }
+                $rowForKeys = $row;
+                $rowForKeys['uid'] = $defaultUid;
+                $return[$defaultUid] = $this->getExportFields($tablename, $rowForKeys);
             } else {
                 $return[$row['uid']] = $row;
             }
@@ -984,12 +994,14 @@ class DatabaseEntriesService
     {
         $row = $this->getCompleteRow('pages', $uid, $sourceLanguage);
 
-        $realUid = $uid;// PID of other contents
-        if ($row['sys_language_uid'] != 0 ) {
-            $realUid = (int)$row['l10n_parent']; // The page is just translation;
+        $realUid = $uid;// PID of other contents (default-language page UID)
+        if (($row['sys_language_uid'] ?? 0) != 0) {
+            $realUid = (int)$row['l10n_parent']; // The page is a translation; use default-language UID for export keys
         }
         if ($clean) {
-            $row = $this->getExportFields('pages', $row);
+            $pageRowForKeys = $row;
+            $pageRowForKeys['uid'] = $realUid;
+            $row = $this->getExportFields('pages', $pageRowForKeys);
             $output = $this->prepareDataFromRow($realUid, $row, $targetLanguage, 'pages');
         }
 
