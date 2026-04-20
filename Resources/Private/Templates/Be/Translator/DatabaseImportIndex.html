@@ -27,9 +27,13 @@
 						</div>
 					</div>
 					<div class="col">
-						<label for="language-uid" class="form-label">Lanugage UID</label>
+						<label for="language-uid" class="form-label">Target TYPO3 Language</label>
 						<div class="input-group">
-							<f:form.textfield name="targetLanguageUid" class="form-control" id="language-uid" value="1" />
+							<f:form.select name="targetLanguageUid" id="language-uid" class="form-select" value="1">
+								<f:for each="{allowedLanguages}" as="lang">
+									<f:form.select.option value="{lang.uid}">{lang.title}</f:form.select.option>
+								</f:for>
+							</f:form.select>
 						</div>
 					</div>
 					<div class="col">

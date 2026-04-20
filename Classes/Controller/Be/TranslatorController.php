@@ -15,6 +15,8 @@ use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\Site\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -103,6 +105,55 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->pageUid = (int)$currentPid;
             $this->pageData = $this->pageRepository->getPage($this->pageUid, true);
         }
+    }
+
+    /**
+     * Returns available languages from the site configuration (TYPO3 v13) for source language dropdowns.
+     * Uses the current page's site or falls back to all sites to collect languages.
+     *
+     * @return array<int, array{uid: int, title: string}>
+     */
+    protected function getAllowedSystemLanguages(): array
+    {
+        $allowedLanguages = [];
+        $seenIds = [];
+        $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
+
+        try {
+            $sites = [];
+            if ($this->pageUid > 0) {
+                $site = $siteFinder->getSiteByPageId($this->pageUid);
+                $sites = [$site];
+            }
+            if (empty($sites)) {
+                $sites = $siteFinder->getAllSites();
+            }
+            foreach ($sites as $site) {
+                foreach ($site->getAllLanguages() as $siteLanguage) {
+                    $languageId = $siteLanguage->getLanguageId();
+                    if (!isset($seenIds[$languageId])) {
+                        $seenIds[$languageId] = true;
+                        $allowedLanguages[] = [
+                            'uid' => $languageId,
+                            'title' => $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId)),
+                        ];
+                    }
+                }
+            }
+        } catch (SiteNotFoundException $e) {
+            // No site configured, e.g. during installation
+        }
+
+        if (empty($allowedLanguages)) {
+            $allowedLanguages = [
+                ['uid' => 0, 'title' => 'Default'],
+            ];
+        }
+
+        // Sort by language id so Default (0) is first
+        usort($allowedLanguages, static fn(array $a, array $b): int => $a['uid'] <=> $b['uid']);
+
+        return $allowedLanguages;
     }
 
     // HELPERS
@@ -627,6 +678,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate->assign('currentPage', $currentPage);
         $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
         $entry = $databaseEntriesService->getCompleteCleanRow('pages', (int) $currentPage);
         $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
         $this->moduleTemplate->assign('currentLanguageUid', $sourceLanguageUid);
@@ -643,6 +695,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->indexMenu();
 
         $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
 
         $tables = [];
         foreach ($GLOBALS['TCA'] as $tableName => $data) {
@@ -682,7 +735,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $saveToZip = true;
 
         $defaultLanguage = 1;
-        $sourceLangauge = 0;
+        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
         $targetLanguage = 'de';
         //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
         $enableTranslatedData = true;
@@ -714,7 +767,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $output = '';
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
-                $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLangauge,false);
+                $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLanguageUid, false);
                 if(empty($contentRows)) {
                     $output .= ' No entries in '.$tablename.' for pid '.$storage;
                 } else {
@@ -722,14 +775,21 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         if ($saveToZip) {
                             $output = '';
                         }
-                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRow);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($contentRowUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                        $defaultUid = (int)$contentRowUid;
+                        $contentRowForKeys = $contentRow;
+                        if ((int)($contentRow['sys_language_uid'] ?? 0) !== 0 && !empty($contentRow['l10n_parent'] ?? null)) {
+                            $defaultUid = (int)$contentRow['l10n_parent'];
+                            $contentRowForKeys['uid'] = $defaultUid;
+                        }
+                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys);
+                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                         if ($saveToZip) {
+                            $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
                             if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
-                                $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output, \ZipArchive::FL_OVERWRITE);
+                                $zip->addFromString($zipFilename, $output, \ZipArchive::FL_OVERWRITE);
                             } else {
-                                $zip->addFromString("$tablename-{$contentRow['pid']}-{$contentRow['uid']}.xlf", $output);
+                                $zip->addFromString($zipFilename, $output);
                             }
                         }
                     }
@@ -775,6 +835,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function databaseImportIndexAction()
     {
         $this->indexMenu();
+        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseImportIndex');
     }
@@ -919,6 +980,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('label', $label);
         $this->moduleTemplate->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
         $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
+        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
         $this->moduleTemplate->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
         $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
@@ -933,11 +995,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function exportTableRowExportAction(string $tablename, int $rowUid)
     {
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
+        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
+        $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid, $sourceLanguageUid);
         $label = $databaseEntriesService->getFilenameFromLabel($tablename, $row);
 
-        $cleanRow = $databaseEntriesService->getExportFields($tablename, $row);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($rowUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
+        $defaultUid = (int)($row['uid']);
+        $rowForKeys = $row;
+        if ((int)($row['sys_language_uid'] ?? 0) !== 0 && !empty($row['l10n_parent'] ?? null)) {
+            $defaultUid = (int)$row['l10n_parent'];
+            $rowForKeys['uid'] = $defaultUid;
+        }
+        $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
         header('Content-type: text/xml');
         header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
         echo $output;
@@ -1085,21 +1154,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $allowedLanguages = [];
-        $allowedLanguages[] = [
-            'uid' => 0,
-            'title' => 'Default'
-        ];
-
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_language')->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-        $result = $queryBuilder->select('*')->from('sys_language')->execute();
-        while ($row = $result->fetch()) {
-            $allowedLanguages[] = $row;
-        }
-
-
-        $this->moduleTemplate->assign('allowedLanguages', $allowedLanguages);
+        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
         $this->moduleTemplate->assign('tables', $fields);
 
         $this->moduleTemplate->setContent($this->moduleTemplate->render());

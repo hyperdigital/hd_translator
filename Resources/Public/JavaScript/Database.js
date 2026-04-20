@@ -1,5 +1,5 @@
 const sourceTemp = document.getElementById('source-temp');
-const source = document.getElementById('source');
+const source = document.getElementById('source-language');
 const targetTemp = document.getElementById('target-temp');
 const target = document.getElementById('target');
 

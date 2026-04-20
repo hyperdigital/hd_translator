@@ -129,17 +129,17 @@
             <trans-unit id="deepl.index.noAvailableLanguages.description">
                 <source>First to enable AI languages you need to synchronize them.</source>
             </trans-unit>
-            <trans-unit id="deepl.index.availableLanugages">
-                <source>Available langauges</source>
+            <trans-unit id="deepl.index.availableLanguages">
+                <source>Available languages</source>
             </trans-unit>
-            <trans-unit id="deepl.index.table.langauges">
+            <trans-unit id="deepl.index.table.languages">
                 <source>Languages</source>
             </trans-unit>
             <trans-unit id="deepl.index.table.translation_count">
                 <source>Amount of translations</source>
             </trans-unit>
             <trans-unit id="deepl.language.headline">
-                <source>Deepl AI translations for %s langauge</source>
+                <source>Deepl AI translations for %s language</source>
             </trans-unit>
             <trans-unit id="deepl.language.nothingTranslated">
                 <source>There is nothing translated in %s language yet.</source>

@@ -16,9 +16,13 @@
         <f:form action="pageContentExportProccess">
 					<div class="row row-cols-auto align-items-end g-3">
 						<div class="col">
-							<label for="source" class="form-label">Source from language UID</label>
+							<label for="source" class="form-label">Source TYPO3 Language</label>
 							<div class="input-group">
-								<f:form.textfield name="source" class="form-control" id="source" value="{currentLanguageUid}" />
+								<f:form.select name="source" id="source" class="form-select" value="{currentLanguageUid}">
+									<f:for each="{allowedLanguages}" as="lang">
+										<f:form.select.option value="{lang.uid}">{lang.title}</f:form.select.option>
+									</f:for>
+								</f:form.select>
 							</div>
 						</div>
 						<div class="col">
@@ -34,7 +38,7 @@
 							</div>
 						</div>
 						<div class="col">
-							<label for="target" class="form-label">Target language</label>
+							<label for="target" class="form-label">Target language (XLF code)</label>
 							<div class="input-group">
 								<f:form.textfield name="language" class="form-control" id="target" value="en" />
 								<f:form.select name="target-temp" class="form-select hd-form-select btn-light" id="target-temp">
