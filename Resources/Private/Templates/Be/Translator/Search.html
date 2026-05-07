@@ -1,6 +1,14 @@
+<html
+    xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+    xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+    xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+    data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
 <div class="hd-translator">
     <f:render partial="Search" arguments="{_all}" />
-    
+
     <f:if condition="{data}">
         <f:for each="{data}" key="category" as="items">
             <h3>{category}</h3>
@@ -17,3 +25,5 @@
         </f:for>
     </f:if>
 </div>
+</f:section>
+</html>

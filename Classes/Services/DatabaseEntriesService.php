@@ -936,7 +936,7 @@ class DatabaseEntriesService
 
         foreach ($row as $fieldname => $value) {
             $notes = [];
-            if ($value['slug']) {
+            if (!empty($value['slug'])) {
                 $notes['slug'] = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.field.isSlug');
             }
 

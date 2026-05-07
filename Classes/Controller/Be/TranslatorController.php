@@ -1931,7 +1931,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     public function deeplTranslationLanguageAction(string $language = '')
     {
-        $this->view->assign('language', $language);
+        $this->moduleTemplate->assign('language', $language);
 
         $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
