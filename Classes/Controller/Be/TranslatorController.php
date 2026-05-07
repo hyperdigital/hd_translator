@@ -9,7 +9,6 @@ use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
-use TYPO3\CMS\Backend\View\BackendTemplateView;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Core\Environment;
@@ -26,7 +25,6 @@ use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
@@ -984,8 +982,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
         $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
 
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());
+        return $this->moduleTemplate->renderResponse('Be/Translator/ExportTableRowIndex');
     }
 
     /**
@@ -1157,8 +1154,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
         $this->moduleTemplate->assign('tables', $fields);
 
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
+        return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseTableFields');
     }
 
     public function getAllPagesFromRoot($roots, &$return)
@@ -1800,8 +1796,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('languagesArray', $this->listOfPossibleLanguages);
         $this->moduleTemplate->assign('data', $return);
 
-        $this->moduleTemplate->setContent($this->moduleTemplate->render());
-        return $this->htmlResponse($this->moduleTemplate->renderContent());;
+        return $this->moduleTemplate->renderResponse('Be/Translator/Search');
     }
 
     public function setCategorizatedData(&$output, $key, $value, $fullKey)
