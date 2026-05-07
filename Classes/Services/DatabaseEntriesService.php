@@ -971,10 +971,10 @@ class DatabaseEntriesService
             }
 
             $return[$tablename.'.'.$fieldname] = [
-                'default' => $value['value'],
-                $targetLanguage => $translatedData[$fieldname] ?? $value['value'],
-                '_label' => $value['label'],
-                '_html' => $value['html'],
+                'default' => $value['value'] ?? '',
+                $targetLanguage => $translatedData[$fieldname] ?? $value['value'] ?? '',
+                '_label' => $value['label'] ?? '',
+                '_html' => $value['html'] ?? false,
                 '_maxLength' => $maxLength,
                 '_notes' => $notes,
                 '_table_reference' => LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:export.table_reference') . ': ' . implode(':', $reference)
