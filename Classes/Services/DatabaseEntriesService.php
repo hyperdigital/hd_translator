@@ -14,6 +14,7 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Core\Service\FlexFormService;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Log\LogManager;
+use Doctrine\DBAL\Types\Type;
 
 class DatabaseEntriesService
 {
@@ -73,6 +74,33 @@ class DatabaseEntriesService
             }
         }
         return $this->logger;
+    }
+
+    /**
+     * Get the type name from a Doctrine DBAL column type.
+     * Compatible with both DBAL 3.x (getName() method) and DBAL 4.x (getName() removed).
+     *
+     * @param \Doctrine\DBAL\Schema\Column $column
+     * @return string The type name in lowercase (e.g., 'integer', 'smallint', 'string')
+     */
+    protected function getColumnTypeName($column): string
+    {
+        $type = $column->getType();
+
+        // DBAL 4.x: Use Type::lookupName() from the type registry
+        try {
+            return strtolower(Type::lookupName($type));
+        } catch (\Throwable $e) {
+            // Fallback: extract type name from class name
+            // e.g., Doctrine\DBAL\Types\IntegerType -> integer
+            $className = get_class($type);
+            $shortName = substr($className, strrpos($className, '\\') + 1);
+            // Remove 'Type' suffix and convert to lowercase
+            if (str_ends_with($shortName, 'Type')) {
+                $shortName = substr($shortName, 0, -4);
+            }
+            return strtolower($shortName);
+        }
     }
 
     /**
@@ -1573,12 +1601,11 @@ class DatabaseEntriesService
                     foreach ($row as $key => $value) {
                         // 0 or '' -> skip
                         if (empty($value)) {
-                            $column = $this->tableSchemes[$tablename][$key];
+                            $column = $this->tableSchemes[$tablename][$key] ?? null;
                             if ($column) {
-                                if ($fieldType = strtolower($column->getType()->getName())) {
-                                    if ($value === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
-                                        continue;
-                                    }
+                                $fieldType = $this->getColumnTypeName($column);
+                                if ($value === '' && in_array($fieldType, ['integer', 'smallint', 'bigint', 'float', 'decimal'])) {
+                                    continue;
                                 }
                             }
                         }
@@ -1769,12 +1796,11 @@ class DatabaseEntriesService
             }
             // 0 or ''
             if (empty($tempValue)) {
-                $column = $this->tableSchemes[$tablename][$tempKey];
+                $column = $this->tableSchemes[$tablename][$tempKey] ?? null;
                 if ($column) {
-                    if ($fieldType = strtolower($column->getType()->getName())) {
-                        if ($tempValue === '' && in_array($fieldType, ['int', 'float', 'decimal'])) {
-                            unset($row[$tempKey]);
-                        }
+                    $fieldType = $this->getColumnTypeName($column);
+                    if ($tempValue === '' && in_array($fieldType, ['integer', 'smallint', 'bigint', 'float', 'decimal'])) {
+                        unset($row[$tempKey]);
                     }
                 }
             }
