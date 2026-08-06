@@ -1260,7 +1260,7 @@ class DatabaseEntriesService
      * @param int|null $targetLanguageUid - sys_language_uid of an already existing translation whose
      *                                      values are offered as the target, null for new content
      */
-    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en', ?int $targetLanguageUid = null)
+    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en', ?int $targetLanguageUid = null, string $xlfVersion = XlfService::VERSION_12)
     {
         if ($targetLanguage == 'default') {
             $targetLanguage = 'en';
@@ -1279,7 +1279,7 @@ class DatabaseEntriesService
 
         $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
 
-        $output = $xlfService->dataToXlf($data, $targetLanguage, $sourceLanguage);
+        $output = $xlfService->dataToXlf($data, $targetLanguage, $sourceLanguage, '', $xlfVersion);
 
         return $output;
     }

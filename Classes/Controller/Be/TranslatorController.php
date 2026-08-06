@@ -211,6 +211,20 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     // HELPERS
     /**
+     * XLIFF version requested by an export form, falls back to the widely supported 1.2.
+     */
+    protected function getRequestedXlfVersion(): string
+    {
+        $version = $this->request->hasArgument('xlfVersion')
+            ? (string)$this->request->getArgument('xlfVersion')
+            : '';
+
+        return $version === \Hyperdigital\HdTranslator\Services\XlfService::VERSION_20
+            ? \Hyperdigital\HdTranslator\Services\XlfService::VERSION_20
+            : \Hyperdigital\HdTranslator\Services\XlfService::VERSION_12;
+    }
+
+    /**
      * Whether the current user may read records of the given table.
      *
      * The exports read with the query builder, so the table access of the user has to be checked
@@ -971,6 +985,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
         // optional: values of an already existing translation are offered as the target
         $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
+        $xlfVersion = $this->getRequestedXlfVersion();
         $targetLanguage = 'de';
         //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
         $enableTranslatedData = true;
@@ -1023,7 +1038,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
                         // keys use the default language uid, values and children come from $contentRowUid
                         $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid);
+                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid, $xlfVersion);
 
                         if ($saveToZip) {
                             $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
@@ -1255,7 +1270,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // the values come from is taken from the row it stored it in
         $sourceUid = (int)($row[\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::SOURCE_UID_FIELD] ?? $defaultUid);
         $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys, $sourceUid);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid, $this->getRequestedXlfVersion());
 
         return $this->fileDownloadResponse($output, $label . '.xlf', 'text/xml');
     }
@@ -1333,7 +1348,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-                $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source);
+                $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source, '', $this->getRequestedXlfVersion());
 
                 if ($saveToZip) {
                     $zip->addFromString("page-{$storage}.xlf", $output);

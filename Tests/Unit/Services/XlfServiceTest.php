@@ -15,6 +15,11 @@ final class XlfServiceTest extends UnitTestCase
 {
     private XlfService $subject;
 
+    /**
+     * Writing notes goes through LocalizationUtility, which registers a Locales singleton.
+     */
+    protected bool $resetSingletonInstances = true;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -108,6 +113,112 @@ final class XlfServiceTest extends UnitTestCase
         $back = $this->subject->xlfToData($this->subject->dataToXlf($data, 'ar', 'en'), ['default', 'ar']);
 
         self::assertSame('مرحبا بالعالم', $back['a.key']['ar']);
+    }
+
+    #[Test]
+    public function xliff20IsWrittenWithUnitsAndSegments(): void
+    {
+        $xlf = $this->subject->dataToXlf(
+            $this->buildData(['a.key' => ['source' => 'Hello', 'target' => 'Hallo']]),
+            'de',
+            'en',
+            '',
+            XlfService::VERSION_20
+        );
+
+        $xml = simplexml_load_string($xlf);
+        self::assertNotFalse($xml);
+        self::assertSame('2.0', (string)$xml['version']);
+        self::assertSame('en', (string)$xml['srcLang']);
+        self::assertSame('de', (string)$xml['trgLang']);
+        self::assertStringContainsString('<unit', $xlf);
+        self::assertStringContainsString('<segment', $xlf);
+        self::assertStringNotContainsString('<trans-unit', $xlf);
+    }
+
+    #[Test]
+    public function xliff20RoundTripKeepsValues(): void
+    {
+        $data = $this->buildData([
+            'a.key' => ['source' => 'Hello', 'target' => 'Hallo'],
+            'b.key' => ['source' => "one\ntwo", 'target' => 'مرحبا'],
+        ]);
+
+        $xlf = $this->subject->dataToXlf($data, 'de', 'en', '', XlfService::VERSION_20);
+        $back = $this->subject->xlfToData($xlf, ['default', 'de']);
+
+        self::assertSame('Hallo', $back['a.key']['de']);
+        self::assertSame('مرحبا', $back['b.key']['de']);
+        self::assertSame("one\ntwo", $back['b.key']['default']);
+    }
+
+    #[Test]
+    public function xliff20StateReflectsWhetherSomethingWasTranslated(): void
+    {
+        $xlf = $this->subject->dataToXlf(
+            $this->buildData([
+                'translated' => ['source' => 'Hello', 'target' => 'Hallo'],
+                'untouched' => ['source' => 'Hello', 'target' => 'Hello'],
+            ]),
+            'de',
+            'en',
+            '',
+            XlfService::VERSION_20
+        );
+
+        $parsed = $this->subject->parse($xlf);
+
+        self::assertSame(XlfService::STATE_TRANSLATED, $parsed['translated']['state']);
+        self::assertSame(XlfService::STATE_INITIAL, $parsed['untouched']['state']);
+    }
+
+    #[Test]
+    public function xliff20ApprovalFollowsTheSegmentState(): void
+    {
+        $template = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<xliff xmlns="urn:oasis:names:tc:xliff:document:2.0" version="2.0" srcLang="en" trgLang="de">'
+            . '<file id="f1"><unit id="a"><segment state="%s"><source>Hello</source><target>Hallo</target></segment></unit></file>'
+            . '</xliff>';
+
+        foreach ([
+            XlfService::STATE_INITIAL => false,
+            XlfService::STATE_TRANSLATED => false,
+            XlfService::STATE_REVIEWED => true,
+            XlfService::STATE_FINAL => true,
+        ] as $state => $expected) {
+            $parsed = $this->subject->parse(sprintf($template, $state));
+            self::assertSame($expected, $parsed['a']['approved'], 'state ' . $state);
+        }
+    }
+
+    #[Test]
+    public function theVersionIsDetectedFromTheFile(): void
+    {
+        $v12 = $this->subject->dataToXlf($this->buildData(['a' => ['source' => 'S', 'target' => 'T']]), 'de', 'en');
+        $v20 = $this->subject->dataToXlf($this->buildData(['a' => ['source' => 'S', 'target' => 'T']]), 'de', 'en', '', XlfService::VERSION_20);
+
+        // both are read without the caller having to say which one it is
+        self::assertSame('T', $this->subject->parse($v12)['a']['target']);
+        self::assertSame('T', $this->subject->parse($v20)['a']['target']);
+    }
+
+    #[Test]
+    public function maxLengthHintSurvivesTheRoundTripInXliff12(): void
+    {
+        $data = $this->buildData(['a' => ['source' => 'S', 'target' => 'T']]);
+        $data['a']['_maxLength'] = 255;
+
+        $parsed = $this->subject->parse($this->subject->dataToXlf($data, 'de', 'en'));
+
+        self::assertSame(255, $parsed['a']['maxLength']);
+    }
+
+    #[Test]
+    public function malformedInputYieldsNoEntriesInsteadOfCrashing(): void
+    {
+        self::assertSame([], $this->subject->parse('<xliff><file><body><trans-unit'));
+        self::assertSame([], $this->subject->parse(''));
+        self::assertSame([], $this->subject->xlfToData('not xml at all', ['default', 'de']));
     }
 
     #[Test]
