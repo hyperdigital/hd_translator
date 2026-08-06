@@ -1667,11 +1667,9 @@ class DatabaseEntriesService
             return;
         }
 
-        $flexFormTools = GeneralUtility::makeInstance(FlexFormTools::class);
-
         try {
-            $identifier = $flexFormTools->getDataStructureIdentifier($fieldTca, $tablename, $key, $originalRow);
-            $dataStructure = $flexFormTools->parseDataStructureByIdentifier($identifier);
+            $identifier = $this->flexFormTools->getDataStructureIdentifier($fieldTca, $tablename, $key, $originalRow);
+            $dataStructure = $this->flexFormTools->parseDataStructureByIdentifier($identifier);
         } catch (\Throwable $e) {
             // no resolvable data structure, nothing to post process
             $this->log('notice', 'Import: flexform data structure could not be resolved', [
@@ -1742,9 +1740,8 @@ class DatabaseEntriesService
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
-                $flexFormTools = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools::class);
                 $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
-                $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
+                $row[$key] = $this->flexFormTools->flexArray2Xml($row[$key], true);
             }
         }
 

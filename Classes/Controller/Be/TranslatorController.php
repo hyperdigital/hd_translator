@@ -259,8 +259,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // a translation may carry keys the default file no longer has, so both sides are merged
         foreach (array_keys($sourceLabels + $targetLabels) as $key) {
             $source = (string)($sourceLabels[$key] ?? '');
-            // an untranslated label falls back to the source, as the removed API did
-            $target = (string)($targetLabels[$key] ?? $source);
+            // an untranslated - or empty - label falls back to the source, as the removed API did
+            $target = (string)($targetLabels[$key] ?? '');
+            if ($target === '') {
+                $target = $source;
+            }
 
             $data['default'][$key] = [0 => ['source' => $source, 'target' => $source]];
             $data[$languageKey][$key] = [0 => ['source' => $source, 'target' => $target]];
