@@ -38,6 +38,7 @@ use TYPO3\CMS\Core\Service\FlexFormService;
 use TYPO3\CMS\Core\Database\Connection;
 use \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use Psr\Http\Message\ResponseInterface;
 
 class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionController
 {
@@ -88,7 +89,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->listOfPossibleLanguages = GeneralUtility::makeInstance(Locales::class)->getLanguages();
         $this->deeplApiKey = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'deeplApiKey') ?? '';
 
-        if (empty($this->storage) && \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')) {
+        if (!empty($this->storage) && \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')) {
             if (file_exists($this->storage . $this->conigurationFile)) {
                 require $this->storage . $this->conigurationFile;
             } else {
@@ -98,48 +99,131 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate = $this->moduleTemplateFactory->create($this->request);
 
-        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
-        if ($currentPid) {
-            $this->pageUid = (int)$currentPid;
+        $this->pageUid = $this->resolveCurrentPageUid();
+        if ($this->pageUid > 0) {
             $this->pageData = $this->pageRepository->getPage($this->pageUid, true);
+        }
+
+        // templates carry it back through their forms, so the site context survives a submit
+        $this->moduleTemplate->assign('pageUid', $this->pageUid);
+    }
+
+    /**
+     * Resolves the page the current request works on.
+     *
+     * The module has no page tree, so TYPO3 never supplies the "id" parameter on its own.
+     * Without a page the site configuration cannot be found, which breaks every installation
+     * running more than one site - especially when the sites use different default languages.
+     * Therefore the page is taken from "id" when present and otherwise derived from the
+     * record or page the current action is about.
+     */
+    protected function resolveCurrentPageUid(): int
+    {
+        // "id" as plain request parameter (docheader button, context menu, page tree)
+        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
+        if ((int)$currentPid > 0) {
+            return (int)$currentPid;
+        }
+
+        // "id" carried through the module's own links, where it is namespaced by Extbase
+        if ($this->request->hasArgument('id') && (int)$this->request->getArgument('id') > 0) {
+            return (int)$this->request->getArgument('id');
+        }
+
+        // pageContentExport / pageContentExportProccess / databaseExport
+        foreach (['page', 'storages'] as $argumentName) {
+            if ($this->request->hasArgument($argumentName)) {
+                $value = $this->request->getArgument($argumentName);
+                if (is_array($value)) {
+                    $value = reset($value);
+                }
+                // "storages" may be a comma separated list, the first entry defines the site
+                $parts = GeneralUtility::trimExplode(',', (string)$value, true);
+                $first = (int)($parts[0] ?? 0);
+                if ($first > 0) {
+                    return $first;
+                }
+            }
+        }
+
+        // exportTableRowIndex / exportTableRowExport work on a single record
+        if ($this->request->hasArgument('tablename') && $this->request->hasArgument('rowUid')) {
+            $tablename = (string)$this->request->getArgument('tablename');
+            $rowUid = (int)$this->request->getArgument('rowUid');
+
+            return \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getPidOfRecord($tablename, $rowUid);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Returns the site the current page belongs to, or null when it cannot be resolved.
+     */
+    protected function getCurrentSite(): ?\TYPO3\CMS\Core\Site\Entity\Site
+    {
+        if ($this->pageUid <= 0) {
+            return null;
+        }
+
+        try {
+            return GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($this->pageUid);
+        } catch (SiteNotFoundException $e) {
+            return null;
         }
     }
 
     /**
      * Returns available languages from the site configuration (TYPO3 v13) for source language dropdowns.
-     * Uses the current page's site or falls back to all sites to collect languages.
+     *
+     * When the site is known, exactly its languages are returned. Without a site the languages of
+     * all sites are listed and prefixed with the site identifier - language ids are only unique per
+     * site, so merging them silently would show a wrong language name whenever two sites disagree
+     * (for example when one site uses English and another German as language 0).
      *
      * @return array<int, array{uid: int, title: string}>
      */
     protected function getAllowedSystemLanguages(): array
     {
         $allowedLanguages = [];
-        $seenIds = [];
         $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
+        $site = $this->getCurrentSite();
 
-        try {
-            $sites = [];
-            if ($this->pageUid > 0) {
-                $site = $siteFinder->getSiteByPageId($this->pageUid);
-                $sites = [$site];
+        if ($site !== null) {
+            foreach ($site->getAllLanguages() as $siteLanguage) {
+                $languageId = $siteLanguage->getLanguageId();
+                $allowedLanguages[] = [
+                    'uid' => $languageId,
+                    'title' => $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId)),
+                ];
             }
-            if (empty($sites)) {
-                $sites = $siteFinder->getAllSites();
-            }
-            foreach ($sites as $site) {
-                foreach ($site->getAllLanguages() as $siteLanguage) {
+        } else {
+            $sites = $siteFinder->getAllSites();
+            $showSiteIdentifier = count($sites) > 1;
+
+            $seen = [];
+            foreach ($sites as $siteIdentifier => $eachSite) {
+                foreach ($eachSite->getAllLanguages() as $siteLanguage) {
                     $languageId = $siteLanguage->getLanguageId();
-                    if (!isset($seenIds[$languageId])) {
-                        $seenIds[$languageId] = true;
-                        $allowedLanguages[] = [
-                            'uid' => $languageId,
-                            'title' => $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId)),
-                        ];
+                    $title = $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId));
+
+                    if ($showSiteIdentifier) {
+                        $title = $title . ' [' . $siteIdentifier . ']';
                     }
+
+                    // identical languages of different sites are listed only once
+                    $key = $languageId . '-' . $title;
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+
+                    $allowedLanguages[] = [
+                        'uid' => $languageId,
+                        'title' => $title,
+                    ];
                 }
             }
-        } catch (SiteNotFoundException $e) {
-            // No site configured, e.g. during installation
         }
 
         if (empty($allowedLanguages)) {
@@ -155,6 +239,70 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     // HELPERS
+    /**
+     * Reads an optional language uid from the request.
+     *
+     * An empty selection means "no language", which is not the same as language 0, so null is
+     * returned in that case. Missing arguments are tolerated, because the export actions are also
+     * reachable from links that do not carry the full form.
+     *
+     * @param string $argumentName
+     * @param int|null $default
+     * @return int|null
+     */
+    protected function getOptionalLanguageUidArgument(string $argumentName, ?int $default = null): ?int
+    {
+        if (!$this->request->hasArgument($argumentName)) {
+            return $default;
+        }
+
+        $value = $this->request->getArgument($argumentName);
+        if ($value === '' || $value === null || !is_numeric($value)) {
+            return $default;
+        }
+
+        return (int)$value;
+    }
+
+    /**
+     * Adds the resolved page to link arguments, so the site context survives navigation
+     * inside the module (the module has no page tree that would keep "id" alive).
+     *
+     * @param array $arguments
+     * @return array
+     */
+    protected function withPageContext(array $arguments = []): array
+    {
+        if ($this->pageUid > 0 && !isset($arguments['id'])) {
+            $arguments['id'] = $this->pageUid;
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Builds a file download response instead of echoing the payload and killing the request.
+     *
+     * @param string $content raw file content
+     * @param string $filename name offered to the browser
+     * @param string $contentType mime type of the payload
+     */
+    protected function fileDownloadResponse(string $content, string $filename, string $contentType): ResponseInterface
+    {
+        $response = $this->responseFactory->createResponse()
+            ->withHeader('Content-Type', $contentType)
+            ->withHeader('Content-Description', 'File Transfer')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Content-Transfer-Encoding', 'binary')
+            ->withHeader('Expires', '0')
+            ->withHeader('Pragma', 'public')
+            ->withHeader('Cache-Control', 'must-revalidate, post-check=0, pre-check=0');
+
+        $response->getBody()->write($content);
+
+        return $response;
+    }
+
     /**
      * @param string $languageTranslation
      * @param string $keyTranslation
@@ -249,7 +397,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('index'))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -278,10 +426,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             $filename = $key . '.xlf';
                         } else {
                             $filename = $langKey . '.' . $key . '.xlf';
-                        }
-
-                        if (!empty($this->pageUid)) {
-                            $filename = $this->pageUid . '.' . $filename;
                         }
 
                         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
@@ -339,7 +483,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
                 $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
-                    ->setHref($uriBuilder->reset()->uriFor('detail', ['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang]))
+                    ->setHref($uriBuilder->reset()->uriFor('detail', $this->withPageContext(['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang])))
                     ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
                 $menu->addMenuItem($item);
             }
@@ -350,7 +494,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -370,34 +514,30 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->moduleTemplate->assign('pageData', $this->pageData);
         }
 
-        if (false && !in_array($languageTranslation, $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
-            $this->moduleTemplate->assign('is_empty', true);
-        } else {
-            $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-            $this->languageService->init($languageTranslation);
-            $data = $this->languageService->includeLLFile($originalLanguageFilePath);
+        $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
+        $this->languageService->init($languageTranslation);
+        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
 
-            if (empty($data[$languageTranslation])) {
-                $data[$languageTranslation] = $data['default'];
-            }
-
-            if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
-                $output = [];
-                foreach ($data[$languageTranslation] as $key => $value) {
-                    $this->setCategorizatedData($output, $key, $value, $key);
-                }
-                $this->moduleTemplate->assign('data', $output);
-                $this->moduleTemplate->assign('isCategorized', true);
-            } else {
-                $this->moduleTemplate->assign('data', $data);
-            }
-
-            $this->moduleTemplate->assign('langaugeKey', $languageTranslation);
-            $this->moduleTemplate->assign('translationKey', $keyTranslation);
-            $this->moduleTemplate->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
-
-            $this->moduleTemplate->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
+        if (empty($data[$languageTranslation])) {
+            $data[$languageTranslation] = $data['default'];
         }
+
+        if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
+            $output = [];
+            foreach ($data[$languageTranslation] as $key => $value) {
+                $this->setCategorizatedData($output, $key, $value, $key);
+            }
+            $this->moduleTemplate->assign('data', $output);
+            $this->moduleTemplate->assign('isCategorized', true);
+        } else {
+            $this->moduleTemplate->assign('data', $data);
+        }
+
+        $this->moduleTemplate->assign('langaugeKey', $languageTranslation);
+        $this->moduleTemplate->assign('translationKey', $keyTranslation);
+        $this->moduleTemplate->assign('category', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'] ?? '');
+
+        $this->moduleTemplate->assign('accessibleLanguages', $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages']);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/Detail');
     }
@@ -418,7 +558,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -467,17 +607,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 }
                 $writer = new Xlsx($spreadsheet);
 
-                $downloadFilename = $downloadFilename . '.xlsx';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
+                ob_start();
                 $writer->save('php://output');
-                exit();
-                break;
+                $content = (string)ob_get_clean();
+
+                return $this->fileDownloadResponse(
+                    $content,
+                    $downloadFilename . '.xlsx',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                );
             case 'csv':
                 $realData = [];
                 foreach ($data[$languageTranslation] as $key => $value) {
@@ -488,48 +626,38 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     $realData[] = \TYPO3\CMS\Core\Utility\CsvUtility::csvValues($tempData);
                 }
 
-                $downloadFilename = $downloadFilename . '.csv';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
-                echo implode(PHP_EOL, $realData);
-                exit();
-                break;
+                return $this->fileDownloadResponse(
+                    implode(PHP_EOL, $realData),
+                    $downloadFilename . '.csv',
+                    'text/csv'
+                );
             case 'json':
-                $downloadFilename = $downloadFilename . '.json';
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Pragma: public');
-                echo json_encode($data[$languageTranslation], JSON_PRETTY_PRINT);
-                exit();
-                break;
+                return $this->fileDownloadResponse(
+                    json_encode($data[$languageTranslation], JSON_PRETTY_PRINT),
+                    $downloadFilename . '.json',
+                    'application/json'
+                );
             case 'xlf':
                 $absolutePath = $this->getTranslationPath($languageTranslation, $keyTranslation);
-                $downloadFilename = $downloadFilename . '.xlf';
 
-                if (file_exists($absolutePath)) {
-                    header('Content-Description: File Transfer');
-                    header('Content-Type: application/octet-stream');
-                    header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');
-                    header('Content-Transfer-Encoding: binary');
-                    header('Expires: 0');
-                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                    header('Pragma: public');
-                    header('Content-Length: ' . filesize($absolutePath)); //Absolute URL
-                    ob_clean();
-                    flush();
-                    readfile($absolutePath); //Absolute URL
+                if (!file_exists($absolutePath)) {
+                    return $this->redirect('detail', null, null, [
+                        'keyTranslation' => $keyTranslation,
+                        'languageTranslation' => $languageTranslation
+                    ]);
                 }
-                exit();
+
+                return $this->fileDownloadResponse(
+                    (string)file_get_contents($absolutePath),
+                    $downloadFilename . '.xlf',
+                    'application/xliff+xml'
+                );
         }
+
+        return $this->redirect('detail', null, null, [
+            'keyTranslation' => $keyTranslation,
+            'languageTranslation' => $languageTranslation
+        ]);
     }
 
     /**
@@ -621,8 +749,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
                 return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
             }
-            echo json_encode(['success' => 0]);
-            die();
+
+            return new \TYPO3\CMS\Core\Http\JsonResponse(['success' => 0]);
         }
 
         $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
@@ -634,8 +762,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
             return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
         }
-        echo json_encode(['success' => 1]);
-        die();
+
+        return new \TYPO3\CMS\Core\Http\JsonResponse(['success' => 1]);
     }
 
     /**
@@ -733,7 +861,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $saveToZip = true;
 
         $defaultLanguage = 1;
-        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
+        $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
         $targetLanguage = 'de';
         //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
         $enableTranslatedData = true;
@@ -757,7 +887,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $zipPath = $zipFolder . 'translation.zip';
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
-                exit("cannot open <$zipPath>\n");
+                throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
             }
         }
 
@@ -779,8 +909,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             $defaultUid = (int)$contentRow['l10n_parent'];
                             $contentRowForKeys['uid'] = $defaultUid;
                         }
-                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                        // keys use the default language uid, values and children come from $contentRowUid
+                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
+                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid);
 
                         if ($saveToZip) {
                             $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
@@ -800,31 +931,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             //if no records are found, the zip file would be empty, which is not valid
             //zip file is automatically deleted by ZipArchive, fallback to printing the output
-            if(file_exists($zipPath)) {
-                header('Pragma: public');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-                header('Cache-Control: private', false);
-                header('Content-Type: application/zip');
-                header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
-                header('Content-Transfer-Encoding: binary');
-                header('Content-Length: ' . filesize($zipPath));
-                echo file_get_contents($zipPath);
+            if (file_exists($zipPath)) {
+                $zipContent = (string)file_get_contents($zipPath);
                 \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
-            }else {
-                echo $output;
-            }
 
-        } else {
-            header('Pragma: public');
-            header('Expires: 0');
-            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-            header('Cache-Control: private', false);
-            header('Content-type: text/xml');
-            header('Content-Disposition: attachment; filename="page-'.$storage.'.xlf"');
-            echo $output;
+                return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
+            }
         }
-        die();
+
+        return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
     }
 
     /**
@@ -922,35 +1037,41 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         // Static strings
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.index', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('index', null))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.pageContentExport', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('pageContentExport', null))
+            ->setHref($uriBuilder->reset()->uriFor('pageContentExport', $this->withPageContext()))
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.database', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('database', null))
+            ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
+            // this action only works with its record, so the arguments have to be carried over
+            $rowArguments = $this->withPageContext([
+                'tablename' => (string)$this->request->getArgument('tablename'),
+                'rowUid' => (int)$this->request->getArgument('rowUid'),
+            ]);
+
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.exportTableRowIndex', 'hd_translator'))
-                ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', null))
-                ->setActive('exportTableRowIndex' == $this->request->getControllerActionName() ? 1 : 0);
+                ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', $rowArguments))
+                ->setActive(1);
             $menu->addMenuItem($item);
         }
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
+            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', $this->withPageContext()))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if (!empty($this->deeplApiKey)) {
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplTranslations', 'hd_translator'))
-                ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', null))
+                ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
                 ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']) ? 1 : 0);
             $menu->addMenuItem($item);
         }
@@ -992,7 +1113,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function exportTableRowExportAction(string $tablename, int $rowUid)
     {
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
+        $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
         $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid, $sourceLanguageUid);
         $label = $databaseEntriesService->getFilenameFromLabel($tablename, $row);
 
@@ -1002,12 +1125,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $defaultUid = (int)$row['l10n_parent'];
             $rowForKeys['uid'] = $defaultUid;
         }
-        $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
-        header('Content-type: text/xml');
-        header('Content-Disposition: attachment; filename="'.$label.'.xlf"');
-        echo $output;
-        die();
+        // getCompleteRow() already rewrote "uid" to the default language, so the uid of the record
+        // the values come from is taken from the row it stored it in
+        $sourceUid = (int)($row[\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::SOURCE_UID_FIELD] ?? $defaultUid);
+        $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys, $sourceUid);
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid);
+
+        return $this->fileDownloadResponse($output, $label . '.xlf', 'text/xml');
     }
 
     /**
@@ -1037,6 +1161,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if ($this->request->hasArgument('source')) {
             $sourceLanguage = $this->request->getArgument('source');
         }
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
 
         $saveToZip = false;
         if (count($storages) > 1) {
@@ -1063,13 +1189,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
-                exit("cannot open <$zipPath>\n");
+                throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
             }
         }
 
 
+        $output = '';
         foreach ($storages as $storage) {
-            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage);
+            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage, true, $targetLanguageUid);
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
@@ -1083,27 +1210,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         if ($saveToZip) {
             $zip->close();
-            header('Pragma: public');
-            header('Expires: 0');
-            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-            header('Cache-Control: private', false);
-            header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . basename($zipPath) . '";');
-            header('Content-Transfer-Encoding: binary');
-            header('Content-Length: ' . filesize($zipPath));
 
-            echo file_get_contents($zipPath);
-            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
-        } else {
-            header('Pragma: public');
-            header('Expires: 0');
-            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-            header('Cache-Control: private', false);
-            header('Content-type: text/xml');
-            header('Content-Disposition: attachment; filename="page-'.$storage.'.xlf"');
-            echo $output;
+            // an empty archive is invalid and gets removed by ZipArchive, fall back to the plain xlf
+            if (file_exists($zipPath)) {
+                $zipContent = (string)file_get_contents($zipPath);
+                \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+
+                return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
+            }
         }
-        die();
+
+        return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
     }
 
     public function databaseTableFieldsAction()
@@ -1114,7 +1231,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('database'))
+            ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1157,474 +1274,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseTableFields');
     }
 
-    public function getAllPagesFromRoot($roots, &$return)
-    {
-        $roots = explode(',', strval($roots));
-        foreach ($roots as $root) {
-            $root = (int) $root;
-            if (!in_array($root, $return)) {
-                $return[] = $root;
-            }
-
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('pages')->createQueryBuilder();
-            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-            $result = $queryBuilder->select('uid')->from('pages')
-                ->where(
-                    $queryBuilder->expr()->eq('pid', $root)
-                )
-                ->execute();
-            while($row = $result->fetch()) {
-                $this->getAllPagesFromRoot($row['uid'], $return);
-            }
-        }
-    }
-
-    protected function idToDatabaseNames(&$retrun, $id, $value)
-    {
-        $parts = explode('.',$id);
-        $languageUid = $parts[0];
-        $table = $parts[1];
-        $uid = $parts[2];
-
-        unset($parts[0]);
-        unset($parts[1]);
-        unset($parts[2]);
-
-        $field = implode('.', $parts);
-        $retrun[$languageUid][$table][$uid][$field] = $value;
-    }
-
-    protected function keysToSubarray($fieldData, $valueToInsert, &$originalData)
-    {
-        $key = key($fieldData);
-        $keyLabel = reset($fieldData);
-
-        if (count($fieldData) > 0) {
-            unset($fieldData[$key]);
-            if (!is_array($originalData)) {
-                $originalData = GeneralUtility::xml2array($originalData);
-            }
-
-            if (!empty($originalData['data'])) {
-                foreach ($originalData['data'] as $key => $dataSheet) {
-                    if (!empty($dataSheet['lDEF'])) {
-                        foreach ($dataSheet['lDEF'] as $fieldKey => $value) {
-                            $fieldDataTemp = $fieldData;
-                            $keysCount = count(explode('.', $fieldKey));
-                            $newKyes = [];
-                            for ($i = 0; $i < $keysCount; $i++) {
-                                $tempKey = key($fieldDataTemp);
-                                $newKyes[] = reset($fieldDataTemp);
-                                unset($fieldDataTemp[$tempKey]);
-                            }
-
-                            $newKyes = implode('.', $newKyes);
-                            if ($newKyes == $fieldKey) {
-                                if (empty($fieldDataTemp)) {
-                                    $originalData['data'][$key]['lDEF'][$fieldKey]['vDEF'] = $valueToInsert;
-                                    break 2;
-                                } else {
-                                    if (key($value) == 'el') {
-                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el']
-                                        $tempKey = key($fieldDataTemp);
-                                        $elementHash = reset($fieldDataTemp);
-                                        unset($fieldDataTemp[$tempKey]);
-                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash]
-                                        $tempKey = key($fieldDataTemp);
-                                        $elementKey = reset($fieldDataTemp);
-                                        unset($fieldDataTemp[$tempKey]);
-                                        // current key - $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash][$elementKey]['el']
-
-                                        $finalKey = implode('.', $fieldDataTemp);
-                                        $originalData['data'][$key]['lDEF'][$fieldKey]['el'][$elementHash][$elementKey]['el'][$finalKey]['vDEF'] = $valueToInsert;
-                                        break 2;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-        }
-
-
-        return $originalData;
-
-
-//            return array_merge_recursive([],
-//                [
-//                    $keyLabel => [
-//                        'data' => [
-//                            'options' => [
-//                                'lDEF' => $this->asociativeKeyMap($fieldData, ['vDEF' => strval($value)], $originalData['data']['options']['lDEF'])
-//                            ]
-//                            ]
-//                        ]
-//                    ]
-//            );
-//        }
-
-//        return $keyLabel = $value;
-    }
-
-    protected function asociativeKeyMap($fieldData, $value, $originalData, $ignoreOriginalKey = false)
-    {
-        $keysAsString = implode('.', $fieldData);
-
-        if (!$ignoreOriginalKey) {
-            $newKey = false;
-            $newOriginalData = false;
-            $keyLength = 0;
-            foreach ($originalData as $originalKey => $originalValues) {
-                $originalKey = strval($originalKey);
-                $keyLength = strlen($originalKey);
-                if (substr($keysAsString,0, $keyLength) == $originalKey && ($keyLength == strlen($keysAsString) || substr($keysAsString,$keyLength,1) == '.')) {
-                    $newKey = $originalKey;
-                    $newOriginalData = $originalValues;
-                    break;
-                }
-            }
-
-            if (!$newKey && count($originalData) == 1 && key($originalData) == 'el') {
-                return ['el' => $this->asociativeKeyMap(explode('.', $keysAsString), $value, $originalData['el'], true)];
-            }
-            if ($keyLength == 0) {
-                $keysAsString = '';
-                $newKey = implode('.',$fieldData);
-            } else {
-                $keysAsString = substr($keysAsString, $keyLength + 1);
-            }
-        }  else {
-            $key = key($fieldData);
-            $newKey = reset($fieldData);
-            unset($fieldData[$key]);
-            $keysAsString = implode('.', $fieldData);
-
-            $key = key($originalData);
-            $newOriginalData = $originalData[$key];
-        }
-        $keysAsString = strval($keysAsString);
-        if ($newOriginalData && strlen($keysAsString) > 0) {
-            return [$newKey => $this->asociativeKeyMap(explode('.', $keysAsString), $value, $newOriginalData)];
-        } else {
-            if (!$newKey) {
-                $newKey = $fieldData[0];
-            }
-            return [$newKey => $value];
-        }
-    }
-
-    public function importItself($syncArray)
-    {
-        if (!empty($syncArray)) {
-            foreach ($syncArray as $languageUid => $tables) {
-                foreach ($tables as $table => $uids) {
-                    $fieldsToBeIgnored = [];
-                    $targetUidField = 'uid';
-                    $fieldsToBeIgnored[] = 'uid';
-                    if ($languageUid != 0) {
-                        $targetUidField = 'l10n_parent';
-                        if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
-                            $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-                        }
-                    }
-                    $fieldsToBeIgnored[] = $targetUidField;
-                    $langaugeField = 'sys_language_uid';
-                    if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
-                        $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
-                    }
-                    $fieldsToBeIgnored[] = $langaugeField;
-
-                    foreach ($uids as $uid => $fields) {
-                        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                        $tempQuery = $queryBuilder->select('uid')->from($table);
-                        $tempQuery->where(
-                            $queryBuilder->expr()->eq($langaugeField, $languageUid),
-                            $queryBuilder->expr()->eq($targetUidField, $uid)
-                        );
-
-                        $result = $tempQuery->execute()->fetch();
-
-                        //ORIGINAL
-                        if (empty($this->originalData[$table][$uid])) {
-                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                            $tempQuery = $queryBuilder->select('*')->from($table);
-                            $tempQuery->where(
-                                $queryBuilder->expr()->eq('uid', $uid)
-                            );
-
-                            $originalData = $tempQuery->execute()->fetch();
-                            $this->superOriginalData[$table][$uid] = $this->originalData[$table][$uid] = $originalData;
-                        }
-
-                        if (!empty($result['uid'])) {
-                            // ONLY UPDATE QUERY
-                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                            $tempQueryUpdate = $queryBuilder
-                                ->update($table)
-                                ->where(
-                                    $queryBuilder->expr()->eq('uid', $result['uid'])
-                                );
-
-                            $fieldsToSync = [];
-                            $fieldNames = [];
-
-                            foreach ($fields as $field => $value) {
-                                if (!in_array($field, $fieldsToBeIgnored)) {
-                                    $fieldData = explode('.', $field);
-                                    if (!empty($fieldData[1])) {
-                                        $newSettings = $this->keysToSubarray($fieldData, $value, $this->originalData[$table][$uid][$fieldData[0]]);
-                                        $fieldsToSync[$fieldData[0]] = $newSettings;
-                                    } else {
-                                        $fieldNames[] = $field;
-                                        $tempQueryUpdate->set($field, $value);
-                                    }
-                                }
-                            }
-
-                            foreach ($fieldsToSync as $tableColumn => $data) {
-                                $fieldNames[] = $tableColumn;
-                                $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
-
-                                if ($type == 'flex') {
-                                    $flexFormTools = new FlexFormTools();
-                                    $flexFormString = $flexFormTools->flexArray2Xml($data, true);
-                                    $fieldsToSync[$tableColumn] = $flexFormString;
-                                    $tempQueryUpdate->set($tableColumn, $flexFormString);
-                                }
-                            }
-                            if (!empty($this->originalData[$table][$uid]['sorting']) && empty($fieldsToSync['sorting'])) {
-                                $tempQueryUpdate->set('sorting', $this->originalData[$table][$uid]['sorting']);
-                            }
-                            if (!empty($this->originalData[$table][$uid]['doktype']) && empty($fieldsToSync['doktype'])) {
-                                $tempQueryUpdate->set('doktype', $this->originalData[$table][$uid]['doktype']);
-                            }
-                            if (!empty($this->originalData[$table][$uid]['CType']) && empty($fieldsToSync['CType'])) {
-                                $tempQueryUpdate->set('CType', $this->originalData[$table][$uid]['CType']);
-                            }
-                            // Always inherit colPos from the parent record. Preference order:
-                            // 1) l18n_parent (as requested), 2) l10n_parent, 3) l10n_source, 4) fallback to original uid
-                            $transRowQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                            $transRowQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                            $transRow = $transRowQb
-                                ->select('l18n_parent', 'l10n_parent', 'l10n_source')
-                                ->from($table)
-                                ->where(
-                                    $transRowQb->expr()->eq('uid', $result['uid'])
-                                )
-                                ->execute()
-                                ->fetch();
-                            $sourceUid = null;
-                            if (!empty($transRow['l18n_parent'])) {
-                                $sourceUid = (int)$transRow['l18n_parent'];
-                            } elseif (!empty($transRow['l10n_parent'])) {
-                                $sourceUid = (int)$transRow['l10n_parent'];
-                            } elseif (!empty($transRow['l10n_source'])) {
-                                $sourceUid = (int)$transRow['l10n_source'];
-                            } else {
-                                $sourceUid = (int)$uid;
-                            }
-
-                            // Ensure originalData is hydrated for the resolved source uid
-                            if (empty($this->originalData[$table][$sourceUid])) {
-                                $srcQb = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                                $srcQb->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                                $srcRow = $srcQb
-                                    ->select('*')
-                                    ->from($table)
-                                    ->where(
-                                        $srcQb->expr()->eq('uid', $sourceUid)
-                                    )
-                                    ->execute()
-                                    ->fetch();
-                                if ($srcRow) {
-                                    $this->superOriginalData[$table][$sourceUid] = $this->originalData[$table][$sourceUid] = $srcRow;
-                                }
-                            }
-                            $srcColPos = $this->originalData[$table][$sourceUid]['colPos'] ?? null;
-
-                            if (isset($this->originalData[$table][$sourceUid]['colPos'])) {
-                                $tempQueryUpdate->set('colPos', $this->originalData[$table][$sourceUid]['colPos']);
-                            }
-                            if (!empty($this->originalData[$table][$uid]['list_type']) && empty($fieldsToSync['list_type'])) {
-                                $tempQueryUpdate->set('list_type', $this->originalData[$table][$uid]['list_type']);
-                            }
-                            if (isset($this->originalData[$table][$uid]['l10n_source'])) {
-                                $tempQueryUpdate->set('l10n_source', $uid);
-                            }
-
-                            $tempQueryUpdate->execute();
-                            $output['updated'][] = $table.':'.$result['uid'] .' fields:'.implode(',',$fieldNames);
-                        } else {
-                            // Insert query
-                            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-
-                            $fieldsToSync = [];
-                            $fieldNames = [];
-                            $insert = [];
-                            foreach ($fields as $field => $value) {
-                                $fieldData = explode('.', $field);
-                                if (!empty($fieldData[1])) {
-                                    $newSettings = $this->keysToSubarray($fieldData, $value, $originalData[$fieldData[0]]);
-                                    $fieldsToSync = array_merge_recursive($fieldsToSync, $newSettings);
-                                } else {
-                                    $fieldNames[] = $field;
-                                    $insert[$field] = $value;
-                                }
-                            }
-
-                            foreach ($fieldsToSync as $tableColumn => $data) {
-                                $fieldNames[] = $tableColumn;
-                                $type = $GLOBALS['TCA'][$table]['columns'][$tableColumn]['config']['type'];
-
-                                if ($type == 'flex') {
-                                    $flexFormTools = new FlexFormTools();
-                                    $flexFormString = $flexFormTools->flexArray2Xml($data, true);
-
-                                    $insert[$tableColumn] = $flexFormString;
-                                }
-                            }
-
-                            if (!empty($insert)) {
-                                $insert[$langaugeField] = $languageUid;
-                                $insert[$targetUidField] = $uid;
-
-                                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($table)->createQueryBuilder();
-                                $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                                $tempQuery = $queryBuilder->select('*')->from($table);
-                                $tempQuery->where(
-                                    $queryBuilder->expr()->eq('uid', $uid)
-                                );
-                                $originalData = $tempQuery->execute()->fetch();
-                                if ($originalData) {
-                                    $insert['pid'] = $originalData['pid'];
-                                    $insert['crdate'] = time();
-                                    $insert['tstamp'] = time();
-
-                                    if (!empty($originalData['sorting']) && empty($insert['sorting'])) {
-                                        $insert['sorting'] = $originalData['sorting'];
-                                    }
-                                    if (!empty($originalData['doktype']) && empty($insert['doktype'])) {
-                                        $insert['doktype'] = $originalData['doktype'];
-                                    }
-                                    if (!empty($originalData['CType']) && empty($insert['CType'])) {
-                                        $insert['CType'] = $originalData['CType'];
-                                    }
-                                    // Always inherit colPos from the original record on insert as well
-                                    if (array_key_exists('colPos', $originalData)) {
-                                        $insert['colPos'] = $originalData['colPos'];
-                                    }   
-                                    if (!empty($originalData['list_type']) && empty($insert['list_type'])) {
-                                        $insert['list_type'] = $originalData['list_type'];
-                                    }
-                                    if (isset($originalData['l10n_source'])) {
-                                        $insert['l10n_source'] = $uid;
-                                    }
-                                }
-
-                                $queryBuilder
-                                    ->insert($table)
-                                    ->values($insert)
-                                    ->execute();
-                                $lastUid = $queryBuilder->getConnection()->lastInsertId();
-                                $output['inserted'][] = $table.':'.$lastUid .' fields:'.implode(',',$fieldNames);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        $this->moduleTemplate->assign('actions', $output);
-    }
-
-    public function importXlfFile($content)
-    {
-        $output = [];
-        $doc = new \DOMDocument();
-        $doc->loadXML($content, LIBXML_PARSEHUGE );
-        $syncArray = [];
-        foreach($doc->getElementsByTagName('trans-unit') as $unit) {
-            $id = $unit->getAttribute('id');
-            $value = $unit->getElementsByTagName('target')->item(0)->nodeValue;
-
-            $this->idToDatabaseNames($syncArray, $id, $value);
-        }
-
-        $this->importItself($syncArray);
-    }
-
-    public function importXmlFile($content)
-    {
-        $output = [];
-        $doc = new \DOMDocument();
-        $doc->loadXML($content, LIBXML_PARSEHUGE );
-        $syncArray = [];
-        foreach($doc->getElementsByTagName('data') as $unit) {
-            $id = $unit->getAttribute('key');
-            $value = $unit->nodeValue;
-
-            $this->idToDatabaseNames($syncArray, $id, $value);
-        }
-
-        $this->importItself($syncArray);
-    }
-
-
-    protected function exportDatabaseToXlm($data, $targetLanguageLetters)
-    {
-        $output = $this->dataToXml($data, $targetLanguageLetters);
-
-        header('Content-type: text/xml');
-        header('Content-Disposition: attachment; filename="temp.xml"');
-        echo $output;
-    }
-
-    protected function databaseFlexformDataToTranslationArray(&$data, $lastKey, $targetLanguageLetters, $flexformDataOriginal, $flexformDataTarget)
-    {
-        if (is_array($flexformDataOriginal)) {
-            foreach ($flexformDataOriginal as $key => $value) {
-                $target = null;
-                if ($flexformDataTarget[$key]) {
-                    $target = $flexformDataTarget[$key];
-                }
-                $this->databaseFlexformDataToTranslationArray($data, $lastKey.'.'.$key, $targetLanguageLetters, $value, $target);
-            }
-        } else {
-            if (!empty($flexformDataOriginal) || !empty($flexformDataTarget) ) {
-                $data[$lastKey]['default'] = strval($flexformDataOriginal);
-                $data[$lastKey][$targetLanguageLetters] = strval(($flexformDataTarget) ? $flexformDataTarget : $flexformDataOriginal);
-            }
-        }
-    }
-
-
-    protected function exportDatabaseToXlf($data, $sourceLanguage, $targetLanguage)
-    {
-        $output = $this->dataToXlf('database', $targetLanguage, $data, $sourceLanguage);
-
-        header('Content-type: text/xml');
-        header('Content-Disposition: attachment; filename="temp.xlf"');
-        echo $output;
-    }
-
     public function syncLocallangsAction()
     {
 
         $listOfExtensions = $this->listUtility->getAvailableExtensions();
-        $typo3Version = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Information\Typo3Version::class)->getVersion();
 
         foreach ($listOfExtensions as $key => $extConf) {
-            if (version_compare($typo3Version, '11.0.0', '<')) {
-                $extensionModelUtility = $this->objectManager->get(ExtensionModelUtility::class);
-                $extConfig = $extensionModelUtility->mapExtensionArrayToModel($extConf);
-            } else {
-                $extConfig = Extension::createFromExtensionArray($extConf);
-            }
+            $extConfig = Extension::createFromExtensionArray($extConf);
 
             $baseFolder = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName('EXT:' . $key . '/' . $this->relativePathToLangFilesInExt);
             if ($baseFolder) {
@@ -1729,7 +1385,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     /**
      * @param string $sword
      */
-    public function searchAction($sword)
+    public function searchAction(string $sword = '')
     {
         $uriBuilder = $this->uriBuilder->setRequest($this->request);
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
@@ -1737,16 +1393,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('index'))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
 
-        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'])) {
-            $data = [];
-            $return = [];
-            $temp = [];
+        $data = [];
+        $return = [];
+        $temp = [];
+
+        if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator']) && !empty($this->storage) && trim($sword) !== '') {
             $files = scandir($this->storage);
 
             if ($files) {
@@ -1795,6 +1452,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate->assign('languagesArray', $this->listOfPossibleLanguages);
         $this->moduleTemplate->assign('data', $return);
+        $this->moduleTemplate->assign('sword', $sword);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/Search');
     }
@@ -1871,36 +1529,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         return $domtree->saveXML();
     }
 
-    protected function dataToXml($data, $targetLanguageLetters)
-    {
-        $domtree = new \DOMDocument('1.0', 'UTF-8');
-        $domtree->preserveWhiteSpace = false;
-        $domtree->formatOutput = true;
-        $root = $domtree->createElement('TYPO3L10N');
-        $head = $domtree->createElement('head');
-        $target = $domtree->createElement('t3_targetLang');
-        $lang = $domtree->createTextNode($targetLanguageLetters);
-        $target->appendChild($lang);
-        $root->appendChild($head);
-        $page = $domtree->createElement('pageGrp');
-        foreach ($data as $key => $value) {
-            $dataItem = $domtree->createElement('data');
-            $dataItem->setAttribute('key', $key);
-            $dataItemValue = $domtree->createTextNode($value[$targetLanguageLetters]);
-            $dataItem->appendChild($dataItemValue);
-            $page->appendChild($dataItem);
-        }
-        $root->appendChild($page);
-        $domtree->appendChild($root);
-
-        return $domtree->saveXML();
-    }
-
-    protected function exec_enabled() {
-        $disabled = explode(',', ini_get('disable_functions'));
-        return !in_array('exec', $disabled);
-    }
-
     public function deeplTranslationsListAction()
     {
         $this->indexMenu();
@@ -1939,7 +1567,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1948,7 +1576,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', ['language' => $language]))
+            ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', $this->withPageContext(['language' => $language])))
             ->setIcon($iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Remove all strings');
@@ -1972,7 +1600,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1999,7 +1627,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');

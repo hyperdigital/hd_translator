@@ -57,27 +57,33 @@ class ExportItemProvider extends AbstractProvider
      */
     protected function getAdditionalAttributes(string $itemName): array
     {
+        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+
         if ($this->table == 'pages') {
-            $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
             $uri = $uriBuilder->buildUriFromRoutePath(
                 '/module/web/HdTranslatorHdTranslatorEngine',
                 [
                     'action' => 'pageContentExport',
                     'controller' => 'Be\Translator',
-                    'page' => $this->identifier
+                    'page' => $this->identifier,
+                    // "id" resolves the site configuration inside the module
+                    'id' => (int)$this->identifier,
                 ]
             );
         } else {
-            $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
-            $uri = $uriBuilder->buildUriFromRoutePath(
-                '/module/web/HdTranslatorHdTranslatorEngine',
-                [
-                    'action' => 'exportTableRowIndex',
-                    'controller' => 'Be\Translator',
-                    'tablename' => $this->table,
-                    'rowUid' => (int)$this->identifier
-                ]
-            );
+            $parameters = [
+                'action' => 'exportTableRowIndex',
+                'controller' => 'Be\Translator',
+                'tablename' => $this->table,
+                'rowUid' => (int)$this->identifier
+            ];
+
+            $pageUid = \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getPidOfRecord($this->table, (int)$this->identifier);
+            if ($pageUid > 0) {
+                $parameters['id'] = $pageUid;
+            }
+
+            $uri = $uriBuilder->buildUriFromRoutePath('/module/web/HdTranslatorHdTranslatorEngine', $parameters);
         }
 
         return [

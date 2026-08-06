@@ -14,6 +14,7 @@
     <h1>{f:translate(key: 'contentExport.headline')}</h1>
     <div>
         <f:form action="pageContentExportProccess">
+			<f:if condition="{pageUid}"><f:form.hidden name="id" value="{pageUid}" /></f:if>
 					<div class="row row-cols-auto align-items-end g-3">
 						<div class="col">
 							<label for="source" class="form-label">Source TYPO3 Language</label>
@@ -45,6 +46,17 @@
 									<f:form.select.option value=""></f:form.select.option>
 									<f:for each="{languages}" as="language" key="key">
 										<f:form.select.option value="{key}">{language}</f:form.select.option>
+									</f:for>
+								</f:form.select>
+							</div>
+						</div>
+						<div class="col">
+							<label for="targetLanguageUid" class="form-label"><f:translate key="export.existingTranslation" /></label>
+							<div class="input-group">
+								<f:form.select name="targetLanguageUid" id="targetLanguageUid" class="form-select" value="">
+									<f:form.select.option value=""><f:translate key="export.existingTranslation.none" /></f:form.select.option>
+									<f:for each="{allowedLanguages}" as="lang">
+										<f:form.select.option value="{lang.uid}">{lang.title}</f:form.select.option>
 									</f:for>
 								</f:form.select>
 							</div>

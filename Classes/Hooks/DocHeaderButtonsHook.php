@@ -11,9 +11,7 @@ use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Backend\Template\Components\ModifyButtonBarEvent;
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListHeaderColumnsEvent;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListRecordActionsEvent;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListTableActionsEvent;
+use TYPO3\CMS\Backend\RecordList\Event\ModifyRecordListRecordActionsEvent;
 
 class DocHeaderButtonsHook
 {
@@ -54,7 +52,10 @@ class DocHeaderButtonsHook
                     if(!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
                         foreach ($idArray as $id => $action) {
                             $enableButton = true;
-                            $button->setHref($this->getRowExportLink($id, $table));
+                            $pageUid = $currentUid > 0
+                                ? $currentUid
+                                : \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getPidOfRecord($table, (int)$id);
+                            $button->setHref($this->getRowExportLink($id, $table, $pageUid));
                         }
                     }
                 }
@@ -69,20 +70,29 @@ class DocHeaderButtonsHook
         }
     }
 
-    protected function getRowExportLink($uid, $tablename)
+    /**
+     * @param int $uid uid of the record
+     * @param string $tablename
+     * @param int $pageUid page the record lives on, needed to resolve the site configuration
+     */
+    protected function getRowExportLink($uid, $tablename, int $pageUid = 0)
     {
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
-        $uri = $uriBuilder->buildUriFromRoutePath(
-            '/module/web/HdTranslatorHdTranslatorEngine',
-            [
-                'action' => 'exportTableRowIndex',
-                'controller' => 'Be\Translator',
-                'tablename' => $tablename,
-                'rowUid' => (int)$uid
-            ]
-        );
+        $parameters = [
+            'action' => 'exportTableRowIndex',
+            'controller' => 'Be\Translator',
+            'tablename' => $tablename,
+            'rowUid' => (int)$uid
+        ];
 
-        return $uri;
+        // The module has no page tree, so "id" has to be passed explicitly. Without it
+        // the site (and therefore the list of languages) cannot be resolved.
+        if ($pageUid > 0) {
+            $parameters['id'] = $pageUid;
+        }
+
+        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+
+        return $uriBuilder->buildUriFromRoutePath('/module/web/HdTranslatorHdTranslatorEngine', $parameters);
     }
 
     public function getPageContentExportLink($uid)
@@ -94,23 +104,31 @@ class DocHeaderButtonsHook
                 'action' => 'pageContentExport',
                 'controller' => 'Be\Translator',
                 'page' => $uid,
+                // the page itself defines the site the export belongs to
+                'id' => (int)$uid,
             ]
         );
 
         return $uri;
     }
 
-    public function modifyRecordActions(\TYPO3\CMS\Backend\RecordList\Event\ModifyRecordListRecordActionsEvent $event): void
+    public function modifyRecordActions(ModifyRecordListRecordActionsEvent $event): void
     {
         $currentTable = $event->getTable();
-        $uid = $event->getRecord()['uid'];
+        $record = $event->getRecord();
+        $uid = $record['uid'];
 
         // Add a custom action for a custom table in the secondary action bar, before the "move" action
         if (!empty($uid) && $GLOBALS['BE_USER']->check('modules', 'hd_translator_engine')) {
             if ($currentTable == 'pages') {
                 $url = $this->getPageContentExportLink($uid);
             } else if(!empty($GLOBALS['TCA'][$currentTable]['ctrl']['languageField'])) {
-                $url = $this->getRowExportLink($uid, $currentTable);
+                // the list module knows the page already, so no extra lookup is needed
+                $pageUid = (int)($record['pid'] ?? 0);
+                if ($pageUid <= 0) {
+                    $pageUid = \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getPidOfRecord($currentTable, (int)$uid);
+                }
+                $url = $this->getRowExportLink($uid, $currentTable, $pageUid);
             }
             if (!empty($url)) {
                 $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');

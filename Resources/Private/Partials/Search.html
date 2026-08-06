@@ -1,6 +1,14 @@
-<f:comment>
-	<f:form action="search">
-    <f:form.textfield name="sword" />
-    <f:form.submit value="TODO: Search" />
-	</f:form>
-</f:comment>
+<html
+	xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+	xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+	data-namespace-typo3-fluid="true">
+<f:form action="search" class="hd-translator-search-form">
+	<div class="input-group">
+		<f:form.textfield name="sword" value="{sword}" class="form-control" placeholder="{f:translate(key: 'search.placeholder')}" />
+		<button class="btn btn-default" type="submit">
+			<core:icon identifier="actions-search" size="small" />
+			<f:translate key="search.submit" />
+		</button>
+	</div>
+</f:form>
+</html>
