@@ -31,5 +31,8 @@
     "psr-4": {
       "Hyperdigital\\HdTranslator\\": "Classes/"
     }
+  },
+  "suggest": {
+    "typo3/cms-extensionmanager": "Needed for the \"Synchronize all locallang.xlf files\" feature"
   }
 }

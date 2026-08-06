@@ -128,7 +128,12 @@
 
 	<f:if condition="{data} && {data.fullKey}">
 		<f:then>
-			<f:debug>{_all}</f:debug>
+			<f:render section="Item" arguments="{
+				key: data.fullKey,
+				langaugeKey: langaugeKey,
+				originalSource: data.value.0.source,
+				target: data.value.0.target
+			}" />
 		</f:then>
 		<f:else>
 			<f:for each="{data}" as="subdata" key="key">

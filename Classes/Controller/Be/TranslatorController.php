@@ -56,7 +56,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $deeplApiKey;
 
     public function __construct(
-        protected readonly ListUtility $listUtility,
         protected readonly ModuleTemplateFactory $moduleTemplateFactory,
         protected readonly PageRepository $pageRepository,
         protected UriBuilder $uriBuilder
@@ -223,6 +222,15 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     // HELPERS
+    /**
+     * EXT:extensionmanager is optional in composer based installations. It is only needed to scan
+     * all extensions for locallang files, so its absence just disables that single feature.
+     */
+    protected function isExtensionManagerAvailable(): bool
+    {
+        return class_exists(ListUtility::class) && class_exists(Extension::class);
+    }
+
     /**
      * Reads the labels of one XLF file for one language.
      *
@@ -408,7 +416,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $this->moduleTemplate->assign('pageData', $this->pageData);
             }
             $this->moduleTemplate->assign('categories', $data);
-            $this->moduleTemplate->assign('enabledSync', \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs'));
+            $this->moduleTemplate->assign(
+                'enabledSync',
+                \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')
+                    && $this->isExtensionManagerAvailable()
+            );
         }
 
         return $this->moduleTemplate->renderResponse('Be/Translator/Index');
@@ -1306,7 +1318,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function syncLocallangsAction()
     {
 
-        $listOfExtensions = $this->listUtility->getAvailableExtensions();
+        if (!$this->isExtensionManagerAvailable()) {
+            $this->moduleTemplate->addFlashMessage(
+                'Synchronizing all locallang files needs EXT:extensionmanager, which is not installed.',
+                '',
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+            );
+
+            return $this->redirect('index');
+        }
+
+        $listOfExtensions = GeneralUtility::makeInstance(ListUtility::class)->getAvailableExtensions();
 
         foreach ($listOfExtensions as $key => $extConf) {
             $extConfig = Extension::createFromExtensionArray($extConf);

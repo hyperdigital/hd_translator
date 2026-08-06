@@ -1,11 +1,15 @@
 <?php
 namespace Hyperdigital\HdTranslator\ViewHelpers;
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use Hyperdigital\HdTranslator\Services\FlagService;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3Fluid\Fluid\Core\ViewHelper\Facets\CompilableInterface;
 
+/**
+ * Resolves the flag icon path of a language key.
+ *
+ * Fluid 5, shipped with TYPO3 14, removed renderStatic() and the CompilableInterface,
+ * and initializeArguments() has to declare its void return type.
+ */
 class GetFlagNameViewHelper extends AbstractViewHelper
 {
     /**
@@ -13,9 +17,8 @@ class GetFlagNameViewHelper extends AbstractViewHelper
      */
     protected $escapeOutput = false;
 
-    public function initializeArguments()
+    public function initializeArguments(): void
     {
-
         $this->registerArgument(
             'language',
             'string',
@@ -23,22 +26,14 @@ class GetFlagNameViewHelper extends AbstractViewHelper
         );
     }
 
-    /**
-     * @param array $arguments
-     * @param \Closure $renderChildrenClosure
-     * @param RenderingContextInterface $renderingContext
-     * @return string
-     */
-    public static function renderStatic(
-        array $arguments,
-        \Closure $renderChildrenClosure,
-        RenderingContextInterface $renderingContext
-    ) {
-        $flag = \Hyperdigital\HdTranslator\Services\FlagService::getFlagForLanguage($arguments['language']);
+    public function render(): string
+    {
+        $flag = FlagService::getFlagForLanguage($this->arguments['language'] ?? '');
+
         if (empty($flag)) {
             return 'EXT:hd_translator/Resources/Public/Icons/empty_flag.png';
         }
 
-        return 'EXT:core/Resources/Public/Icons/Flags/'.strtolower($flag).'.webp';
+        return 'EXT:core/Resources/Public/Icons/Flags/' . strtolower($flag) . '.webp';
     }
 }
