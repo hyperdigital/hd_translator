@@ -99,3 +99,82 @@ if (search && items.length) {
     search.addEventListener('input', filter);
     search.addEventListener('search', filter);
 }
+
+// Reference languages: the values are rendered hidden, the menu only toggles them
+const compareMenu = document.getElementById('hd-translator-compare-menu');
+if (compareMenu) {
+    const storageKey = 'hd_translator.compareLanguages';
+
+    const apply = (language, visible) => {
+        document
+            .querySelectorAll('[data-compare-language="' + CSS.escape(language) + '"]')
+            .forEach((row) => row.classList.toggle('hidden', !visible));
+    };
+
+    const remember = () => {
+        const active = [...compareMenu.querySelectorAll('[data-compare-toggle]:checked')]
+            .map((box) => box.dataset.compareToggle);
+        localStorage.setItem(storageKey, JSON.stringify(active));
+    };
+
+    let restored = [];
+    try {
+        restored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } catch (e) {
+        restored = [];
+    }
+
+    compareMenu.querySelectorAll('[data-compare-toggle]').forEach((box) => {
+        if (restored.includes(box.dataset.compareToggle)) {
+            box.checked = true;
+            apply(box.dataset.compareToggle, true);
+        }
+
+        box.addEventListener('change', () => {
+            apply(box.dataset.compareToggle, box.checked);
+            remember();
+        });
+    });
+}
+
+// Multiline: swaps the single line fields for text areas and back, keeping the value
+const multilineToggle = document.getElementById('hd-translator-multiline-toggle');
+if (multilineToggle && form) {
+    const storageKey = 'hd_translator.multiline';
+
+    const swap = (field, tagName) => {
+        const replacement = document.createElement(tagName);
+
+        replacement.value = field.value;
+        replacement.className = field.className;
+        ['id', 'name', 'dir', 'lang', 'placeholder'].forEach((attribute) => {
+            const value = field.getAttribute(attribute);
+            if (value !== null) {
+                replacement.setAttribute(attribute, value);
+            }
+        });
+
+        if (tagName === 'input') {
+            replacement.setAttribute('type', 'text');
+        }
+
+        field.replaceWith(replacement);
+    };
+
+    const setMultiline = (enabled) => {
+        form.querySelectorAll('.hd-translator-field > ' + (enabled ? 'input' : 'textarea'))
+            .forEach((field) => swap(field, enabled ? 'textarea' : 'input'));
+
+        multilineToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        multilineToggle.classList.toggle('active', enabled);
+        localStorage.setItem(storageKey, enabled ? '1' : '0');
+    };
+
+    if (localStorage.getItem(storageKey) === '1') {
+        setMultiline(true);
+    }
+
+    multilineToggle.addEventListener('click', () => {
+        setMultiline(multilineToggle.getAttribute('aria-pressed') !== 'true');
+    });
+}

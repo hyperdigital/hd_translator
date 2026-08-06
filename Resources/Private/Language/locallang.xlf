@@ -321,6 +321,18 @@
             <trans-unit id="form.group.upload">
                 <source>Upload</source>
             </trans-unit>
+            <trans-unit id="detail.compare">
+                <source>Show other languages</source>
+            </trans-unit>
+            <trans-unit id="detail.compare.none">
+                <source>No other language is translated yet.</source>
+            </trans-unit>
+            <trans-unit id="detail.multiline">
+                <source>Multiline</source>
+            </trans-unit>
+            <trans-unit id="detail.multiline.description">
+                <source>Switch the fields to text areas when a value needs a line break.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -232,6 +232,46 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
+     * Languages a translation file is already translated into.
+     *
+     * A language counts as translated when it either has an override in the storage path or the
+     * extension ships a translation next to the original file, "cs.labels.xlf" beside
+     * "labels.xlf". Both are cheap file checks, so only languages that really exist are offered
+     * and loaded, instead of every language the file is configured for.
+     *
+     * @param string $keyTranslation
+     * @param string $originalLanguageFilePath EXT: reference of the default language file
+     * @param string $exclude language that is currently being edited
+     * @return array<string, string> language key => language label
+     */
+    protected function getTranslatedLanguages(string $keyTranslation, string $originalLanguageFilePath, string $exclude): array
+    {
+        $return = [];
+
+        $originalAbsolutePath = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($originalLanguageFilePath);
+        $originalDirectory = $originalAbsolutePath ? dirname($originalAbsolutePath) : '';
+        $originalFilename = $originalAbsolutePath ? basename($originalAbsolutePath) : '';
+
+        foreach ($this->listOfPossibleLanguages as $langKey => $langLabel) {
+            if ($langKey === $exclude || $langKey === 'default' || $langKey === 'en') {
+                continue;
+            }
+
+            $storagePath = $this->getTranslationPath((string)$langKey, $keyTranslation);
+            if (!empty($storagePath) && file_exists($storagePath)) {
+                $return[$langKey] = $langLabel;
+                continue;
+            }
+
+            if ($originalDirectory !== '' && file_exists($originalDirectory . '/' . $langKey . '.' . $originalFilename)) {
+                $return[$langKey] = $langLabel;
+            }
+        }
+
+        return $return;
+    }
+
+    /**
      * Reads the labels of one XLF file for one language.
      *
      * TYPO3 v14 removed LanguageService::includeLLFile(), which returned every language of a file
@@ -565,6 +605,28 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
         $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation);
+
+        // Languages that are already translated can be shown next to the edited value as a
+        // reference. They are attached to each label, so the template does not have to look them
+        // up by a key that may contain dots.
+        $comparisonLanguages = $this->getTranslatedLanguages($keyTranslation, $originalLanguageFilePath, $languageTranslation);
+        foreach ($comparisonLanguages as $comparisonKey => $comparisonLabel) {
+            $comparisonLabels = $this->loadLabels($originalLanguageFilePath, $comparisonKey);
+
+            foreach ($comparisonLabels[$comparisonKey] ?? [] as $labelKey => $entry) {
+                if (!isset($data[$languageTranslation][$labelKey])) {
+                    continue;
+                }
+
+                $data[$languageTranslation][$labelKey]['comparisons'][] = [
+                    'language' => $comparisonKey,
+                    'label' => $comparisonLabel,
+                    'value' => $entry[0]['target'] ?? '',
+                ];
+            }
+        }
+
+        $this->moduleTemplate->assign('comparisonLanguages', $comparisonLanguages);
 
         if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
             $output = [];

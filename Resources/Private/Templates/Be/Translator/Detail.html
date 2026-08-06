@@ -31,6 +31,38 @@
 					</div>
 
 					<div class="hd-translator-toolbar-actions">
+						<button type="button" id="hd-translator-multiline-toggle" class="btn btn-default"
+						        aria-pressed="false" title="{f:translate(key: 'detail.multiline.description')}">
+							<core:icon identifier="actions-chevron-expand" size="small" />
+							<f:translate key="detail.multiline" />
+						</button>
+
+						<div class="dropdown">
+							<button class="btn btn-default dropdown-toggle" type="button" data-bs-toggle="dropdown"
+							        data-bs-auto-close="outside" aria-expanded="false">
+								<core:icon identifier="actions-translate" size="small" />
+								<f:translate key="detail.compare" />
+							</button>
+							<div class="dropdown-menu dropdown-menu-end p-2" id="hd-translator-compare-menu">
+								<f:if condition="{comparisonLanguages}">
+									<f:then>
+										<f:for each="{comparisonLanguages}" as="comparisonLabel" key="comparisonKey">
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" value="{comparisonKey}"
+												       id="compare-{comparisonKey}" data-compare-toggle="{comparisonKey}" />
+												<label class="form-check-label" for="compare-{comparisonKey}">
+													{comparisonLabel} [{comparisonKey -> f:format.case(mode: 'upper')}]
+												</label>
+											</div>
+										</f:for>
+									</f:then>
+									<f:else>
+										<div class="hd-translator-filelist mt-0"><f:translate key="detail.compare.none" /></div>
+									</f:else>
+								</f:if>
+							</div>
+						</div>
+
 						<div class="dropdown">
 							<f:comment>auto close outside keeps the menu open while the upload form is used</f:comment>
 							<button class="btn btn-default dropdown-toggle" type="button" data-bs-toggle="dropdown"
@@ -125,7 +157,8 @@
 				key: data.fullKey,
 				langaugeKey: langaugeKey,
 				originalSource: data.value.0.source,
-				target: data.value.0.target
+				target: data.value.0.target,
+				comparisons: data.value.comparisons
 			}" />
 		</f:then>
 		<f:else>
@@ -136,7 +169,8 @@
 							key: subdata.fullKey,
 							langaugeKey: langaugeKey,
 							originalSource: subdata.value.0.source,
-							target: subdata.value.0.target
+							target: subdata.value.0.target,
+							comparisons: subdata.value.comparisons
 						}" />
 					</f:then>
 					<f:else>
@@ -161,7 +195,8 @@
 				key: key,
 				langaugeKey: langaugeKey,
 				originalSource: value.0.source,
-				target: value.0.target
+				target: value.0.target,
+				comparisons: value.comparisons
 			}" />
 		</f:for>
 	</div>
@@ -179,6 +214,14 @@
 		</div>
 		<f:if condition="{originalSource}">
 			<div class="hd-translator-original" dir="auto">{originalSource}</div>
+		</f:if>
+		<f:if condition="{comparisons}">
+			<f:for each="{comparisons}" as="comparison">
+				<div class="hd-translator-compare hidden" data-compare-language="{comparison.language}">
+					<span class="hd-translator-compare-code">{comparison.language -> f:format.case(mode: 'upper')}</span>
+					<span dir="{translator:languageDirection(language: comparison.language)}" lang="{comparison.language}">{comparison.value}</span>
+				</div>
+			</f:for>
 		</f:if>
 		<f:if condition="{langaugeKey} != 'default'">
 			<input type="hidden" name="{key}[default]" value="{originalSource}" />

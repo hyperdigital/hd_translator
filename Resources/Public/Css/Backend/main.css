@@ -254,3 +254,32 @@
 .hd-translator-source-cell {
     unicode-bidi: plaintext;
 }
+
+/* ------------------------------------------------- reference translations */
+.hd-translator-compare {
+    display: flex;
+    align-items: baseline;
+    gap: .375rem;
+    font-size: .8125rem;
+    color: var(--hdtranslator-muted);
+    overflow-wrap: anywhere;
+    unicode-bidi: plaintext;
+}
+
+.hd-translator-compare-code {
+    flex: 0 0 auto;
+    padding: 0 .25rem;
+    border: 1px solid var(--hdtranslator-border);
+    border-radius: 2px;
+    font-family: var(--typo3-font-family-monospace, monospace);
+    font-size: .6875rem;
+    line-height: 1.4;
+    unicode-bidi: plaintext;
+}
+
+/* a text area replaces the single line field when multiline is switched on */
+.hd-translator-field textarea {
+    width: 100%;
+    min-height: 5rem;
+    resize: vertical;
+}
