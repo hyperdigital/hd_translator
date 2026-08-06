@@ -33,7 +33,7 @@ class DocHeaderButtonsHook
                 $button = $event->getButtonBar()->makeLinkButton();
                 $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', IconSize::SMALL));
                 $button->setTitle($label);
-                $button->setShowLabelText($label);
+                $button->setShowLabelText(true);
                 $button->setHref($this->getPageContentExportLink($currentUid));
                 $buttonBar = $event->getButtons();
                 $buttonBar[ButtonBar::BUTTON_POSITION_LEFT][][] = $button;
@@ -45,7 +45,7 @@ class DocHeaderButtonsHook
                 $button = $event->getButtonBar()->makeLinkButton();
                 $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', IconSize::SMALL));
                 $button->setTitle($label);
-                $button->setShowLabelText($label);
+                $button->setShowLabelText(true);
                 $enableButton = false;
                 foreach ($queryParams['edit'] as $table => $idArray) {
                     if(!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {

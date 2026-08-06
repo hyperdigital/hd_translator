@@ -533,7 +533,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
                 $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
                     ->setHref($uriBuilder->reset()->uriFor('detail', $this->withPageContext(['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang])))
-                    ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
+                    ->setActive((strtoupper($languageTranslation) == strtoupper($lang)));
                 $menu->addMenuItem($item);
             }
         }
@@ -1079,17 +1079,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // Static strings
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.index', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
-            ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
+            ->setActive('index' == $this->request->getControllerActionName());
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.pageContentExport', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('pageContentExport', $this->withPageContext()))
-            ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
+            ->setActive('pageContentExport' == $this->request->getControllerActionName());
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.database', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
-            ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
+            ->setActive('database' == $this->request->getControllerActionName());
         $menu->addMenuItem($item);
 
         if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
@@ -1101,19 +1101,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.exportTableRowIndex', 'hd_translator'))
                 ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', $rowArguments))
-                ->setActive(1);
+                ->setActive(true);
             $menu->addMenuItem($item);
         }
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', $this->withPageContext()))
-            ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
+            ->setActive('databaseImportIndex' == $this->request->getControllerActionName());
         $menu->addMenuItem($item);
 
         if (!empty($this->deeplApiKey)) {
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplTranslations', 'hd_translator'))
                 ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
-                ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']) ? 1 : 0);
+                ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']));
             $menu->addMenuItem($item);
         }
 
