@@ -155,6 +155,17 @@ TCA options for database export
 
     Fields that must never be overwritten on re-import, for example :php:`'slug,url'`.
 
+..  _multi-site:
+
+Multiple sites
+==============
+
+The module has no page tree, so TYPO3 does not supply the :php:`id` parameter by itself.
+The extension therefore resolves the page from the record or page the current action
+works on and passes :php:`id` along in its own links. This is what allows the source and
+target language dropdowns to show the languages of the correct site - important as soon
+as two sites use different default languages.
+
 ..  _deepl:
 
 DeepL translations

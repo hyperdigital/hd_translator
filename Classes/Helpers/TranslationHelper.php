@@ -7,6 +7,46 @@ use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 
 class TranslationHelper
 {
+    /**
+     * Resolves the page a record lives on. Used to determine the site configuration,
+     * because the Translator module has no page tree that would supply "id" on its own.
+     *
+     * @param string $tablename
+     * @param int $uid
+     * @return int pid of the record, 0 when it cannot be resolved
+     */
+    public static function getPidOfRecord(string $tablename, int $uid): int
+    {
+        if ($uid <= 0 || empty($GLOBALS['TCA'][$tablename])) {
+            return 0;
+        }
+
+        // a page is its own page context
+        if ($tablename === 'pages') {
+            return $uid;
+        }
+
+        $queryBuilder = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ConnectionPool::class)
+            ->getConnectionForTable($tablename)
+            ->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()
+            ->add(\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction::class));
+
+        $row = $queryBuilder
+            ->select('pid')
+            ->from($tablename)
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'uid',
+                    $queryBuilder->createNamedParameter($uid, \TYPO3\CMS\Core\Database\Connection::PARAM_INT)
+                )
+            )
+            ->executeQuery()
+            ->fetchAssociative();
+
+        return (int)($row['pid'] ?? 0);
+    }
+
     public static function getStoragePath()
     {
         $storage = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'storagePath');

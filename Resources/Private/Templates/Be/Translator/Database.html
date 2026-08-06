@@ -11,6 +11,7 @@
 	<h1>{f:translate(key: 'exportDatabase.headline')}</h1>
 	<div>
 		<f:form action="databaseExport">
+			<f:if condition="{pageUid}"><f:form.hidden name="id" value="{pageUid}" /></f:if>
 			<div class="row row-cols-auto align-items-end g-3">
 				<div class="col">
 					<label for="sourceLanguageUid" class="form-label">Source TYPO3 Language</label>

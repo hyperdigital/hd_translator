@@ -99,48 +99,131 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $this->moduleTemplate = $this->moduleTemplateFactory->create($this->request);
 
-        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
-        if ($currentPid) {
-            $this->pageUid = (int)$currentPid;
+        $this->pageUid = $this->resolveCurrentPageUid();
+        if ($this->pageUid > 0) {
             $this->pageData = $this->pageRepository->getPage($this->pageUid, true);
+        }
+
+        // templates carry it back through their forms, so the site context survives a submit
+        $this->moduleTemplate->assign('pageUid', $this->pageUid);
+    }
+
+    /**
+     * Resolves the page the current request works on.
+     *
+     * The module has no page tree, so TYPO3 never supplies the "id" parameter on its own.
+     * Without a page the site configuration cannot be found, which breaks every installation
+     * running more than one site - especially when the sites use different default languages.
+     * Therefore the page is taken from "id" when present and otherwise derived from the
+     * record or page the current action is about.
+     */
+    protected function resolveCurrentPageUid(): int
+    {
+        // "id" as plain request parameter (docheader button, context menu, page tree)
+        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
+        if ((int)$currentPid > 0) {
+            return (int)$currentPid;
+        }
+
+        // "id" carried through the module's own links, where it is namespaced by Extbase
+        if ($this->request->hasArgument('id') && (int)$this->request->getArgument('id') > 0) {
+            return (int)$this->request->getArgument('id');
+        }
+
+        // pageContentExport / pageContentExportProccess / databaseExport
+        foreach (['page', 'storages'] as $argumentName) {
+            if ($this->request->hasArgument($argumentName)) {
+                $value = $this->request->getArgument($argumentName);
+                if (is_array($value)) {
+                    $value = reset($value);
+                }
+                // "storages" may be a comma separated list, the first entry defines the site
+                $parts = GeneralUtility::trimExplode(',', (string)$value, true);
+                $first = (int)($parts[0] ?? 0);
+                if ($first > 0) {
+                    return $first;
+                }
+            }
+        }
+
+        // exportTableRowIndex / exportTableRowExport work on a single record
+        if ($this->request->hasArgument('tablename') && $this->request->hasArgument('rowUid')) {
+            $tablename = (string)$this->request->getArgument('tablename');
+            $rowUid = (int)$this->request->getArgument('rowUid');
+
+            return \Hyperdigital\HdTranslator\Helpers\TranslationHelper::getPidOfRecord($tablename, $rowUid);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Returns the site the current page belongs to, or null when it cannot be resolved.
+     */
+    protected function getCurrentSite(): ?\TYPO3\CMS\Core\Site\Entity\Site
+    {
+        if ($this->pageUid <= 0) {
+            return null;
+        }
+
+        try {
+            return GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($this->pageUid);
+        } catch (SiteNotFoundException $e) {
+            return null;
         }
     }
 
     /**
      * Returns available languages from the site configuration (TYPO3 v13) for source language dropdowns.
-     * Uses the current page's site or falls back to all sites to collect languages.
+     *
+     * When the site is known, exactly its languages are returned. Without a site the languages of
+     * all sites are listed and prefixed with the site identifier - language ids are only unique per
+     * site, so merging them silently would show a wrong language name whenever two sites disagree
+     * (for example when one site uses English and another German as language 0).
      *
      * @return array<int, array{uid: int, title: string}>
      */
     protected function getAllowedSystemLanguages(): array
     {
         $allowedLanguages = [];
-        $seenIds = [];
         $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
+        $site = $this->getCurrentSite();
 
-        try {
-            $sites = [];
-            if ($this->pageUid > 0) {
-                $site = $siteFinder->getSiteByPageId($this->pageUid);
-                $sites = [$site];
+        if ($site !== null) {
+            foreach ($site->getAllLanguages() as $siteLanguage) {
+                $languageId = $siteLanguage->getLanguageId();
+                $allowedLanguages[] = [
+                    'uid' => $languageId,
+                    'title' => $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId)),
+                ];
             }
-            if (empty($sites)) {
-                $sites = $siteFinder->getAllSites();
-            }
-            foreach ($sites as $site) {
-                foreach ($site->getAllLanguages() as $siteLanguage) {
+        } else {
+            $sites = $siteFinder->getAllSites();
+            $showSiteIdentifier = count($sites) > 1;
+
+            $seen = [];
+            foreach ($sites as $siteIdentifier => $eachSite) {
+                foreach ($eachSite->getAllLanguages() as $siteLanguage) {
                     $languageId = $siteLanguage->getLanguageId();
-                    if (!isset($seenIds[$languageId])) {
-                        $seenIds[$languageId] = true;
-                        $allowedLanguages[] = [
-                            'uid' => $languageId,
-                            'title' => $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId)),
-                        ];
+                    $title = $siteLanguage->getTitle() ?: ($languageId === 0 ? 'Default' : ('Language ' . $languageId));
+
+                    if ($showSiteIdentifier) {
+                        $title = $title . ' [' . $siteIdentifier . ']';
                     }
+
+                    // identical languages of different sites are listed only once
+                    $key = $languageId . '-' . $title;
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+
+                    $allowedLanguages[] = [
+                        'uid' => $languageId,
+                        'title' => $title,
+                    ];
                 }
             }
-        } catch (SiteNotFoundException $e) {
-            // No site configured, e.g. during installation
         }
 
         if (empty($allowedLanguages)) {
@@ -156,6 +239,22 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     // HELPERS
+    /**
+     * Adds the resolved page to link arguments, so the site context survives navigation
+     * inside the module (the module has no page tree that would keep "id" alive).
+     *
+     * @param array $arguments
+     * @return array
+     */
+    protected function withPageContext(array $arguments = []): array
+    {
+        if ($this->pageUid > 0 && !isset($arguments['id'])) {
+            $arguments['id'] = $this->pageUid;
+        }
+
+        return $arguments;
+    }
+
     /**
      * Builds a file download response instead of echoing the payload and killing the request.
      *
@@ -273,7 +372,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('index'))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -359,7 +458,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (!empty($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'])) {
             foreach ($GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['languages'] as $lang) {
                 $item = $menu->makeMenuItem()->setTitle('[' . strtoupper($lang) . '] ' . $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['label'])
-                    ->setHref($uriBuilder->reset()->uriFor('detail', ['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang]))
+                    ->setHref($uriBuilder->reset()->uriFor('detail', $this->withPageContext(['keyTranslation' => $keyTranslation, 'languageTranslation' => $lang])))
                     ->setActive((strtoupper($languageTranslation) == strtoupper($lang)) ? 1 : 0);
                 $menu->addMenuItem($item);
             }
@@ -370,7 +469,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -434,7 +533,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('list', ['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']]))
+            ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -910,35 +1009,41 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         // Static strings
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.index', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('index', null))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setActive('index' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.pageContentExport', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('pageContentExport', null))
+            ->setHref($uriBuilder->reset()->uriFor('pageContentExport', $this->withPageContext()))
             ->setActive('pageContentExport' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.database', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('database', null))
+            ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
             ->setActive('database' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if ($this->request->getControllerActionName() == 'exportTableRowIndex') {
+            // this action only works with its record, so the arguments have to be carried over
+            $rowArguments = $this->withPageContext([
+                'tablename' => (string)$this->request->getArgument('tablename'),
+                'rowUid' => (int)$this->request->getArgument('rowUid'),
+            ]);
+
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.exportTableRowIndex', 'hd_translator'))
-                ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', null))
-                ->setActive('exportTableRowIndex' == $this->request->getControllerActionName() ? 1 : 0);
+                ->setHref($uriBuilder->reset()->uriFor('exportTableRowIndex', $rowArguments))
+                ->setActive(1);
             $menu->addMenuItem($item);
         }
 
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
-            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', null))
+            ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', $this->withPageContext()))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName() ? 1 : 0);
         $menu->addMenuItem($item);
 
         if (!empty($this->deeplApiKey)) {
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplTranslations', 'hd_translator'))
-                ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', null))
+                ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
                 ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']) ? 1 : 0);
             $menu->addMenuItem($item);
         }
@@ -1091,7 +1196,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('database'))
+            ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1253,7 +1358,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('index'))
+            ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1427,7 +1532,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1436,7 +1541,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', ['language' => $language]))
+            ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', $this->withPageContext(['language' => $language])))
             ->setIcon($iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Remove all strings');
@@ -1460,7 +1565,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
@@ -1487,7 +1592,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $uriBuilder->setRequest($this->request);
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList'))
+            ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
             ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
