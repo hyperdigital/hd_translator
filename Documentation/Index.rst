@@ -48,6 +48,11 @@ Database export and import
     file references and FlexForm fields) into XLIFF, and import the translated files
     back as TYPO3 translation records.
 
+Review states
+    Every static string carries a review state. TYPO3 14 holds a label back that is not
+    approved, so the frontend falls back to its source until somebody marks it reviewed.
+    See :ref:`review-states`.
+
 Exchange formats
     XLIFF 1.2 and XLIFF 2.0 are read and written. Gettext PO, JSON, YAML and CSV are
     available too, through the loaders and dumpers of the Symfony Translation component
@@ -363,3 +368,43 @@ The response reports what happened::
 
 The status is 200 when everything was written, 207 when some entries failed, 400 for a
 malformed request and 422 when the file was rejected or nothing was left to import.
+
+
+..  _review-states:
+
+Review states
+=============
+
+Each label on the detail screen carries one of four states:
+
+..  list-table::
+    :header-rows: 1
+
+    *   -   State
+        -   Stored as
+        -   Shown in the frontend
+    *   -   Not translated
+        -   :xml:`approved="no"`, :xml:`state="initial"`
+        -   No, falls back to the source
+    *   -   Translated, not reviewed
+        -   :xml:`approved="no"`, :xml:`state="translated"`
+        -   No, falls back to the source
+    *   -   Reviewed
+        -   :xml:`approved="yes"`, :xml:`state="reviewed"`
+        -   Yes
+    *   -   Final
+        -   :xml:`approved="yes"`, :xml:`state="final"`
+        -   Yes
+
+This is not a convention of this extension, it is how TYPO3 reads the file. With
+:php:`$GLOBALS['TYPO3_CONF_VARS']['LANG']['requireApprovedLocalizations']` enabled, which is
+the default, :php:`XliffLoader` skips a unit that is not approved and the label falls back to
+its source. Setting that option to :php:`false` publishes every label regardless of state.
+
+A label nobody has marked counts as *Final*, because a unit without an :xml:`approved`
+attribute is approved as far as TYPO3 is concerned. Existing installations therefore keep
+behaving exactly as before.
+
+The state travels with the file. The XLIFF 2.0 download of the detail screen writes it as the
+segment state, an importing tool sees it, and importing the file back restores it - so a
+translation that came back unreviewed stays hidden until somebody reviews it.

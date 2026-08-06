@@ -447,6 +447,27 @@
             <trans-unit id="coverage.noLanguages">
                 <source>No language registered</source>
             </trans-unit>
+            <trans-unit id="detail.state">
+                <source>Review state</source>
+            </trans-unit>
+            <trans-unit id="state.initial">
+                <source>Not translated</source>
+            </trans-unit>
+            <trans-unit id="state.translated">
+                <source>Translated, not reviewed</source>
+            </trans-unit>
+            <trans-unit id="state.reviewed">
+                <source>Reviewed</source>
+            </trans-unit>
+            <trans-unit id="state.final">
+                <source>Final</source>
+            </trans-unit>
+            <trans-unit id="state.notice">
+                <source>A label below "Reviewed" is held back by TYPO3 and falls back to its source in the frontend.</source>
+            </trans-unit>
+            <trans-unit id="qa.notApproved">
+                <source>The file marks this entry as translated but not yet reviewed.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

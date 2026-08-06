@@ -140,8 +140,13 @@ class TranslationQaService
             $findings[] = $this->finding(self::SEVERITY_WARNING, 'identicalToSource', []);
         }
 
-        if (in_array((string)($entry['state'] ?? ''), self::UNFINISHED_STATES, true)) {
+        $state = (string)($entry['state'] ?? '');
+        if (in_array($state, self::UNFINISHED_STATES, true)) {
             $findings[] = $this->finding(self::SEVERITY_WARNING, 'notTranslated', []);
+        } elseif ($state !== '' && !XlfService::isApprovedState($state)) {
+            // translated but nobody has reviewed it, which for static strings means TYPO3 keeps
+            // showing the source until somebody does
+            $findings[] = $this->finding(self::SEVERITY_WARNING, 'notApproved', []);
         }
 
         return $findings;

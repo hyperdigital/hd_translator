@@ -93,12 +93,12 @@
 								<f:translate key="detail.download" />
 							</button>
 							<ul class="dropdown-menu dropdown-menu-end">
-								<f:for each="{0: 'xlf', 1: 'xls', 2: 'csv', 3: 'json'}" as="format">
+								<f:for each="{xlf: 'XLIFF 1.2', xlf20: 'XLIFF 2.0', xls: 'XLSX', csv: 'CSV', json: 'JSON'}" as="formatLabel" key="format">
 									<li>
 										<f:link.action class="dropdown-item" absolute="1" action="download"
 										               arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: format}">
 											<core:icon identifier="actions-file" size="small" />
-											<span>{format -> f:format.case(mode: 'upper')}</span>
+											<span>{formatLabel}</span>
 										</f:link.action>
 									</li>
 								</f:for>
@@ -158,6 +158,7 @@
 				langaugeKey: langaugeKey,
 				originalSource: data.value.0.source,
 				target: data.value.0.target,
+				state: data.value.0.state,
 				comparisons: data.value.comparisons
 			}" />
 		</f:then>
@@ -170,6 +171,7 @@
 							langaugeKey: langaugeKey,
 							originalSource: subdata.value.0.source,
 							target: subdata.value.0.target,
+							state: subdata.value.0.state,
 							comparisons: subdata.value.comparisons
 						}" />
 					</f:then>
@@ -225,6 +227,20 @@
 		</f:if>
 		<f:if condition="{langaugeKey} != 'default'">
 			<input type="hidden" name="{key}[default]" value="{originalSource}" />
+
+			<f:comment>
+				TYPO3 holds a label back whose unit is not approved, so anything below "reviewed"
+				falls back to its source in the frontend.
+			</f:comment>
+			<div class="hd-translator-state">
+				<label class="visually-hidden" for="state-{key}"><f:translate key="detail.state" /></label>
+				<select id="state-{key}" name="{key}[_state]" class="form-select form-select-sm hd-translator-state-select"
+				        data-state="{state}">
+					<f:for each="{translationStates}" as="stateLabel" key="stateValue">
+						<option value="{stateValue}"<f:if condition="{state} == {stateValue}"> selected="selected"</f:if>>{stateLabel}</option>
+					</f:for>
+				</select>
+			</div>
 		</f:if>
 	</div>
 </f:section>

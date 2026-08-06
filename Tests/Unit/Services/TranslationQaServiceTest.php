@@ -26,8 +26,8 @@ final class TranslationQaServiceTest extends UnitTestCase
         return ['key' => array_merge([
             'source' => $source,
             'target' => $target,
-            'state' => XlfService::STATE_TRANSLATED,
-            'approved' => false,
+            'state' => XlfService::STATE_FINAL,
+            'approved' => true,
             'maxLength' => null,
             'notes' => [],
             'html' => false,

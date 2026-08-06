@@ -347,7 +347,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      * @param string $languageKey language to read
      * @return array
      */
-    protected function loadLabels(string $filePath, string $languageKey): array
+    protected function loadLabels(string $filePath, string $languageKey, string $keyTranslation = ''): array
     {
         $this->languageService->init('default');
         $sourceLabels = $this->languageService->getLabelsFromResource($filePath);
@@ -373,11 +373,69 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $target = $source;
             }
 
-            $data['default'][$key] = [0 => ['source' => $source, 'target' => $source]];
-            $data[$languageKey][$key] = [0 => ['source' => $source, 'target' => $target]];
+            // A label nobody has marked is live: a 1.2 unit without an "approved" attribute is
+            // approved as far as TYPO3 is concerned. Starting from anything else would make the
+            // first save of a screen hide every label on it.
+            $data['default'][$key] = [0 => ['source' => $source, 'target' => $source, 'state' => XlfService::STATE_FINAL]];
+            $data[$languageKey][$key] = [0 => ['source' => $source, 'target' => $target, 'state' => XlfService::STATE_FINAL]];
+        }
+
+        if ($keyTranslation !== '') {
+            $this->overlayStoredOverride($data, $languageKey, $keyTranslation);
         }
 
         return $data;
+    }
+
+    /**
+     * The review states a label can carry, in the order they are worked through.
+     *
+     * @return array<string, string>
+     */
+    protected function getTranslationStates(): array
+    {
+        $states = [];
+        foreach ([XlfService::STATE_INITIAL, XlfService::STATE_TRANSLATED, XlfService::STATE_REVIEWED, XlfService::STATE_FINAL] as $state) {
+            $states[$state] = \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('state.' . $state, 'hd_translator') ?: $state;
+        }
+
+        return $states;
+    }
+
+    /**
+     * Puts what is actually stored in the override file back on top of the resolved labels.
+     *
+     * LanguageService answers what the frontend would show, and TYPO3 holds a label back whose
+     * unit is not approved, so it comes back as its english source. Without this the editing
+     * screen would lose the text of everything marked as not yet reviewed, and the next save
+     * would write that fallback over the real translation.
+     */
+    protected function overlayStoredOverride(array &$data, string $languageKey, string $keyTranslation): void
+    {
+        if ($languageKey === 'default' || $languageKey === 'en') {
+            // the default language file carries sources only, there is nothing to overlay
+            return;
+        }
+
+        $path = $this->getTranslationPath($languageKey, $keyTranslation);
+        if ($path === '' || !is_readable($path)) {
+            return;
+        }
+
+        $stored = GeneralUtility::makeInstance(XlfService::class)->parse((string)file_get_contents($path));
+
+        foreach ($stored as $key => $entry) {
+            if (!isset($data[$languageKey][$key])) {
+                continue;
+            }
+
+            if ($entry['target'] !== '') {
+                $data[$languageKey][$key][0]['target'] = $entry['target'];
+            }
+            if ($entry['state'] !== '') {
+                $data[$languageKey][$key][0]['state'] = $entry['state'];
+            }
+        }
     }
 
     /**
@@ -664,14 +722,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation);
+        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation, $keyTranslation);
 
         // Languages that are already translated can be shown next to the edited value as a
         // reference. They are attached to each label, so the template does not have to look them
         // up by a key that may contain dots.
         $comparisonLanguages = $this->getTranslatedLanguages($keyTranslation, $originalLanguageFilePath, $languageTranslation);
         foreach ($comparisonLanguages as $comparisonKey => $comparisonLabel) {
-            $comparisonLabels = $this->loadLabels($originalLanguageFilePath, $comparisonKey);
+            $comparisonLabels = $this->loadLabels($originalLanguageFilePath, $comparisonKey, $keyTranslation);
 
             foreach ($comparisonLabels[$comparisonKey] ?? [] as $labelKey => $entry) {
                 if (!isset($data[$languageTranslation][$labelKey])) {
@@ -687,6 +745,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->moduleTemplate->assign('comparisonLanguages', $comparisonLanguages);
+        $this->moduleTemplate->assign('translationStates', $this->getTranslationStates());
 
         if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
             $output = [];
@@ -749,7 +808,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function downloadAction($keyTranslation, $languageTranslation, $format)
     {
         $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation);
+        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation, $keyTranslation);
         $downloadFilename = explode('/', $originalLanguageFilePath);
         $downloadFilename = explode('.', $downloadFilename[count($downloadFilename) - 1]);
         unset($downloadFilename[count($downloadFilename) - 1]);
@@ -801,6 +860,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     json_encode($data[$languageTranslation], JSON_PRETTY_PRINT),
                     $downloadFilename . '.json',
                     'application/json'
+                );
+            case 'xlf20':
+                // built from the data rather than streamed, so the review state of every label
+                // travels with it as an XLIFF 2.0 segment state
+                $exportData = [];
+                foreach ($data[$languageTranslation] as $key => $value) {
+                    $exportData[$key] = [
+                        'default' => $value[0]['source'] ?? '',
+                        $languageTranslation => $value[0]['target'] ?? '',
+                        '_state' => $value[0]['state'] ?? '',
+                    ];
+                }
+
+                return $this->fileDownloadResponse(
+                    (string)GeneralUtility::makeInstance(XlfService::class)->dataToXlf(
+                        $exportData,
+                        $languageTranslation,
+                        'en',
+                        $keyTranslation,
+                        XlfService::VERSION_20
+                    ),
+                    $downloadFilename . '.xlf',
+                    'application/xliff+xml'
                 );
             case 'xlf':
                 $absolutePath = $this->getTranslationPath($languageTranslation, $keyTranslation);
@@ -873,6 +955,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $data[$key] = [
                     'default' => $entry['source'],
                     $languageTranslation => $entry['target'],
+                    // the state a translator sent back is kept, so a file that is not reviewed yet
+                    // stays held back instead of going live on import
+                    '_state' => $entry['state'],
                 ];
             }
         }
@@ -1765,6 +1850,16 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
                 $source->appendChild($valSource);
                 $target->appendChild($valTarget);
+
+                // The review state of the label. TYPO3 reads "approved" and holds a label that is
+                // not approved back, so the frontend falls back to the source until someone marks
+                // it reviewed. "state" carries the finer value for the translation tools.
+                $state = (string)($value['_state'] ?? '');
+                if ($state !== '') {
+                    $target->setAttribute('state', $state);
+                    $item->setAttribute('approved', XlfService::isApprovedState($state) ? 'yes' : 'no');
+                }
+
                 $item->appendChild($source);
                 $item->appendChild($target);
             }

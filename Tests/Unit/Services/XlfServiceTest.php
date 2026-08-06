@@ -233,4 +233,106 @@ final class XlfServiceTest extends UnitTestCase
         self::assertArrayHasKey($key, $back);
         self::assertSame('T', $back[$key]['de']);
     }
+
+    #[Test]
+    public function aUnitWithoutAnApprovedAttributeCountsAsApproved(): void
+    {
+        // TYPO3 reads it the same way, only an explicit approved="no" holds a label back
+        $xlf = '<?xml version="1.0"?><xliff version="1.2"><file source-language="en" target-language="de" '
+            . 'original="messages" datatype="plaintext"><body>'
+            . '<trans-unit id="a"><source>A</source><target>A-de</target></trans-unit>'
+            . '</body></file></xliff>';
+
+        $parsed = $this->subject->parse($xlf);
+
+        self::assertTrue($parsed['a']['approved']);
+        self::assertSame(XlfService::STATE_FINAL, $parsed['a']['state']);
+    }
+
+    #[Test]
+    public function anExplicitlyUnapprovedUnitIsNotApproved(): void
+    {
+        $xlf = '<?xml version="1.0"?><xliff version="1.2"><file source-language="en" target-language="de" '
+            . 'original="messages" datatype="plaintext"><body>'
+            . '<trans-unit id="a" approved="no"><source>A</source><target>A-de</target></trans-unit>'
+            . '</body></file></xliff>';
+
+        $parsed = $this->subject->parse($xlf);
+
+        self::assertFalse($parsed['a']['approved']);
+    }
+
+    #[Test]
+    public function onlyReviewedAndFinalCountAsApproved(): void
+    {
+        self::assertFalse(XlfService::isApprovedState(XlfService::STATE_INITIAL));
+        self::assertFalse(XlfService::isApprovedState(XlfService::STATE_TRANSLATED));
+        self::assertTrue(XlfService::isApprovedState(XlfService::STATE_REVIEWED));
+        self::assertTrue(XlfService::isApprovedState(XlfService::STATE_FINAL));
+    }
+
+    #[Test]
+    public function anExplicitStateIsKeptInsteadOfBeingDerived(): void
+    {
+        $data = ['key' => ['default' => 'Source', 'de' => 'Ziel', '_state' => XlfService::STATE_REVIEWED]];
+
+        $back = $this->subject->parse(
+            (string)$this->subject->dataToXlf($data, 'de', 'en', '', XlfService::VERSION_20)
+        );
+
+        self::assertSame(XlfService::STATE_REVIEWED, $back['key']['state']);
+        self::assertTrue($back['key']['approved']);
+    }
+
+    #[Test]
+    public function anExplicitStateIsWrittenIntoXliff12AsApprovedAndState(): void
+    {
+        $notApproved = (string)$this->subject->dataToXlf(
+            ['key' => ['default' => 'Source', 'de' => 'Ziel', '_state' => XlfService::STATE_TRANSLATED]],
+            'de',
+            'en'
+        );
+
+        self::assertStringContainsString('approved="no"', $notApproved);
+        self::assertStringContainsString('state="translated"', $notApproved);
+        self::assertFalse($this->subject->parse($notApproved)['key']['approved']);
+
+        $approved = (string)$this->subject->dataToXlf(
+            ['key' => ['default' => 'Source', 'de' => 'Ziel', '_state' => XlfService::STATE_FINAL]],
+            'de',
+            'en'
+        );
+
+        self::assertStringContainsString('approved="yes"', $approved);
+    }
+
+    #[Test]
+    public function anEntryWithoutAStateDoesNotGetAnApprovedAttribute(): void
+    {
+        // adding approved="no" to files that never had it would hide labels that work today
+        $xlf = (string)$this->subject->dataToXlf(
+            ['key' => ['default' => 'Source', 'de' => 'Ziel']],
+            'de',
+            'en'
+        );
+
+        self::assertStringNotContainsString('approved=', $xlf);
+    }
+
+    #[Test]
+    public function xliff20UnitsCarryTheKeyInNameAsWellAsInId(): void
+    {
+        // the Symfony loader keys a 2.0 unit by "name" and only falls back to "id"
+        $xlf = (string)$this->subject->dataToXlf(
+            ['my.key' => ['default' => 'Source', 'de' => 'Ziel', '_label' => 'Human label']],
+            'de',
+            'en',
+            '',
+            XlfService::VERSION_20
+        );
+
+        self::assertStringContainsString('id="my.key"', $xlf);
+        self::assertStringContainsString('name="my.key"', $xlf);
+        self::assertStringNotContainsString('name="Human label"', $xlf);
+    }
 }

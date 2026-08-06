@@ -370,3 +370,20 @@
     color: var(--typo3-text-color-variant, #7c7c7c);
     font-size: .85em;
 }
+
+/* --------------------------------------------------------- review states */
+.hd-translator-state {
+    grid-column: 2;
+    margin-block-start: .25rem;
+}
+
+.hd-translator-state-select {
+    inline-size: auto;
+    max-inline-size: 100%;
+    font-size: .8rem;
+}
+
+.hd-translator-state-select[data-state="initial"],
+.hd-translator-state-select[data-state="translated"] {
+    border-color: var(--typo3-color-warning, #b78a00);
+}

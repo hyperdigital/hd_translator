@@ -110,6 +110,14 @@ class XlfService
             $source->appendChild($domtree->createTextNode($sourceText));
             $target = $domtree->createElement('target');
             $target->appendChild($domtree->createTextNode($targetText));
+
+            if (!empty($value['_state'])) {
+                $state = $this->resolveState($value, $sourceText, $targetText);
+                // 1.2 has no state vocabulary TYPO3 reads, it acts on "approved" instead
+                $target->setAttribute('state', $state);
+                $item->setAttribute('approved', self::isApprovedState($state) ? 'yes' : 'no');
+            }
+
             $item->appendChild($source);
             $item->appendChild($target);
 
@@ -189,10 +197,9 @@ class XlfService
         foreach ($data as $key => $value) {
             $unit = $domtree->createElement('unit');
             $unit->setAttribute('id', (string)$key);
-
-            if (!empty($value['_label'])) {
-                $unit->setAttribute('name', (string)$value['_label']);
-            }
+            // Symfony's XLIFF 2.0 loader keys a unit by "name" and only falls back to "id",
+            // so both have to carry the key. The human label goes into the notes below.
+            $unit->setAttribute('name', (string)$key);
 
             $notes = [];
             if (!empty($value['_label'])) {
@@ -224,11 +231,7 @@ class XlfService
             [$sourceText, $targetText] = $this->resolveSourceAndTarget($value, $targetLanguage);
 
             $segment = $domtree->createElement('segment');
-            // an untranslated value repeats the source, that is not a translation yet
-            $segment->setAttribute(
-                'state',
-                ($targetText !== '' && $targetText !== $sourceText) ? self::STATE_TRANSLATED : self::STATE_INITIAL
-            );
+            $segment->setAttribute('state', $this->resolveState($value, $sourceText, $targetText));
 
             $source = $domtree->createElement('source');
             $source->appendChild($domtree->createTextNode($sourceText));
@@ -245,6 +248,32 @@ class XlfService
         $domtree->appendChild($xmlRoot);
 
         return $domtree->saveXML();
+    }
+
+    /**
+     * Whether a state means the translation may be published.
+     *
+     * TYPO3 reads it the same way: with LANG.requireApprovedLocalizations on, which is the
+     * default, a unit in state "initial" or "translated" is skipped and the label falls back to
+     * its source. Only "reviewed" and "final" reach the frontend.
+     */
+    public static function isApprovedState(string $state): bool
+    {
+        return in_array($state, self::APPROVED_STATES, true);
+    }
+
+    /**
+     * The state of one entry: what the data says, or what the values imply when it says nothing.
+     */
+    protected function resolveState(array $value, string $sourceText, string $targetText): string
+    {
+        $state = (string)($value['_state'] ?? '');
+        if (in_array($state, [self::STATE_INITIAL, self::STATE_TRANSLATED, self::STATE_REVIEWED, self::STATE_FINAL], true)) {
+            return $state;
+        }
+
+        // an untranslated value repeats the source, that is not a translation yet
+        return ($targetText !== '' && $targetText !== $sourceText) ? self::STATE_TRANSLATED : self::STATE_INITIAL;
     }
 
     /**
@@ -345,8 +374,10 @@ class XlfService
                 $notes[] = trim($note->textContent);
             }
 
-            // 1.2 carries approval on the trans-unit itself
-            $approved = $unit->getAttribute('approved') === 'yes';
+            // 1.2 carries approval on the trans-unit itself. A missing attribute means approved,
+            // which is how TYPO3 reads it too: only an explicit approved="no" holds a label back.
+            $approvedAttribute = $unit->getAttribute('approved');
+            $approved = $approvedAttribute === '' || $approvedAttribute === 'yes';
             $state = (string)($this->firstChildText($unit, 'target', true) ?? '');
 
             $return[$id] = [
