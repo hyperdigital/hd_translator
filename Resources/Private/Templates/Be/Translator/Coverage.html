@@ -1,0 +1,139 @@
+<html
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
+<div class="hd-translator">
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'coverage.headline\')}',
+		subtitle: '{f:translate(key: \'coverage.description\')}'
+	}" />
+
+	<h2><f:translate key="coverage.database.headline" /></h2>
+
+	<f:if condition="{databaseCoverage}">
+		<f:then>
+			<f:for each="{databaseCoverage}" as="site">
+				<f:if condition="{singleSite}">
+					<f:else>
+						<h3 class="hd-translator-subheadline">{site.identifier}</h3>
+					</f:else>
+				</f:if>
+
+				<f:for each="{site.languages}" as="language">
+					<div class="hd-translator-coverage-language">
+						<div class="hd-translator-coverage-summary">
+							<strong>{language.title}</strong>
+							<f:render partial="Module/CoverageBar" arguments="{
+								percent: language.percent,
+								translated: language.translated,
+								total: language.default
+							}" />
+						</div>
+
+						<div class="table-fit">
+							<table class="table table-striped table-hover">
+								<thead>
+									<tr>
+										<th><f:translate key="coverage.column.table" /></th>
+										<th class="hd-translator-nowrap"><f:translate key="coverage.column.default" /></th>
+										<th class="hd-translator-nowrap"><f:translate key="coverage.column.translated" /></th>
+										<th><f:translate key="coverage.column.coverage" /></th>
+									</tr>
+								</thead>
+								<tbody>
+									<f:for each="{language.tables}" as="row">
+										<tr>
+											<td>
+												<f:translate key="{row.title}" default="{row.table}" />
+												<code class="hd-translator-muted">{row.table}</code>
+											</td>
+											<td class="hd-translator-nowrap">{row.default}</td>
+											<td class="hd-translator-nowrap">{row.translated}</td>
+											<td>
+												<f:render partial="Module/CoverageBar" arguments="{
+													percent: row.percent,
+													translated: row.translated,
+													total: row.default
+												}" />
+											</td>
+										</tr>
+									</f:for>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</f:for>
+			</f:for>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'coverage.database.empty\')}'
+			}" />
+		</f:else>
+	</f:if>
+
+	<h2><f:translate key="coverage.static.headline" /></h2>
+
+	<f:if condition="{staticCoverage}">
+		<f:then>
+			<div class="table-fit">
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr>
+							<th><f:translate key="index.categories.headline" /></th>
+							<th><f:translate key="list.file" /></th>
+							<th class="hd-translator-nowrap"><f:translate key="coverage.column.keys" /></th>
+							<th><f:translate key="coverage.column.languages" /></th>
+						</tr>
+					</thead>
+					<tbody>
+						<f:for each="{staticCoverage}" as="file">
+							<tr>
+								<td class="hd-translator-nowrap"><strong>{file.category}</strong></td>
+								<td>{file.label}</td>
+								<td class="hd-translator-nowrap">{file.total}</td>
+								<td>
+									<f:if condition="{file.languages}">
+										<f:then>
+											<div class="hd-translator-coverage-list">
+												<f:for each="{file.languages}" as="language">
+													<div class="hd-translator-coverage-row">
+														<f:link.action class="hd-translator-coverage-label" action="detail"
+														               arguments="{keyTranslation: file.key, languageTranslation: language.language}">
+															{language.language}
+														</f:link.action>
+														<f:render partial="Module/CoverageBar" arguments="{
+															percent: language.percent,
+															translated: language.translated,
+															total: language.total
+														}" />
+													</div>
+												</f:for>
+											</div>
+										</f:then>
+										<f:else>
+											<span class="hd-translator-muted"><f:translate key="coverage.noLanguages" /></span>
+										</f:else>
+									</f:if>
+								</td>
+							</tr>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'coverage.static.empty\')}'
+			}" />
+		</f:else>
+	</f:if>
+</div>
+</f:section>
+</html>

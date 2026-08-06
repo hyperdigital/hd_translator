@@ -287,3 +287,86 @@
     min-height: 5rem;
     resize: vertical;
 }
+
+/* --------------------------------------------------------------- coverage */
+.hd-translator-coverage-language {
+    margin-block-end: 2rem;
+}
+
+.hd-translator-coverage-summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-block-end: .5rem;
+}
+
+.hd-translator-coverage-summary > strong {
+    min-inline-size: 12rem;
+}
+
+.hd-translator-coverage-list {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+
+.hd-translator-coverage-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.hd-translator-coverage-label {
+    min-inline-size: 4rem;
+    font-family: var(--typo3-font-family-monospace, monospace);
+}
+
+.hd-translator-coverage-bar {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-inline-size: 12rem;
+    flex: 1;
+}
+
+.hd-translator-coverage-track {
+    flex: 1;
+    block-size: .5rem;
+    border-radius: .25rem;
+    background: var(--typo3-surface-container-high, rgba(127, 127, 127, .25));
+    overflow: hidden;
+}
+
+.hd-translator-coverage-fill {
+    block-size: 100%;
+    border-radius: .25rem;
+    transition: inline-size .2s ease;
+}
+
+.hd-translator-coverage-fill.is-high {
+    background: var(--typo3-color-success, #79a548);
+}
+
+.hd-translator-coverage-fill.is-medium {
+    background: var(--typo3-color-warning, #b78a00);
+}
+
+.hd-translator-coverage-fill.is-low {
+    background: var(--typo3-color-danger, #c83c3c);
+}
+
+.hd-translator-coverage-value {
+    min-inline-size: 3.5rem;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
+.hd-translator-subheadline {
+    margin-block-start: 1.5rem;
+    font-size: 1.1rem;
+}
+
+.hd-translator-muted {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .85em;
+}

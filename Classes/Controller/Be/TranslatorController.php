@@ -47,7 +47,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         protected readonly ModuleTemplateFactory $moduleTemplateFactory,
         protected readonly PageRepository $pageRepository,
         protected UriBuilder $uriBuilder,
-        protected readonly \Hyperdigital\HdTranslator\Services\TranslationFormatService $translationFormatService
+        protected readonly \Hyperdigital\HdTranslator\Services\TranslationFormatService $translationFormatService,
+        protected readonly \Hyperdigital\HdTranslator\Services\TranslationCoverageService $translationCoverageService
     )
     {
         $this->languageService = $languageService = GeneralUtility::makeInstance(LanguageServiceFactory::class)->createFromUserPreferences($GLOBALS['BE_USER']);;
@@ -1239,6 +1240,47 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
 
 
+    /**
+     * Description: How far each language has got, for the registered static string files and for
+     * the translatable records of the current site.
+     */
+    public function coverageAction()
+    {
+        $this->indexMenu();
+
+        $tables = [];
+        foreach ($GLOBALS['TCA'] as $tableName => $data) {
+            if (!empty($data['ctrl']['languageField']) && $this->mayReadTable((string)$tableName)) {
+                $tables[] = (string)$tableName;
+            }
+        }
+
+        $site = $this->getCurrentSite();
+        $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
+        $sites = $site !== null ? [$site] : $siteFinder->getAllSites();
+
+        $databaseCoverage = [];
+        foreach ($sites as $eachSite) {
+            $coverage = $this->translationCoverageService->getDatabaseCoverage($eachSite, $tables);
+            if (empty($coverage)) {
+                continue;
+            }
+            $databaseCoverage[] = [
+                'identifier' => $eachSite->getIdentifier(),
+                'rootPageId' => $eachSite->getRootPageId(),
+                'languages' => $coverage,
+            ];
+        }
+
+        $this->moduleTemplate->assignMultiple([
+            'staticCoverage' => $this->translationCoverageService->getStaticStringCoverage(),
+            'databaseCoverage' => $databaseCoverage,
+            'singleSite' => $site !== null,
+        ]);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/Coverage');
+    }
+
     ///////////////////////////////////
     protected function indexMenu()
     {
@@ -1279,6 +1321,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.databaseImportIndex', 'hd_translator'))
             ->setHref($uriBuilder->reset()->uriFor('databaseImportIndex', $this->withPageContext()))
             ->setActive('databaseImportIndex' == $this->request->getControllerActionName());
+        $menu->addMenuItem($item);
+
+        $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.coverage', 'hd_translator'))
+            ->setHref($uriBuilder->reset()->uriFor('coverage', $this->withPageContext()))
+            ->setActive('coverage' == $this->request->getControllerActionName());
         $menu->addMenuItem($item);
 
         if (!empty($this->deeplApiKey)) {

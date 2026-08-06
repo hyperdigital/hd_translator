@@ -1,0 +1,9 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+<div class="hd-translator-coverage-bar" title="{translated} / {total}">
+	<div class="hd-translator-coverage-track">
+		<div class="hd-translator-coverage-fill{f:if(condition: '{percent} > 89', then: ' is-high', else: '{f:if(condition: \'{percent} > 49\', then: \' is-medium\', else: \' is-low\')}')}"
+		     style="width: {percent}%"></div>
+	</div>
+	<span class="hd-translator-coverage-value">{percent}&nbsp;%</span>
+</div>
+</html>

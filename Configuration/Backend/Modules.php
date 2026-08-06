@@ -34,6 +34,7 @@ return [
                 'pageContentExport',
                 'pageContentExportProccess',
                 'databaseImportIndex',
+                'coverage',
                 'deeplTranslationsList',
                 'deeplSyncLanguages',
                 'deeplTranslationLanguage',

@@ -405,6 +405,48 @@
             <trans-unit id="qa.severity.warning">
                 <source>Warning</source>
             </trans-unit>
+            <trans-unit id="docHeader.coverage">
+                <source>Coverage</source>
+            </trans-unit>
+            <trans-unit id="coverage.headline">
+                <source>Translation coverage</source>
+            </trans-unit>
+            <trans-unit id="coverage.description">
+                <source>How far each language has got.</source>
+            </trans-unit>
+            <trans-unit id="coverage.database.headline">
+                <source>Records</source>
+            </trans-unit>
+            <trans-unit id="coverage.database.empty">
+                <source>No site with translatable records was found.</source>
+            </trans-unit>
+            <trans-unit id="coverage.static.headline">
+                <source>Static strings</source>
+            </trans-unit>
+            <trans-unit id="coverage.static.empty">
+                <source>No translation file is registered.</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.table">
+                <source>Table</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.default">
+                <source>Default language</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.translated">
+                <source>Translated</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.coverage">
+                <source>Coverage</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.keys">
+                <source>Keys</source>
+            </trans-unit>
+            <trans-unit id="coverage.column.languages">
+                <source>Languages</source>
+            </trans-unit>
+            <trans-unit id="coverage.noLanguages">
+                <source>No language registered</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
