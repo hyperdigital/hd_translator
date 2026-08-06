@@ -2,6 +2,7 @@
 namespace Hyperdigital\HdTranslator\Services;
 
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -1996,47 +1997,47 @@ class DatabaseEntriesService
         $mmTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['MM'] ?? '';
         if (
             !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
-            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
-            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM']) // override label from type
+            && isset($l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM']) // override label from type
         ) {
-            $mmTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM'];
+            $mmTable = $GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['MM'];
         }
 
         $foreginTable = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table'] ?? '';
         if (
             !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
-            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
-            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
+            && isset($l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table']) // override label from type
         ) {
-            $foreginTable = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
+            $foreginTable = $GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table'];
         }
 
         $foreginField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_field'] ?? '';
         if (
             !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
-            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
-            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
+            && isset($l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field']) // override label from type
         ) {
-            $foreginField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
+            $foreginField = $GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
         }
 
         $foreginTableField = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_table_field'] ?? '';
         if (
             !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
-            && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
-            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
+            && isset($l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+            && !empty($GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field']) // override label from type
         ) {
-            $foreginTableField = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
+            $foreginTableField = $GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_table_field'];
         }
 
         if (!empty($GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'])) {
             $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['foreign_match_fields'];
             if (
                 !empty($GLOBALS['TCA'][$parentTableName]['ctrl']['type']) // type field is defined
-                && isset($row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
-                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
+                && isset($l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]) // row has this field
+                && !empty($GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields']) // override label from type
             ) {
-                $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['types'][$row[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
+                $foreignMatchFields = $GLOBALS['TCA'][$parentTableName]['types'][$l10nParentRow[$GLOBALS['TCA'][$parentTableName]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_match_fields'];
             }
         }
 
