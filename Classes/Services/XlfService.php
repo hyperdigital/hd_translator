@@ -269,7 +269,7 @@ class XlfService
     /**
      * @return array{0: string, 1: string} source and target text of one entry
      */
-    protected function resolveSourceAndTarget(array $value, string $targetLanguage): array
+    public function resolveSourceAndTarget(array $value, string $targetLanguage): array
     {
         if ($targetLanguage === 'en' || $targetLanguage === 'default') {
             $text = (string)($value[$targetLanguage] ?? '');

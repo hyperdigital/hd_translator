@@ -1,0 +1,11 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" data-namespace-typo3-fluid="true">
+<div class="col-12 col-md-4 col-xl-3">
+	<label class="form-label" for="exportFormat"><f:translate key="form.exportFormat" /></label>
+	<f:form.select name="exportFormat" id="exportFormat" class="form-select" value="xlf12">
+		<f:for each="{exportFormats}" as="label" key="format">
+			<f:form.select.option value="{format}">{label}</f:form.select.option>
+		</f:for>
+	</f:form.select>
+	<div class="form-text"><f:translate key="form.exportFormat.description" /></div>
+</div>
+</html>

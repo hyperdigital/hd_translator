@@ -74,7 +74,7 @@
 								<f:form action="import" class="import-upload-form" enctype="multipart/form-data"
 								        arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
 									<p class="mb-2"><f:translate key="detail.import.description" arguments="{0: 'xlf'}" /></p>
-									<f:form.upload name="file" class="d-none js-hd_translator-fileupload-target" additionalAttributes="{accept: '.xlf'}" />
+									<f:form.upload name="file" class="d-none js-hd_translator-fileupload-target" additionalAttributes="{accept: '.xlf, .po, .mo, .json, .yaml, .yml, .csv'}" />
 									<div class="d-grid gap-2">
 										<button type="button" class="btn btn-default btn-sm js-hd_translator-fileupload-popup">
 											<core:icon identifier="actions-upload" size="small" />

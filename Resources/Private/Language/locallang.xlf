@@ -333,11 +333,11 @@
             <trans-unit id="detail.multiline.description">
                 <source>Switch the fields to text areas when a value needs a line break.</source>
             </trans-unit>
-            <trans-unit id="form.xlfVersion">
-                <source>XLIFF version</source>
+            <trans-unit id="form.exportFormat">
+                <source>Export format</source>
             </trans-unit>
-            <trans-unit id="form.xlfVersion.description">
-                <source>Use 2.0 for translation systems that expect the newer standard.</source>
+            <trans-unit id="form.exportFormat.description">
+                <source>XLIFF keeps the field label, the maximum length and the notes. The other formats carry the translation only.</source>
             </trans-unit>
             <trans-unit id="qa.summary">
                 <source>Quality check: %s errors, %s warnings</source>

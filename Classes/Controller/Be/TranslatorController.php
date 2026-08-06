@@ -46,7 +46,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function __construct(
         protected readonly ModuleTemplateFactory $moduleTemplateFactory,
         protected readonly PageRepository $pageRepository,
-        protected UriBuilder $uriBuilder
+        protected UriBuilder $uriBuilder,
+        protected readonly \Hyperdigital\HdTranslator\Services\TranslationFormatService $translationFormatService
     )
     {
         $this->languageService = $languageService = GeneralUtility::makeInstance(LanguageServiceFactory::class)->createFromUserPreferences($GLOBALS['BE_USER']);;
@@ -251,17 +252,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
-     * XLIFF version requested by an export form, falls back to the widely supported 1.2.
+     * Export format requested by a form, falls back to the widely supported XLIFF 1.2.
      */
-    protected function getRequestedXlfVersion(): string
+    protected function getRequestedFormat(): string
     {
-        $version = $this->request->hasArgument('xlfVersion')
-            ? (string)$this->request->getArgument('xlfVersion')
+        $format = $this->request->hasArgument('exportFormat')
+            ? (string)$this->request->getArgument('exportFormat')
             : '';
 
-        return $version === \Hyperdigital\HdTranslator\Services\XlfService::VERSION_20
-            ? \Hyperdigital\HdTranslator\Services\XlfService::VERSION_20
-            : \Hyperdigital\HdTranslator\Services\XlfService::VERSION_12;
+        return $this->translationFormatService->isSupportedExportFormat($format)
+            ? $format
+            : \Hyperdigital\HdTranslator\Services\TranslationFormatService::FORMAT_XLF_12;
     }
 
     /**
@@ -860,12 +861,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $content = (string) $file->getStream();
         $data = [];
 
-        switch($extension) {
-            case 'xlf':
-                $xlfService = GeneralUtility::makeInstance(XlfService::class);
-                $this->reportQualityOfImport($xlfService->parse($content));
-                $data = $xlfService->xlfToData($content, ['default', $languageTranslation]);
-                break;
+        if ($this->translationFormatService->canLoad($extension)) {
+            $parsed = $this->translationFormatService->load($content, $extension);
+            $this->reportQualityOfImport($parsed);
+
+            foreach ($parsed as $key => $entry) {
+                if (trim((string)$entry['source']) === '' && trim((string)$entry['target']) === '') {
+                    continue;
+                }
+                $data[$key] = [
+                    'default' => $entry['source'],
+                    $languageTranslation => $entry['target'],
+                ];
+            }
         }
 
         if (!empty($data)) {
@@ -971,6 +979,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $sourceLanguageUid = $entry['sys_language_uid'] ?? 0;
         $this->moduleTemplate->assign('currentLanguageUid', $sourceLanguageUid);
 
+        $this->moduleTemplate->assign('exportFormats', $this->translationFormatService->getExportFormats());
+
         return $this->moduleTemplate->renderResponse('Be/Translator/PageContentExport');
     }
 
@@ -996,6 +1006,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->moduleTemplate->assign('tables', $tables);
+
+        $this->moduleTemplate->assign('exportFormats', $this->translationFormatService->getExportFormats());
 
         return $this->moduleTemplate->renderResponse('Be/Translator/Database');
     }
@@ -1026,7 +1038,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
         // optional: values of an already existing translation are offered as the target
         $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
-        $xlfVersion = $this->getRequestedXlfVersion();
+        $exportFormat = $this->getRequestedFormat();
         $targetLanguage = 'de';
         //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
         $enableTranslatedData = true;
@@ -1079,10 +1091,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
                         // keys use the default language uid, values and children come from $contentRowUid
                         $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid, $xlfVersion);
+                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid, $exportFormat);
 
                         if ($saveToZip) {
-                            $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
+                            $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}." . $this->translationFormatService->getFileExtension($exportFormat);
                             $zip->addFromString($zipFilename, $output, \ZipArchive::FL_OVERWRITE);
                         }
                     }
@@ -1105,7 +1117,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $filenameSuffix = $storages[0] ?? '0';
 
-        return $this->fileDownloadResponse($output, 'page-' . $filenameSuffix . '.xlf', 'text/xml');
+        return $this->fileDownloadResponse(
+            $output,
+            'page-' . $filenameSuffix . '.' . $this->translationFormatService->getFileExtension($exportFormat),
+            $this->translationFormatService->getContentType($exportFormat)
+        );
     }
 
     /**
@@ -1115,6 +1131,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $this->indexMenu();
         $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
+
+        $this->moduleTemplate->assign(
+            'importAccept',
+            '.' . implode(', .', array_merge($this->translationFormatService->getImportExtensions(), ['zip']))
+        );
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseImportIndex');
     }
@@ -1137,7 +1158,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if ($this->request->hasArgument('targetLanguageUid')) {
                 $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
             }
-            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
             $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
             $sourcePart = 'target';
             if ($this->request->hasArgument('translationSource')) {
@@ -1152,36 +1172,38 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $extension = explode('.', $file->getClientFilename());
                 $extension = strtolower($extension[count($extension) - 1]);
 
-                switch($extension){
-                    case 'xlf':
-                        // XLF
-                        $contents = [(string) $file->getStream()];
-                        break;
-                    case 'zip':
-                        $zipFolder = Environment::getVarPath() . '/translation/';
-                        if (!file_exists($zipFolder)) {
-                            mkdir($zipFolder);
+                // every entry is [content, extension], a zip contributes one per packed file
+                $contents = [];
+                if ($extension === 'zip') {
+                    $zipFolder = Environment::getVarPath() . '/translation/';
+                    if (!file_exists($zipFolder)) {
+                        mkdir($zipFolder);
+                    }
+                    $file->moveTo($zipFolder.$file->getClientFilename());
+                    // ZIP of packed translations
+                    $zip = new \ZipArchive();
+                    $zip->open($zipFolder.$file->getClientFilename());
+                    for($i = 0; $i < $zip->numFiles; $i++) {
+                        $packedName = (string)$zip->getNameIndex($i);
+                        $packedExtension = strtolower((string)pathinfo($packedName, PATHINFO_EXTENSION));
+                        if (!$this->translationFormatService->canLoad($packedExtension)) {
+                            continue;
                         }
-                        $file->moveTo($zipFolder.$file->getClientFilename());
-                        // ZIP of packed translations
-                        $contents = [];
-                        $zip = new \ZipArchive();
-                        $zip->open($zipFolder.$file->getClientFilename());
-                        for($i = 0; $i < $zip->numFiles; $i++) {
-                            $contents[] = (string) $zip->getFromIndex($i);
-                        }
-                        break;
-                    default:
-                        $contents = [];
+                        $contents[] = [(string) $zip->getFromIndex($i), $packedExtension];
+                    }
+                } elseif ($this->translationFormatService->canLoad($extension)) {
+                    $contents[] = [(string) $file->getStream(), $extension];
+                } else {
+                    $errors[] = sprintf('%s: unsupported format', $file->getClientFilename());
                 }
 
-                foreach ($contents as $content) {
-                    // parse once, so the quality check and the import see the same entries
-                    $parsed = $xlfService->parse($content);
+                foreach ($contents as [$content, $contentExtension]) {
+                    // read once, so the quality check and the import see the same entries
+                    $parsed = $this->translationFormatService->load($content, $contentExtension);
                     $qaResult = $qaService->check($parsed);
                     $qaReport = $qaService->merge($qaReport ?? [], $qaResult);
 
-                    $data = $xlfService->xlfToData($content, [], $sourcePart);
+                    $data = $this->translationFormatService->toImportData($parsed, $sourcePart);
                     if ($skipFailed) {
                         foreach ($qaResult['failedKeys'] as $failedKey) {
                             unset($data[$failedKey]);
@@ -1303,6 +1325,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('rowType', $databaseEntriesService->getRowType());
         $this->moduleTemplate->assign('rowTypeCouldBe', $databaseEntriesService->getRowTypeCouldBe());
 
+        $this->moduleTemplate->assign('exportFormats', $this->translationFormatService->getExportFormats());
+
         return $this->moduleTemplate->renderResponse('Be/Translator/ExportTableRowIndex');
     }
 
@@ -1333,9 +1357,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // the values come from is taken from the row it stored it in
         $sourceUid = (int)($row[\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::SOURCE_UID_FIELD] ?? $defaultUid);
         $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys, $sourceUid);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid, $this->getRequestedXlfVersion());
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid, $this->getRequestedFormat());
 
-        return $this->fileDownloadResponse($output, $label . '.xlf', 'text/xml');
+        return $this->fileDownloadResponse(
+            $output,
+            $label . '.' . $this->translationFormatService->getFileExtension($this->getRequestedFormat()),
+            $this->translationFormatService->getContentType($this->getRequestedFormat())
+        );
     }
 
     /**
@@ -1411,10 +1439,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-                $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source, '', $this->getRequestedXlfVersion());
+                $output = $this->translationFormatService->dump($contentArray, $this->getRequestedFormat(), $targetLanguage, $source);
 
                 if ($saveToZip) {
-                    $zip->addFromString("page-{$storage}.xlf", $output);
+                    $zip->addFromString("page-{$storage}." . $this->translationFormatService->getFileExtension($this->getRequestedFormat()), $output);
                 }
             }
         }
@@ -1433,7 +1461,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $filenameSuffix = $storages[0] ?? '0';
 
-        return $this->fileDownloadResponse($output, 'page-' . $filenameSuffix . '.xlf', 'text/xml');
+        return $this->fileDownloadResponse(
+            $output,
+            'page-' . $filenameSuffix . '.' . $this->translationFormatService->getFileExtension($this->getRequestedFormat()),
+            $this->translationFormatService->getContentType($this->getRequestedFormat())
+        );
     }
 
     public function syncLocallangsAction()
