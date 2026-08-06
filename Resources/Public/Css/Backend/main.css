@@ -212,6 +212,10 @@
     color: var(--typo3-color-danger, #c83c3c);
 }
 
+.hd-translator-stat-warning .hd-translator-stat-value {
+    color: var(--typo3-color-warning, #b78a00);
+}
+
 /* --------------------------------------------------------------- dropdown */
 .hd-translator .dropdown-menu {
     max-height: 24rem;

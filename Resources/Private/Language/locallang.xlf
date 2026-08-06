@@ -339,6 +339,72 @@
             <trans-unit id="form.xlfVersion.description">
                 <source>Use 2.0 for translation systems that expect the newer standard.</source>
             </trans-unit>
+            <trans-unit id="qa.summary">
+                <source>Quality check: %s errors, %s warnings</source>
+            </trans-unit>
+            <trans-unit id="qa.headline">
+                <source>Quality check</source>
+            </trans-unit>
+            <trans-unit id="qa.checked">
+                <source>Entries checked</source>
+            </trans-unit>
+            <trans-unit id="qa.errors">
+                <source>Errors</source>
+            </trans-unit>
+            <trans-unit id="qa.warnings">
+                <source>Warnings</source>
+            </trans-unit>
+            <trans-unit id="qa.clean">
+                <source>No problem was found in the uploaded file.</source>
+            </trans-unit>
+            <trans-unit id="qa.skipped">
+                <source>Entries with an error were not imported.</source>
+            </trans-unit>
+            <trans-unit id="qa.notSkipped">
+                <source>Entries with an error were imported anyway. Tick "Skip entries that fail the check" on the import form to hold them back.</source>
+            </trans-unit>
+            <trans-unit id="qa.column.key">
+                <source>Key</source>
+            </trans-unit>
+            <trans-unit id="qa.column.severity">
+                <source>Severity</source>
+            </trans-unit>
+            <trans-unit id="qa.column.problem">
+                <source>Problem</source>
+            </trans-unit>
+            <trans-unit id="qa.maxLengthExceeded">
+                <source>The translation is %s characters long, the field allows %s.</source>
+            </trans-unit>
+            <trans-unit id="qa.placeholderMismatch">
+                <source>Placeholders differ. Missing in the translation: %s. Not in the source: %s.</source>
+            </trans-unit>
+            <trans-unit id="qa.markupUnbalanced">
+                <source>The markup of the translation is not balanced, a tag is not closed or closed in the wrong order.</source>
+            </trans-unit>
+            <trans-unit id="qa.markupMismatch">
+                <source>The markup differs. Missing in the translation: %s. Not in the source: %s.</source>
+            </trans-unit>
+            <trans-unit id="qa.emptyTarget">
+                <source>The translation is empty, the entry is skipped.</source>
+            </trans-unit>
+            <trans-unit id="qa.identicalToSource">
+                <source>The translation is identical to the source, it looks untranslated.</source>
+            </trans-unit>
+            <trans-unit id="qa.notTranslated">
+                <source>The file marks this entry as untouched.</source>
+            </trans-unit>
+            <trans-unit id="form.skipFailedEntries">
+                <source>Skip entries that fail the check</source>
+            </trans-unit>
+            <trans-unit id="form.skipFailedEntries.description">
+                <source>Entries with a length, placeholder or markup error are not written.</source>
+            </trans-unit>
+            <trans-unit id="qa.severity.error">
+                <source>Error</source>
+            </trans-unit>
+            <trans-unit id="qa.severity.warning">
+                <source>Warning</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

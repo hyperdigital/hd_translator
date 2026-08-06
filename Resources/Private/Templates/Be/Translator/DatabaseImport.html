@@ -48,6 +48,72 @@
 		</f:else>
 	</f:if>
 
+	<f:if condition="{qa.checked}">
+		<h2><f:translate key="qa.headline" /></h2>
+
+		<div class="hd-translator-stats">
+			<div class="hd-translator-stat">
+				<div class="hd-translator-stat-value">{qa.checked}</div>
+				<div class="hd-translator-stat-label"><f:translate key="qa.checked" /></div>
+			</div>
+			<div class="hd-translator-stat{f:if(condition: qa.errors, then: ' hd-translator-stat-danger')}">
+				<div class="hd-translator-stat-value">{qa.errors}</div>
+				<div class="hd-translator-stat-label"><f:translate key="qa.errors" /></div>
+			</div>
+			<div class="hd-translator-stat{f:if(condition: qa.warnings, then: ' hd-translator-stat-warning')}">
+				<div class="hd-translator-stat-value">{qa.warnings}</div>
+				<div class="hd-translator-stat-label"><f:translate key="qa.warnings" /></div>
+			</div>
+		</div>
+
+		<f:if condition="{qa.findings}">
+			<f:then>
+				<f:if condition="{qa.errors}">
+					<f:if condition="{qaSkipped}">
+						<f:then>
+							<f:render partial="Module/Callout" arguments="{state: 'info', message: '{f:translate(key: \'qa.skipped\')}'}" />
+						</f:then>
+						<f:else>
+							<f:render partial="Module/Callout" arguments="{state: 'warning', message: '{f:translate(key: \'qa.notSkipped\')}'}" />
+						</f:else>
+					</f:if>
+				</f:if>
+
+				<div class="table-fit">
+					<table class="table table-striped">
+						<thead>
+							<tr>
+								<th><f:translate key="qa.column.key" /></th>
+								<th><f:translate key="qa.column.severity" /></th>
+								<th><f:translate key="qa.column.problem" /></th>
+							</tr>
+						</thead>
+						<tbody>
+							<f:for each="{qa.findings}" as="finding">
+								<tr>
+									<td class="hd-translator-nowrap"><code>{finding.key}</code></td>
+									<td>
+										<span class="badge {f:if(condition: '{finding.severity} == \'error\'', then: 'bg-danger', else: 'bg-warning')}">
+											<f:translate key="qa.severity.{finding.severity}" />
+										</span>
+									</td>
+									<td><f:translate key="qa.{finding.type}" arguments="{finding.arguments}" /></td>
+								</tr>
+							</f:for>
+						</tbody>
+					</table>
+				</div>
+			</f:then>
+			<f:else>
+				<f:render partial="Module/Callout" arguments="{
+					state: 'success',
+					icon: 'actions-check',
+					message: '{f:translate(key: \'qa.clean\')}'
+				}" />
+			</f:else>
+		</f:if>
+	</f:if>
+
 	<p>
 		<f:link.action action="databaseImportIndex" class="btn btn-default">
 			<core:icon identifier="actions-arrow-down-left" size="small" />

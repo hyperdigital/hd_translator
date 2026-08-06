@@ -211,6 +211,46 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     // HELPERS
     /**
+     * Summarises the quality check of an uploaded file as a flash message, so the static string
+     * import reports the same problems as the database import without a result screen of its own.
+     *
+     * @param array $parsed output of XlfService::parse()
+     */
+    protected function reportQualityOfImport(array $parsed): void
+    {
+        $report = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\TranslationQaService::class)
+            ->check($parsed);
+
+        if ($report['errors'] === 0 && $report['warnings'] === 0) {
+            return;
+        }
+
+        $lines = [];
+        foreach (array_slice($report['findings'], 0, 10) as $finding) {
+            $lines[] = $finding['key'] . ': ' . \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate(
+                'qa.' . $finding['type'],
+                'hd_translator',
+                $finding['arguments']
+            );
+        }
+        if (count($report['findings']) > count($lines)) {
+            $lines[] = '…';
+        }
+
+        $this->addFlashMessage(
+            implode("\n", $lines),
+            \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate(
+                'qa.summary',
+                'hd_translator',
+                [$report['errors'], $report['warnings']]
+            ) ?? '',
+            $report['errors'] > 0
+                ? \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+                : \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING
+        );
+    }
+
+    /**
      * XLIFF version requested by an export form, falls back to the widely supported 1.2.
      */
     protected function getRequestedXlfVersion(): string
@@ -823,6 +863,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         switch($extension) {
             case 'xlf':
                 $xlfService = GeneralUtility::makeInstance(XlfService::class);
+                $this->reportQualityOfImport($xlfService->parse($content));
                 $data = $xlfService->xlfToData($content, ['default', $languageTranslation]);
                 break;
         }
@@ -1103,6 +1144,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $sourcePart = $this->request->getArgument('translationSource');
             }
 
+            $qaService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\TranslationQaService::class);
+            $skipFailed = $this->request->hasArgument('skipFailedEntries')
+                && (bool)$this->request->getArgument('skipFailedEntries');
+
             foreach($files as $file) {
                 $extension = explode('.', $file->getClientFilename());
                 $extension = strtolower($extension[count($extension) - 1]);
@@ -1110,9 +1155,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 switch($extension){
                     case 'xlf':
                         // XLF
-                        $data = (string) $file->getStream();
-                        $data = $xlfService->xlfToData($data, [], $sourcePart);
-                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                        $contents = [(string) $file->getStream()];
                         break;
                     case 'zip':
                         $zipFolder = Environment::getVarPath() . '/translation/';
@@ -1121,14 +1164,31 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
                         $file->moveTo($zipFolder.$file->getClientFilename());
                         // ZIP of packed translations
+                        $contents = [];
                         $zip = new \ZipArchive();
                         $zip->open($zipFolder.$file->getClientFilename());
                         for($i = 0; $i < $zip->numFiles; $i++) {
-                            $data = $zip->getFromIndex($i);
-                            $data = $xlfService->xlfToData($data, [], $sourcePart);
-                            $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                            $contents[] = (string) $zip->getFromIndex($i);
                         }
                         break;
+                    default:
+                        $contents = [];
+                }
+
+                foreach ($contents as $content) {
+                    // parse once, so the quality check and the import see the same entries
+                    $parsed = $xlfService->parse($content);
+                    $qaResult = $qaService->check($parsed);
+                    $qaReport = $qaService->merge($qaReport ?? [], $qaResult);
+
+                    $data = $xlfService->xlfToData($content, [], $sourcePart);
+                    if ($skipFailed) {
+                        foreach ($qaResult['failedKeys'] as $failedKey) {
+                            unset($data[$failedKey]);
+                        }
+                    }
+
+                    $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
                 }
             }
         }
@@ -1146,7 +1206,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 'inserted' => $importStats['inserts'],
                 'updated' => $importStats['updates'],
                 'fails' => $importStats['fails'],
-            ]
+            ],
+            'errors' => $errors,
+            'qa' => $qaReport ?? [],
+            'qaSkipped' => !empty($skipFailed),
         ]);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseImport');
