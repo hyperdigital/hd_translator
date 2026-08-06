@@ -181,6 +181,25 @@ The values, including inline children and file references, come from the selecte
 If the selected language has no own inline children, the ones of the default language are exported
 instead, so nothing is silently lost.
 
+..  _existing-translation:
+
+Prefilling the target from an existing translation
+==================================================
+
+The export forms also offer :guilabel:`Prefill target from existing translation (optional)`. It is
+switched off by default, because the usual case is content that has not been translated yet.
+
+When a language is selected there and a translation of the exported record already exists, its
+values are written into the ``<target>`` of the XLF file, while ``<source>`` keeps the source
+language. Translators then see what is already there and can correct it instead of starting over.
+Fields without an existing translation, and records that have no translation in that language at
+all, keep the previous behaviour and repeat the source value in ``<target>``.
+
+..  note::
+    The prefill matches fields by the same keys the export uses, so it relies on translated inline
+    records pointing at their default language original. Records translated in free mode, which do
+    not keep that pointer, are exported without a prefill rather than with a wrong one.
+
 ..  _deepl:
 
 DeepL translations

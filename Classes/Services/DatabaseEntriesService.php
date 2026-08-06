@@ -1105,7 +1105,7 @@ class DatabaseEntriesService
      * @param bool $clean - if false then the whole database entry is exportend,
      * if true, then the database entry is cleaned
      */
-    public function getCompleteContentForPage(int $uid = 0, $sourceLanguage = 0, string $targetLanguage = 'en', bool $clean = true)
+    public function getCompleteContentForPage(int $uid = 0, $sourceLanguage = 0, string $targetLanguage = 'en', bool $clean = true, ?int $targetLanguageUid = null)
     {
         $row = $this->getCompleteRow('pages', $uid, $sourceLanguage);
 
@@ -1119,14 +1119,65 @@ class DatabaseEntriesService
             $pageRowForKeys = $row;
             $pageRowForKeys['uid'] = $realUid;
             $row = $this->getExportFields('pages', $pageRowForKeys, $pageSourceUid);
-            $output = $this->prepareDataFromRow($realUid, $row, $targetLanguage, 'pages');
+            $output = $this->prepareDataFromRow(
+                $realUid,
+                $row,
+                $targetLanguage,
+                'pages',
+                $this->getTranslatedExportValues('pages', $realUid, $targetLanguageUid)
+            );
         }
 
+        // $contentRowUid is the default language uid, the rows are keyed by it
         foreach ($this->getAllCompleteteRowsForPid('tt_content', $realUid, $sourceLanguage, $clean) as $contentRowUid => $contentRow) {
-            $output = array_merge($output, $this->prepareDataFromRow($contentRowUid, $contentRow, $targetLanguage, 'tt_content'));
+            $output = array_merge($output, $this->prepareDataFromRow(
+                $contentRowUid,
+                $contentRow,
+                $targetLanguage,
+                'tt_content',
+                $this->getTranslatedExportValues('tt_content', (int)$contentRowUid, $targetLanguageUid)
+            ));
         }
 
         return $output;
+    }
+
+    /**
+     * Reads the values of an already existing translation, keyed exactly like the export fields of
+     * the default language record, so they can be offered as the target of the exported file.
+     *
+     * @param string $tablename
+     * @param int $defaultUid uid of the default language record
+     * @param int|null $targetLanguageUid sys_language_uid of the wanted translation, null to skip
+     * @return array<string, string> export key => existing translation, empty when there is none
+     */
+    public function getTranslatedExportValues(string $tablename, int $defaultUid, ?int $targetLanguageUid): array
+    {
+        if ($targetLanguageUid === null || $defaultUid <= 0) {
+            return [];
+        }
+
+        $translatedRow = $this->getTranslatedCompleteRow($tablename, $defaultUid, $targetLanguageUid);
+        if (empty($translatedRow)) {
+            return [];
+        }
+
+        // the keys have to match the ones of the exported record, so they are built from the
+        // default language uid while the values are read from the translation
+        $rowForKeys = $translatedRow;
+        $rowForKeys['uid'] = $defaultUid;
+
+        $return = [];
+        foreach ($this->getExportFields($tablename, $rowForKeys, (int)$translatedRow['uid']) as $key => $field) {
+            $value = $field['value'] ?? '';
+            // an empty translation is no translation, the source value stays the offered target
+            if ($value === '' || $value === null) {
+                continue;
+            }
+            $return[$key] = $value;
+        }
+
+        return $return;
     }
 
     /**
@@ -1135,8 +1186,11 @@ class DatabaseEntriesService
      * @param $targetLanguage - default would be automatically converted to 'en'
      * @param $tablename
      * @param bool $enableTranslatedData - if false, always the provided $row data are used
+     * @param string $sourceLanguage
+     * @param int|null $targetLanguageUid - sys_language_uid of an already existing translation whose
+     *                                      values are offered as the target, null for new content
      */
-    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en')
+    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en', ?int $targetLanguageUid = null)
     {
         if ($targetLanguage == 'default') {
             $targetLanguage = 'en';
@@ -1146,7 +1200,12 @@ class DatabaseEntriesService
             $row = $this->getCompleteRow($tablename, $uid);
         }
 
-        $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename);
+        $translatedData = [];
+        if ($enableTranslatedData) {
+            $translatedData = $this->getTranslatedExportValues($tablename, (int)$uid, $targetLanguageUid);
+        }
+
+        $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename, $translatedData);
 
         $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
 

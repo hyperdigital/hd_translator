@@ -240,6 +240,31 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     // HELPERS
     /**
+     * Reads an optional language uid from the request.
+     *
+     * An empty selection means "no language", which is not the same as language 0, so null is
+     * returned in that case. Missing arguments are tolerated, because the export actions are also
+     * reachable from links that do not carry the full form.
+     *
+     * @param string $argumentName
+     * @param int|null $default
+     * @return int|null
+     */
+    protected function getOptionalLanguageUidArgument(string $argumentName, ?int $default = null): ?int
+    {
+        if (!$this->request->hasArgument($argumentName)) {
+            return $default;
+        }
+
+        $value = $this->request->getArgument($argumentName);
+        if ($value === '' || $value === null || !is_numeric($value)) {
+            return $default;
+        }
+
+        return (int)$value;
+    }
+
+    /**
      * Adds the resolved page to link arguments, so the site context survives navigation
      * inside the module (the module has no page tree that would keep "id" alive).
      *
@@ -836,7 +861,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $saveToZip = true;
 
         $defaultLanguage = 1;
-        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
+        $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
         $targetLanguage = 'de';
         //set to true, because it's the default value in $databaseEntriesService->exportDatabaseRowToXlf()
         $enableTranslatedData = true;
@@ -884,7 +911,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                         }
                         // keys use the default language uid, values and children come from $contentRowUid
                         $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
+                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid);
 
                         if ($saveToZip) {
                             $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
@@ -1086,7 +1113,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function exportTableRowExportAction(string $tablename, int $rowUid)
     {
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-        $sourceLanguageUid = (int)($this->request->getArgument('sourceLanguageUid') ?? 0);
+        $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
         $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid, $sourceLanguageUid);
         $label = $databaseEntriesService->getFilenameFromLabel($tablename, $row);
 
@@ -1100,7 +1129,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // the values come from is taken from the row it stored it in
         $sourceUid = (int)($row[\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::SOURCE_UID_FIELD] ?? $defaultUid);
         $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys, $sourceUid);
-        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
+        $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'), $targetLanguageUid);
 
         return $this->fileDownloadResponse($output, $label . '.xlf', 'text/xml');
     }
@@ -1132,6 +1161,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if ($this->request->hasArgument('source')) {
             $sourceLanguage = $this->request->getArgument('source');
         }
+        // optional: values of an already existing translation are offered as the target
+        $targetLanguageUid = $this->getOptionalLanguageUidArgument('targetLanguageUid');
 
         $saveToZip = false;
         if (count($storages) > 1) {
@@ -1165,7 +1196,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $output = '';
         foreach ($storages as $storage) {
-            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage);
+            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage, true, $targetLanguageUid);
 
             if (!empty($contentArray)) {
                 $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);

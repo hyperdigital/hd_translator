@@ -39,6 +39,12 @@
             <trans-unit id="detail.search">
                 <source>Search...</source>
             </trans-unit>
+            <trans-unit id="export.existingTranslation">
+                <source>Prefill target from existing translation (optional)</source>
+            </trans-unit>
+            <trans-unit id="export.existingTranslation.none">
+                <source>- new content, do not prefill -</source>
+            </trans-unit>
             <trans-unit id="search.placeholder">
                 <source>Search in translations...</source>
             </trans-unit>

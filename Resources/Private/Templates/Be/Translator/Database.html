@@ -47,6 +47,17 @@
 						</f:form.select>
 					</div>
 				</div>
+				<div class="col">
+					<label for="targetLanguageUid" class="form-label"><f:translate key="export.existingTranslation" /></label>
+					<div class="input-group">
+						<f:form.select name="targetLanguageUid" id="targetLanguageUid" class="form-select" value="">
+							<f:form.select.option value=""><f:translate key="export.existingTranslation.none" /></f:form.select.option>
+							<f:for each="{allowedLanguages}" as="lang">
+								<f:form.select.option value="{lang.uid}">{lang.title}</f:form.select.option>
+							</f:for>
+						</f:form.select>
+					</div>
+				</div>
 			</div>
 
 			<div class="row row-cols-auto align-items-end g-3 mt-3">
