@@ -5,7 +5,7 @@
     links-are-relative="true"
 >
     <project title="Translator"
-             version="2.1.9"
+             version="2.2.0"
              copyright="since 2020 by hyperdigital.de and coma.de" />
 
     <extension key="hd_translator"
