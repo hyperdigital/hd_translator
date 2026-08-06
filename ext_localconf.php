@@ -6,8 +6,10 @@
 defined('TYPO3') or die();
 
 (function () {
-    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'][] =
-        \Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook::class . '->addExportButton';
+    // The docheader button is added through the ModifyButtonBarEvent listener registered in
+    // Configuration/Services.yaml. The former getButtonsHook was removed in TYPO3 v12.
+
+    \Hyperdigital\HdTranslator\Helpers\TranslationHelper::setupTranslation();
 
     $GLOBALS['TYPO3_CONF_VARS']['BE']['stylesheets']['hd_translator'] = 'EXT:hd_translator/Resources/Public/Css/Backend/';
 

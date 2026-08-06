@@ -6,10 +6,8 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
-use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-use TYPO3\CMS\Core\Service\FlexFormService;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Log\LogManager;
 use Doctrine\DBAL\Types\Type;
@@ -47,7 +45,7 @@ class DatabaseEntriesService
     public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessages' => []];
     protected $updateAfterImport = [];
 
-    protected $flexFormService;
+    protected $flexFormTools;
     /**
      * Logger instance. We use TYPO3 LogManager when available and
      * additionally write a fallback file log to var/log/hd_translator.log
@@ -60,10 +58,10 @@ class DatabaseEntriesService
     protected $tableSchemes = [];
 
     public function __construct(
-        FlexFormService $flexFormService
+        FlexFormTools $flexFormTools
     )
     {
-        $this->flexFormService = $flexFormService;
+        $this->flexFormTools = $flexFormTools;
     }
 
     /**
@@ -270,8 +268,8 @@ class DatabaseEntriesService
         $slug = preg_replace('/[ \t\x{00A0}\-+_]+/u', '-', $slug);
 
         // Convert extended letters to ascii equivalents
-        // The specCharsToASCII() converts "€" to "EUR"
-        $slug = GeneralUtility::makeInstance(CharsetConverter::class)->specCharsToASCII('utf-8', $slug);
+        // v14 replaced specCharsToASCII('utf-8', ...) with utf8_char_mapping()
+        $slug = GeneralUtility::makeInstance(CharsetConverter::class)->utf8_char_mapping($slug);
 
         // Get rid of all invalid characters, but allow slashes
         $slug = preg_replace('/[^\p{L}\p{M}0-9\/' . preg_quote('-') . ']/u', '', $slug);
@@ -616,7 +614,7 @@ class DatabaseEntriesService
     protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields, $typeArray = [], $fieldnamePrefix = '')
     {
         $flexString = $row[$field];
-        $data = $this->flexFormService
+        $data = $this->flexFormTools
             ->convertFlexFormContentToArray(strval($flexString));
 
         foreach ($data as $key => $value) {
@@ -1636,33 +1634,65 @@ class DatabaseEntriesService
 
     }
 
-    public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
+    /**
+     * Returns the TCA config of a field, respecting a record type specific override.
+     */
+    protected function getEffectiveFieldConfig(string $tablename, string $field, array $row): array
     {
-        $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
-        if (!empty($fieldConfig['ds_pointerField'])) {
-            $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
-            $noneUsed = true;
-            foreach ($pointers as $pointer) {
-                if (!empty($fieldConfig['ds'][$originalRow[$pointer]])) {
-                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds'][$originalRow[$pointer]], $originalRow);
-                    $noneUsed = false;
-                    break;
-                } else if (!empty($fieldConfig['ds']['*,'.$originalRow[$pointer]])) {
-                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['*,'.$originalRow[$pointer]], $originalRow);
-                    $noneUsed = false;
-                    break;
-                }
-            }
+        $config = $GLOBALS['TCA'][$tablename]['columns'][$field]['config'] ?? [];
 
-            if ($noneUsed && !empty($fieldConfig['ds']['default'])) {
-                $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['default'], $originalRow);
-            }
+        $typeField = $GLOBALS['TCA'][$tablename]['ctrl']['type'] ?? '';
+        if (
+            !empty($typeField)
+            && isset($row[$typeField])
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$typeField]]['columnsOverrides'][$field]['config'])
+        ) {
+            $config = array_replace(
+                $config,
+                $GLOBALS['TCA'][$tablename]['types'][$row[$typeField]]['columnsOverrides'][$field]['config']
+            );
         }
+
+        return $config;
     }
 
-    public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fleformDefinition, $originalRow)
+    public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
     {
-        $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
+        // v14 removed "ds_pointerField" and the multi entry "ds" array. The data structure is
+        // therefore resolved through the FlexFormTools API, which picks the right structure for the
+        // record type and also resolves "FILE:" references the previous implementation could not.
+        $fieldTca = ['config' => $this->getEffectiveFieldConfig($tablename, $key, is_array($originalRow) ? $originalRow : [])];
+
+        if (empty($fieldTca['config']['ds'])) {
+            return;
+        }
+
+        $flexFormTools = GeneralUtility::makeInstance(FlexFormTools::class);
+
+        try {
+            $identifier = $flexFormTools->getDataStructureIdentifier($fieldTca, $tablename, $key, $originalRow);
+            $dataStructure = $flexFormTools->parseDataStructureByIdentifier($identifier);
+        } catch (\Throwable $e) {
+            // no resolvable data structure, nothing to post process
+            $this->log('notice', 'Import: flexform data structure could not be resolved', [
+                'table' => $tablename,
+                'field' => $key,
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $dataStructure, $originalRow);
+    }
+
+    /**
+     * @param array $dataStructure already parsed data structure as returned by
+     *                             FlexFormTools::parseDataStructureByIdentifier()
+     */
+    public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $dataStructure, $originalRow)
+    {
+        $flexFormArray = is_array($dataStructure) ? $dataStructure : GeneralUtility::xml2array((string)$dataStructure);
+
         if (!empty($row[$key]['data']) && !empty($flexFormArray)) {
             // Default settings doesn't have sheet, so setup default sheet
             if (!isset($flexFormArray['sheets'])) {

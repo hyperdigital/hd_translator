@@ -4,10 +4,9 @@ declare(strict_types=1);
 namespace Hyperdigital\HdTranslator\Hooks;
 
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
-use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconSize;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Backend\Template\Components\ModifyButtonBarEvent;
 use Psr\Http\Message\ServerRequestInterface;
@@ -32,7 +31,7 @@ class DocHeaderButtonsHook
                 $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
                 $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
                 $button = $event->getButtonBar()->makeLinkButton();
-                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', IconSize::SMALL));
                 $button->setTitle($label);
                 $button->setShowLabelText($label);
                 $button->setHref($this->getPageContentExportLink($currentUid));
@@ -44,7 +43,7 @@ class DocHeaderButtonsHook
                 $label = LocalizationUtility::translate('LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:control.exportTranslationPageContent');
                 $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
                 $button = $event->getButtonBar()->makeLinkButton();
-                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', Icon::SIZE_SMALL));
+                $button->setIcon($iconFactory->getIcon('hd_translator_icon_doc_header', IconSize::SMALL));
                 $button->setTitle($label);
                 $button->setShowLabelText($label);
                 $enableButton = false;

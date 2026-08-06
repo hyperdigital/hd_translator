@@ -6,37 +6,22 @@ namespace Hyperdigital\HdTranslator\Controller\Be;
 use Hyperdigital\HdTranslator\Services\DeeplApiService;
 use Hyperdigital\HdTranslator\Services\XlfService;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
-use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
-use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
-use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Site\Exception\SiteNotFoundException;
-use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconSize;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Localization\Locales;
-use TYPO3\CMS\Core\Localization\LocalizationFactory;
-use TYPO3\CMS\Core\Page\PageRenderer;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
-use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
-use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
-use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
-use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
 use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use TYPO3\CMS\Core\Service\FlexFormService;
-use TYPO3\CMS\Core\Database\Connection;
-use \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use Psr\Http\Message\ResponseInterface;
 
@@ -73,7 +58,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function __construct(
         protected readonly ListUtility $listUtility,
         protected readonly ModuleTemplateFactory $moduleTemplateFactory,
-        protected readonly FlexFormService $flexFormService,
         protected readonly PageRepository $pageRepository,
         protected UriBuilder $uriBuilder
     )
@@ -240,6 +224,52 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     // HELPERS
     /**
+     * Reads the labels of one XLF file for one language.
+     *
+     * TYPO3 v14 removed LanguageService::includeLLFile(), which returned every language of a file
+     * at once. Its replacement getLabelsFromResource() returns a flat "key => label" map for the
+     * language the service was initialized with, so source and target are read in two passes and
+     * reassembled into the structure the detail view and the exports already work with:
+     *
+     *   [<language>][<key>][0] => ['source' => <default label>, 'target' => <translated label>]
+     *
+     * Keeping that shape confines the breaking change to this method.
+     *
+     * @param string $filePath EXT: reference of the XLF file
+     * @param string $languageKey language to read
+     * @return array
+     */
+    protected function loadLabels(string $filePath, string $languageKey): array
+    {
+        $this->languageService->init('default');
+        $sourceLabels = $this->languageService->getLabelsFromResource($filePath);
+
+        if ($languageKey === 'default' || $languageKey === 'en') {
+            $targetLabels = $sourceLabels;
+        } else {
+            $this->languageService->init($languageKey);
+            $targetLabels = $this->languageService->getLabelsFromResource($filePath);
+        }
+
+        $data = [
+            'default' => [],
+            $languageKey => [],
+        ];
+
+        // a translation may carry keys the default file no longer has, so both sides are merged
+        foreach (array_keys($sourceLabels + $targetLabels) as $key) {
+            $source = (string)($sourceLabels[$key] ?? '');
+            // an untranslated label falls back to the source, as the removed API did
+            $target = (string)($targetLabels[$key] ?? $source);
+
+            $data['default'][$key] = [0 => ['source' => $source, 'target' => $source]];
+            $data[$languageKey][$key] = [0 => ['source' => $source, 'target' => $target]];
+        }
+
+        return $data;
+    }
+
+    /**
      * Reads an optional language uid from the request.
      *
      * An empty selection means "no language", which is not the same as language 0, so null is
@@ -398,7 +428,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -471,7 +501,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.sucecssfullySaved', 'hd_translator'));
         }
         if ($emptyImport) {
-            $this->moduleTemplate->addFlashMessage(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.noDataToImport', 'hd_translator'), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
+            $this->moduleTemplate->addFlashMessage(
+                \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.noDataToImport', 'hd_translator'),
+                '',
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+            );
         }
 
 
@@ -495,7 +529,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -505,7 +539,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ->setDataAttributes([
                 'action' => 'save'
             ])
-            ->setIcon($iconFactory->getIcon('actions-save', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-save', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Save');
         $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -515,12 +549,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-        $this->languageService->init($languageTranslation);
-        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
-
-        if (empty($data[$languageTranslation])) {
-            $data[$languageTranslation] = $data['default'];
-        }
+        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation);
 
         if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
             $output = [];
@@ -559,7 +588,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('list', $this->withPageContext(['category' => $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['category']])))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -583,8 +612,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     public function downloadAction($keyTranslation, $languageTranslation, $format)
     {
         $originalLanguageFilePath = $GLOBALS['TYPO3_CONF_VARS']['translator'][$keyTranslation]['path'];
-        $this->languageService->init($languageTranslation);
-        $data = $this->languageService->includeLLFile($originalLanguageFilePath);
+        $data = $this->loadLabels($originalLanguageFilePath, $languageTranslation);
         $downloadFilename = explode('/', $originalLanguageFilePath);
         $downloadFilename = explode('.', $downloadFilename[count($downloadFilename) - 1]);
         unset($downloadFilename[count($downloadFilename) - 1]);
@@ -716,8 +744,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
-     * @\TYPO3\CMS\Extbase\Annotation\IgnoreValidation("data")
-     *
      * @param string $keyTranslation
      * @param string $languageTranslation
      * @param array $data
@@ -1232,7 +1258,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -1394,7 +1420,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('index', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -1568,7 +1594,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -1577,7 +1603,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('deeplRemoveAllStrings', $this->withPageContext(['language' => $language])))
-            ->setIcon($iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-edit-delete', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Remove all strings');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -1601,7 +1627,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
@@ -1628,7 +1654,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         $returnButton = $buttonBar->makeLinkButton()
             ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', Icon::SIZE_SMALL))
+            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
             ->setShowLabelText(true)
             ->setTitle('Return');
         $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
