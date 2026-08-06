@@ -995,6 +995,24 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
         $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+
+        if ($this->wouldEmptyTheFile($path, (string)$xlfFileExport)) {
+            // Somebody clearing one label is normal, a save that empties every single one of them
+            // is not: that is a screen that came up blank writing its blanks back. Refusing costs
+            // one save, writing costs the whole file.
+            $this->addFlashMessage(
+                \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.refusedEmptySave.description', 'hd_translator') ?? '',
+                \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('flashMessages.refusedEmptySave', 'hd_translator') ?? '',
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+            );
+
+            if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
+                return $this->redirect('detail', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
+            }
+
+            return new \TYPO3\CMS\Core\Http\JsonResponse(['success' => 0, 'refused' => 'emptySave']);
+        }
+
         file_put_contents($path, $xlfFileExport);
 
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
@@ -1796,6 +1814,43 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
     }
 
+    /**
+     * Whether writing this content would replace a file that has values with one that has none.
+     *
+     * A single empty label is a normal edit. Every label empty at once, over a file that was not,
+     * only happens when the screen itself came up blank, and then the save destroys the file.
+     */
+    protected function wouldEmptyTheFile(string $path, string $newContent): bool
+    {
+        if ($path === '' || !is_readable($path)) {
+            return false;
+        }
+
+        $xlfService = GeneralUtility::makeInstance(XlfService::class);
+
+        $new = $xlfService->parse($newContent);
+        if ($new === [] || $this->countFilledEntries($new) > 0) {
+            return false;
+        }
+
+        return $this->countFilledEntries($xlfService->parse((string)file_get_contents($path))) > 0;
+    }
+
+    /**
+     * @param array $entries output of XlfService::parse()
+     */
+    protected function countFilledEntries(array $entries): int
+    {
+        $filled = 0;
+        foreach ($entries as $entry) {
+            if (trim($entry['target']) !== '' || trim($entry['source']) !== '') {
+                $filled++;
+            }
+        }
+
+        return $filled;
+    }
+
     protected function dataToXlf($keyTranslation, $languageTranslation, $data = null, $sourceLanguage = 'en')
     {
         $domtree = new \DOMDocument('1.0', 'UTF-8');
@@ -1804,9 +1859,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $xmlRoot = $domtree->createElement('xliff');
         $xmlRoot->setAttribute('version', '1.2');
 
+        $isSourceLanguage = ($languageTranslation === 'en' || $languageTranslation === 'default');
+
         $file = $domtree->createElement('file');
         $file->setAttribute('source-language', $sourceLanguage);
-        $file->setAttribute('target-language', $languageTranslation);
+        if (!$isSourceLanguage) {
+            // Only a real translation may declare a target language. TYPO3 decides from the
+            // presence of this attribute whether to read <source> or <target>, and the file of the
+            // source language carries <source> only. Declaring it there made XliffLoader look for
+            // a <target> that is not written, so every label of that file resolved to an empty
+            // string, the editing screen came up blank and saving it wrote those blanks back.
+            $file->setAttribute('target-language', $languageTranslation);
+        }
         $file->setAttribute('product-name', $keyTranslation);
         $file->setAttribute('original', 'messages');
         $file->setAttribute('datatype', 'plaintext');

@@ -468,6 +468,12 @@
             <trans-unit id="qa.notApproved">
                 <source>The file marks this entry as translated but not yet reviewed.</source>
             </trans-unit>
+            <trans-unit id="flashMessages.refusedEmptySave">
+                <source>Nothing was saved</source>
+            </trans-unit>
+            <trans-unit id="flashMessages.refusedEmptySave.description">
+                <source>Every label of this file would have been emptied. That happens when the screen did not load its values, so the save was refused and the file is unchanged. Reload the screen and check that the values are shown before saving again.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
