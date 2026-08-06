@@ -99,13 +99,17 @@ class TranslationHelper
                     }
 
                     if (file_exists($fileanmePath)) {
+                        // TYPO3 14 moved this registry from SYS.locallangXMLOverride to
+                        // LANG.resourceOverrides. Only the persisted setting is migrated once by
+                        // the install tool, a value written at runtime like this one is not, so
+                        // writing the old key means the overrides are simply never read.
                         if ($lang == 'en' || $lang == 'default') {
-                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']])) {
-                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$settings['path']][] = $fileanmePath;
+                            if (empty($GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$settings['path']])) {
+                                $GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$settings['path']][] = $fileanmePath;
                             }
                         } else {
-                            if (empty($GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']])) {
-                                $GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride'][$lang][$settings['path']][] = $fileanmePath;
+                            if (empty($GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$lang][$settings['path']]) || !in_array($fileanmePath, $GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$lang][$settings['path']])) {
+                                $GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides'][$lang][$settings['path']][] = $fileanmePath;
                             }
                         }
                     }

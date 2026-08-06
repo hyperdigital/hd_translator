@@ -41,7 +41,7 @@ Static string translations
     Edit the labels of any :file:`locallang.xlf` file from the backend. The extension
     never writes into :file:`EXT:` directories - it stores override files in a
     configurable storage path and registers them through
-    :php:`$GLOBALS['TYPO3_CONF_VARS']['SYS']['locallangXMLOverride']`.
+    :php:`$GLOBALS['TYPO3_CONF_VARS']['LANG']['resourceOverrides']`.
 
 Database export and import
     Export pages, content elements and any other TCA table (including inline records,
