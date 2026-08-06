@@ -2,6 +2,7 @@
 TYPO3 extension for handling translations. It allows editors to edit static strings from XLF files (usually placed in *EXT:/Resources/Private/Languages*) or to export database entries, edit them over translation tool/agency in the xlf format and then import it again back to TYPO3.
 
 ## Changelog
+- [Release 2.2.1](Documentation/Changelog/2.2.1.md)
 - [Release 2.2.0](Documentation/Changelog/2.2.0.md)
 - [Release 2.0.5](Documentation/Changelog/2.0.5.md)
 - [Release 2.0.2](Documentation/Changelog/2.0.2.md)
