@@ -1,8 +1,6 @@
 <?php
 namespace Hyperdigital\HdTranslator\Services;
 
-use Google\Service\CloudDebugger\Resource\Debugger;
-use Tpwd\KeSearch\Backend\Flexform;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
@@ -1206,7 +1204,7 @@ class DatabaseEntriesService
                                         ->where(
                                             $queryBuilder->expr()->eq('uid', $tempRow['uid'])
                                         )
-                                        ->executeQuery();
+                                        ->executeStatement();
                                 } catch (\Exception $e) {
                                     self::$importStats['fails']++;
                                     self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
@@ -1224,7 +1222,7 @@ class DatabaseEntriesService
                                 ->where(
                                     $queryBuilder->expr()->eq('uid', $row['uid'])
                                 )
-                                ->executeQuery();
+                                ->executeStatement();
                             } catch (\Exception $e) {
                                 self::$importStats['fails']++;
                                 self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
@@ -1348,7 +1346,7 @@ class DatabaseEntriesService
                                         $affectedRows = $queryBuilder
                                             ->insert($foreginTable)
                                             ->values($row)
-                                            ->executeQuery();
+                                            ->executeStatement();
                                         self::$importStats['inserts']++;
                                     }
                                 } else {
@@ -1415,7 +1413,7 @@ class DatabaseEntriesService
                                         ->values(
                                             $row
                                         )
-                                        ->executeQuery();
+                                        ->executeStatement();
                                 } catch (\Exception $e) {
 
                                 }
@@ -1479,7 +1477,7 @@ class DatabaseEntriesService
                         $queryBuilder
                             ->insert('sys_file_reference')
                             ->values($defaultLanguageRow)
-                            ->executeQuery();
+                            ->executeStatement();
                         self::$importStats['inserts']++;
                     }
                 }
@@ -1622,7 +1620,7 @@ class DatabaseEntriesService
                         }
                     }
 
-                    $temp->executeQuery();
+                    $temp->executeStatement();
 
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1814,7 +1812,7 @@ class DatabaseEntriesService
                 ->values(
                     $row
                 )
-                ->executeQuery();
+                ->executeStatement();
 
             $lastUid = $queryBuilder->getConnection()->lastInsertId();
 
@@ -1942,7 +1940,7 @@ class DatabaseEntriesService
                             ->values(
                                 $row
                             )
-                            ->executeQuery();
+                            ->executeStatement();
                     }
 
                     $this->updateAfterImport[$parentTableName . '-' . $l10nParent . '-' . $field . '-updateChildInlinedReferences'] = [

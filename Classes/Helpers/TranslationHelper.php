@@ -13,7 +13,7 @@ class TranslationHelper
 
         if (!empty($storage)){
             $return = Environment::getProjectPath() ;
-            if (substr($storage, 1, 0) != '/') {
+            if (substr($storage, 0, 1) != '/') {
                 $return .= '/';
             }
 

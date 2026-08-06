@@ -42,6 +42,33 @@ class DeeplApiService
         }
     }
 
+    /**
+     * @return bool true when an api key is configured
+     */
+    public function isEnabled(): bool
+    {
+        return !empty($this->deeplApiKey);
+    }
+
+    /**
+     * Checks the given code against the languages synchronized from DeepL.
+     *
+     * @param string $language
+     * @return bool
+     */
+    public function isSupportedLanguage(string $language): bool
+    {
+        $language = trim($language);
+        if ($language === '') {
+            return false;
+        }
+
+        return !empty($this->getLanguageByCode(strtoupper($language)));
+    }
+
+    /**
+     * @throws \RuntimeException when DeepL cannot be reached or answers with an error
+     */
     public function syncAvailableLanguages()
     {
         if (!empty($this->deeplApiKey)) {
@@ -53,21 +80,25 @@ class DeeplApiService
 
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-            if ($httpCode !== 200 || $response === false) {
-                http_response_code(502);
-                echo json_encode([
-                    'error' => 'DeepL API error',
-                    'details' => curl_error($ch),
-                    'code' => $httpCode
-                ]);
-                exit;
-            }
+            $curlError = curl_error($ch);
             curl_close($ch);
 
+            if ($httpCode !== 200 || $response === false) {
+                throw new \RuntimeException(
+                    'DeepL API error (' . $httpCode . '): ' . $curlError,
+                    1716200001
+                );
+            }
+
             $response = json_decode($response, true);
+            if (!is_array($response)) {
+                throw new \RuntimeException('DeepL API returned an unexpected response', 1716200002);
+            }
+
             foreach ($response as $row) {
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_languages')->createQueryBuilder();
 
@@ -103,7 +134,7 @@ class DeeplApiService
                             'name',
                             $name
                         )
-                        ->executeQuery();
+                        ->executeStatement();
                 } else {
                     // 2b) Insert
                     $queryBuilder
@@ -112,7 +143,7 @@ class DeeplApiService
                             'language' => $code,
                             'name' => $name
                         ])
-                        ->executeQuery();
+                        ->executeStatement();
                 }
             }
         }
@@ -144,7 +175,7 @@ class DeeplApiService
             ->from('tx_hdtranslator_ai_languages')
             ->orderBy('language')
             ->where(
-                $queryBuilder->expr()->like('language', $queryBuilder->createNamedParameter($code))
+                $queryBuilder->expr()->eq('language', $queryBuilder->createNamedParameter($code))
             )
             ->executeQuery();
 
@@ -204,23 +235,37 @@ class DeeplApiService
         return false;
     }
 
+    /**
+     * @throws \RuntimeException when DeepL cannot be reached or answers with an error
+     */
     public function deeplPost($postData)
     {
-        $options = [
-            'http' => [
-                'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
-                'method'  => 'POST',
-                'content' => $postData,
-            ]
-        ];
-        $context = stream_context_create($options);
-        $response = file_get_contents($this->baseUrl.'translate', false, $context);
-        if ($response === FALSE) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to contact DeepL', 'message' => $response]);
-            exit;
+        $ch = curl_init($this->baseUrl . 'translate');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false || $httpCode !== 200) {
+            throw new \RuntimeException(
+                'Failed to contact DeepL (' . $httpCode . '): ' . $curlError,
+                1716200003
+            );
         }
-        return json_decode($response, true);
+
+        $data = json_decode($response, true);
+        if (!is_array($data) || !isset($data['translations']) || !is_array($data['translations'])) {
+            throw new \RuntimeException('DeepL returned an unexpected response', 1716200004);
+        }
+
+        return $data;
     }
 
     public function setLocalTranslation($source, $translation, $targetLanguage)
@@ -235,7 +280,7 @@ class DeeplApiService
                 'original_translation' => $translation,
                 'translation' => $translation
             ])
-            ->executeQuery();
+            ->executeStatement();
     }
 
     public function translateTexts(array $texts, string $targetLanguage): array
@@ -265,27 +310,34 @@ class DeeplApiService
 
             $data = $this->deeplPost($postData);
 
-            // 3) Map each returned translation to its source
+            // 3) Map each returned translation to its source.
+            // DeepL answers in the same order as the submitted texts, but a shorter
+            // response must not shift the mapping, so unmatched entries are skipped.
             $mapped = [];
-            foreach ($data['translations'] as $i => $tr) {
-                $sourceText    = $toTranslate[$i];
-                $translatedText= $tr['text'] ?? $sourceText;
+            foreach (array_values($data['translations']) as $i => $tr) {
+                if (!isset($toTranslate[$i])) {
+                    break;
+                }
+
+                $sourceText = $toTranslate[$i];
+                $translatedText = $tr['text'] ?? $sourceText;
                 $mapped[$sourceText] = $translatedText;
 
                 // save locally
                 $this->setLocalTranslation($sourceText, $translatedText, $targetLanguage);
             }
 
-            // 4) Merge into return array for any uncached items
+            // 4) Merge into return array for any uncached items,
+            // falling back to the source text when DeepL did not return a translation
             foreach ($toTranslate as $orig) {
-                $return[$orig] = ['text' => $mapped[$orig]];
+                $return[$orig] = ['text' => $mapped[$orig] ?? $orig];
             }
         }
 
         // 5) Re-order $return so it matches the original $texts order:
         $ordered = [];
         foreach ($texts as $t) {
-            $ordered[$t] = $return[$t];
+            $ordered[$t] = $return[$t] ?? ['text' => $t];
         }
 
         return $ordered;
@@ -371,7 +423,7 @@ class DeeplApiService
                     $queryBuilder->createNamedParameter($language)
                 )
             )
-            ->executeQuery();
+            ->executeStatement();
 
         return true;
     }

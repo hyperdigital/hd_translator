@@ -11,9 +11,7 @@ use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Backend\Template\Components\ModifyButtonBarEvent;
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListHeaderColumnsEvent;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListRecordActionsEvent;
-use TYPO3\CMS\Recordlist\Event\ModifyRecordListTableActionsEvent;
+use TYPO3\CMS\Backend\RecordList\Event\ModifyRecordListRecordActionsEvent;
 
 class DocHeaderButtonsHook
 {
@@ -100,7 +98,7 @@ class DocHeaderButtonsHook
         return $uri;
     }
 
-    public function modifyRecordActions(\TYPO3\CMS\Backend\RecordList\Event\ModifyRecordListRecordActionsEvent $event): void
+    public function modifyRecordActions(ModifyRecordListRecordActionsEvent $event): void
     {
         $currentTable = $event->getTable();
         $uid = $event->getRecord()['uid'];

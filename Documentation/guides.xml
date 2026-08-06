@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<guides
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://typo3.org/ns/typo3/docs-typo3-org/guides/schema.xsd"
+    links-are-relative="true"
+>
+    <project title="Translator"
+             version="2.1.9"
+             copyright="since 2020 by hyperdigital.de and coma.de" />
+
+    <extension key="hd_translator"
+               repository="hyperdigital/hd_translator"
+               license="GPL-2.0-or-later"
+               vendor="hyperdigital.de"
+               composerPackage="hyperdigital/hd_translator"
+               typo3-min="13.0"
+               typo3-max="13.4" />
+
+    <inventory id="t3coreapi" url="https://docs.typo3.org/m/typo3/reference-coreapi/main/en-us/" />
+</guides>

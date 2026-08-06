@@ -39,6 +39,12 @@
             <trans-unit id="detail.search">
                 <source>Search...</source>
             </trans-unit>
+            <trans-unit id="search.placeholder">
+                <source>Search in translations...</source>
+            </trans-unit>
+            <trans-unit id="search.submit">
+                <source>Search</source>
+            </trans-unit>
             <trans-unit id="detail.download">
                 <source>Download</source>
             </trans-unit>
