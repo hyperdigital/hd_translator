@@ -1,32 +1,43 @@
 <html
-        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-        xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
-        data-namespace-typo3-fluid="true">
-
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
-    <f:if condition="{sources}">
-        <f:else>
-            <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.originalSources.headline" /></h1>
-        </f:else>
-        <f:then>
-            <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.originalSources.headline" /></h1>
-            <table class="table table-hover">
-                {f:variable(name: 'currentUri', value: '')}
-                <tbody>
-                <f:for each="{sources}" as="string">
-                    <tr>
-                        <td>
-                            <f:link.action action="deeplShowTranslationsOfOriginal" arguments="{string: string.uid}">{string.original_source}</f:link.action>
-                        </td>
-                    </tr>
-                </f:for>
-                </tbody>
-            </table>
-        </f:then>
-    </f:if>
+<div class="hd-translator">
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'deepl.originalSources.headline\')}',
+		description: '{f:translate(key: \'deepl.originalSources.description\')}'
+	}" />
+
+	<f:if condition="{sources}">
+		<f:then>
+			<div class="table-fit">
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr><th><f:translate key="deepl.original.subheadline" /></th></tr>
+					</thead>
+					<tbody>
+						<f:for each="{sources}" as="string">
+							<tr>
+								<td dir="auto">
+									<f:link.action action="deeplShowTranslationsOfOriginal" arguments="{string: string.uid}">{string.original_source}</f:link.action>
+								</td>
+							</tr>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'deepl.original.noTranslationsFound\')}'
+			}" />
+		</f:else>
+	</f:if>
+</div>
 </f:section>
 </html>

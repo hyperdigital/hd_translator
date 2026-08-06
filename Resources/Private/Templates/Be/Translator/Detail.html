@@ -1,126 +1,119 @@
 <html
-        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-        data-namespace-typo3-fluid="true">
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
-    <f:asset.script identifier="hd_translator_detail" src="EXT:hd_translator/Resources/Public/JavaScript/DetailAction.js" />
+	<f:asset.script identifier="hd_translator_detail" src="EXT:hd_translator/Resources/Public/JavaScript/DetailAction.js" />
 
-    <div class="hd-translator">
-        <f:if condition="{is_empty}">
-            <f:then>
-                This language is not set
-            </f:then>
-            <f:else>
-                <f:if condition="{data}">
-                    <div class="toolbar-section">
-                        <div class="search-section">
-                            <div class="search-wrap">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                                </svg>
-                                <input type="search" name="search" id="hd_translator-search" placeholder="{f:translate(key: 'detail.search')}" />
-                            </div>
-                        </div>
-                        <div class="toolbar-button-section">
-                            <div class="popup-action">
-                                <f:link.action class="btn btn-default" action="remove" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}">
-                                    <core:icon identifier="actions-delete" size="small" />
-                                    <f:translate key="detail.remove" />
-                                </f:link.action>
-                            </div>
-                            <div class="popup-action">
-                                <button class="btn btn-default">
-                                    <core:icon identifier="actions-extension-import" size="small" />
-                                    <f:translate key="detail.import" />
-                                </button>
-                                <div class="popup-content hidden download-links">
-                                    <f:form action="import" class="import-upload-form" enctype="multipart/form-data" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
-                                        <f:form.upload name="file" class="hidden js-hd_translator-fileupload-target" additionalAttributes="{accept: '.xlf'}" />
-                                        <div><f:translate key="detail.import.description" arguments="{0: 'xlf'}" /></div>
-                                        <div>
-                                            <button type="button" class="btn btn-default btn-sm js-hd_translator-fileupload-popup">
-                                                <core:icon identifier="actions-upload" size="small" />
-                                                <f:translate key="detail.import.chooseFile" />
-                                            </button>
-                                        </div>
-                                        <div class="file-name-display"></div>
-                                        <div><button class="btn btn-default"><f:translate key="detail.import.upload" /></button></div>
-                                    </f:form>
-                                </div>
-                            </div>
-                            <div class="popup-action">
-                                <button class="btn btn-default">
-                                    <core:icon identifier="actions-download" size="small" />
-                                    <f:translate key="detail.download" />
-                                </button>
-                                <div class="popup-content hidden download-links">
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xlf'}">XLF</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'xls'}">XLS</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'csv'}">CSV</f:link.action>
-                                    </div>
-                                    <div>
-                                        <f:link.action absolute="1" class="download-link" action="download" arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: 'json'}">JSON</f:link.action>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+	<div class="hd-translator">
+		<f:variable name="detailTitle">[{langaugeKey -> f:format.case(mode: 'upper')}]</f:variable>
 
-										<h1>[{langaugeKey -> f:format.case(mode: 'upper')}]<f:if condition="{category}"> {category}</f:if></h1>
-                    <f:if condition="{pageData}">
-                        <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
-                    </f:if>
-										<div id="translation-form-success">
-											<div class="module-body">
-												<div class="typo3-messages">
-													<div class="alert alert-success">
-														<div class="media">
-															<div class="media-left">
-																<span class="fa-stack fa-lg">
-																	<i class="fa fa-circle fa-stack-2x"></i>
-              										<i class="fa fa-check fa-stack-1x"></i>
-																</span>
-															</div>
-															<div class="media-body">
-																<p class="alert-message text-pre-wrap"><f:translate key="flashMessages.sucecssfullySaved" /></p>
-															</div>
-														</div>
-													</div>
-												</div>
-											</div>
-										</div>
-                    <form
-                            action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}"
-                            id="translation-form" method="post" name="data"
-                            data-message-success="{f:translate(key: 'flashMessages.sucecssfullySaved')}"
-                            data-message-error="{f:translate(key: 'flashMessages.notSucecssfullySaved')}"
-                    >
-											<f:if condition="{isCategorized}">
-												<f:then>
-													<div class="hd-translator-detail-grid">
-														<f:render section="Categorized" arguments="{_all}" />
-													</div>
-												</f:then>
-												<f:else>
-													<f:render section="NotCategorized" arguments="{_all}" />
-												</f:else>
-											</f:if>
-                    </form>
-                </f:if>
-            </f:else>
-        </f:if>
-    </div>
-    <script>
+		<f:render partial="Module/Header" arguments="{
+			title: detailTitle,
+			subtitle: category,
+			pageData: pageData
+		}" />
 
-    </script>
+		<f:if condition="{data}">
+			<f:then>
+				<div class="hd-translator-toolbar">
+					<div class="hd-translator-toolbar-search">
+						<label class="visually-hidden" for="hd_translator-search"><f:translate key="detail.search" /></label>
+						<div class="input-group">
+							<span class="input-group-text"><core:icon identifier="actions-search" size="small" /></span>
+							<input type="search" name="search" id="hd_translator-search" class="form-control"
+							       placeholder="{f:translate(key: 'detail.search')}" />
+						</div>
+					</div>
+
+					<div class="hd-translator-toolbar-actions">
+						<div class="dropdown">
+							<f:comment>auto close outside keeps the menu open while the upload form is used</f:comment>
+							<button class="btn btn-default dropdown-toggle" type="button" data-bs-toggle="dropdown"
+							        data-bs-auto-close="outside" aria-expanded="false">
+								<core:icon identifier="actions-extension-import" size="small" />
+								<f:translate key="detail.import" />
+							</button>
+							<div class="dropdown-menu dropdown-menu-end p-3">
+								<f:form action="import" class="import-upload-form" enctype="multipart/form-data"
+								        arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}" method="post">
+									<p class="mb-2"><f:translate key="detail.import.description" arguments="{0: 'xlf'}" /></p>
+									<f:form.upload name="file" class="d-none js-hd_translator-fileupload-target" additionalAttributes="{accept: '.xlf'}" />
+									<div class="d-grid gap-2">
+										<button type="button" class="btn btn-default btn-sm js-hd_translator-fileupload-popup">
+											<core:icon identifier="actions-upload" size="small" />
+											<f:translate key="detail.import.chooseFile" />
+										</button>
+										<div class="file-name-display hd-translator-filelist"></div>
+										<button class="btn btn-primary btn-sm"><f:translate key="detail.import.upload" /></button>
+									</div>
+								</f:form>
+							</div>
+						</div>
+
+						<div class="dropdown">
+							<button class="btn btn-default dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+								<core:icon identifier="actions-download" size="small" />
+								<f:translate key="detail.download" />
+							</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<f:for each="{0: 'xlf', 1: 'xls', 2: 'csv', 3: 'json'}" as="format">
+									<li>
+										<f:link.action class="dropdown-item" absolute="1" action="download"
+										               arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey, format: format}">
+											<core:icon identifier="actions-file" size="small" />
+											<span>{format -> f:format.case(mode: 'upper')}</span>
+										</f:link.action>
+									</li>
+								</f:for>
+							</ul>
+						</div>
+
+						<f:link.action class="btn btn-default" action="remove"
+						               arguments="{keyTranslation: translationKey, languageTranslation: langaugeKey}">
+							<core:icon identifier="actions-delete" size="small" />
+							<f:translate key="detail.remove" />
+						</f:link.action>
+					</div>
+				</div>
+
+				<form
+						action="{f:uri.action(action: 'save', arguments: '{keyTranslation: translationKey, languageTranslation: langaugeKey}')}"
+						id="translation-form" method="post" name="data"
+						data-message-success="{f:translate(key: 'flashMessages.sucecssfullySaved')}"
+						data-message-error="{f:translate(key: 'flashMessages.notSucecssfullySaved')}"
+				>
+					<f:if condition="{isCategorized}">
+						<f:then>
+							<div class="hd-translator-detail-grid">
+								<f:render section="Categorized" arguments="{_all}" />
+							</div>
+						</f:then>
+						<f:else>
+							<f:render section="NotCategorized" arguments="{_all}" />
+						</f:else>
+					</f:if>
+				</form>
+
+				<div id="hd-translator-no-results" class="hidden">
+					<f:render partial="Module/Callout" arguments="{
+						state: 'info',
+						message: '{f:translate(key: \'detail.noResults\')}'
+					}" />
+				</div>
+			</f:then>
+			<f:else>
+				<f:render partial="Module/Callout" arguments="{
+					state: 'info',
+					message: '{f:translate(key: \'exportTableRow.nothingToExport\')}'
+				}" />
+			</f:else>
+		</f:if>
+	</div>
 </f:section>
 
 <f:section name="Categorized">
@@ -140,20 +133,15 @@
 				<f:if condition="{subdata.fullKey}">
 					<f:then>
 						<f:render section="Item" arguments="{
-				key: subdata.fullKey,
-				langaugeKey: langaugeKey,
-				originalSource: subdata.value.0.source,
-				target: subdata.value.0.target
-			}" />
+							key: subdata.fullKey,
+							langaugeKey: langaugeKey,
+							originalSource: subdata.value.0.source,
+							target: subdata.value.0.target
+						}" />
 					</f:then>
 					<f:else>
-						<f:variable name="movement" value="{level * 15}" />
 						<f:variable name="level" value="{level + 1}" />
-
-						</div>
-						<div class="hd-translator-detail-categorytitle" style="padding-left: {movement}px;">{key}</div>
-						<div style="padding-left: {movement}px;" class="hd-translator-detail-grid">
-
+						<div class="hd-translator-detail-categorytitle">{key}</div>
 						<f:render section="Categorized" arguments="{
 							data: subdata,
 							langaugeKey: langaugeKey,
@@ -180,14 +168,20 @@
 </f:section>
 
 <f:section name="Item">
+	<f:comment>the field carries the direction of the language being translated, not the one of the backend</f:comment>
+	<f:variable name="fieldDirection">{translator:languageDirection(language: langaugeKey)}</f:variable>
 	<div class="hd-translator-detail-grid-item" data-search="{key -> f:format.case(mode: 'lower')} {target -> f:format.case(mode: 'lower')} {originalSource -> f:format.case(mode: 'lower')}">
-		<div class="hd-translator-key">{key}</div>
-		<div class="hd-translator-field"><input name="{key}[{langaugeKey}]" type="text" placeholder="{key}" value="{target}" /></div>
-		<div class="hd-translator-original">{originalSource}</div>
+		<label class="hd-translator-key" for="field-{key}">{key}</label>
+		<div class="hd-translator-field">
+			<input id="field-{key}" class="form-control" name="{key}[{langaugeKey}]" type="text"
+			       dir="{fieldDirection}" lang="{langaugeKey}"
+			       placeholder="{originalSource}" value="{target}" />
+		</div>
+		<f:if condition="{originalSource}">
+			<div class="hd-translator-original" dir="auto">{originalSource}</div>
+		</f:if>
 		<f:if condition="{langaugeKey} != 'default'">
-			<div style="display: none">
-				<input type="hidden" name="{key}[default]" value="{originalSource}" />
-			</div>
+			<input type="hidden" name="{key}[default]" value="{originalSource}" />
 		</f:if>
 	</div>
 </f:section>

@@ -1,63 +1,87 @@
 <html
-        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-        xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
-        data-namespace-typo3-fluid="true">
-
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
-    <f:asset.script identifier="hd_translator_list" src="EXT:hd_translator/Resources/Public/JavaScript/ListAction.js" />
+<div class="hd-translator">
+	<f:if condition="{category} && {category} != '-'">
+		<f:then><f:variable name="listTitle" value="{category}" /></f:then>
+		<f:else><f:variable name="listTitle"><f:translate key="index.headline" /></f:variable></f:else>
+	</f:if>
 
-    <div class="hd-translator">
-			<f:if condition="{category} && {category} != '-'"><h1>{category}</h1></f:if>
-        <f:if condition="{data}">
-            <f:if condition="{pageData}">
-                <h2>Translate for page <b>{pageData.title}</b> and subpages</h2>
-            </f:if>
-            <div>
-                <table class="table table-hover">
-                    <tbody>
-                        <f:for each="{data}" key="index" as="file">
-                            <tr>
-                                <td class="hd-translator-list-table-label" width="50"><b>{file.label}</b></td>
-                                <td class="hd-translator-list-table-flags">
-                                    <f:if condition="{file.availableLanguages}">
-                                        <div class="hd-translator-list-flags-wrap">
-                                            <f:for each="{file.availableLanguages}"  as="lang" key="langShort">
-                                                <f:link.action action="detail" class="btn btn-default" arguments="{keyTranslation: index, languageTranslation: langShort}">
-                                                    <f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="36" class="hd-translator-flag" />
-                                                    {lang}
-                                                </f:link.action>
-                                            </f:for>
-                                        </div>
-                                    </f:if>
-                                </td>
-                                <td  class="hd-translator-list-table-tools">
-                                    <f:if condition="{file.languages}">
-                                        <div class="popup-action">
-                                            <button class="btn btn-default">
-                                                <core:icon identifier="actions-plus" size="small" />
-                                                <f:translate key="list.add_new" />
-                                            </button>
-                                            <div class="popup-content hidden">
-                                                <f:for each="{file.languages}" as="lang">
-                                                    <div class="hd-translator-list-languageitem">
-                                                        <f:image title="{lang}" src="{translator:getFlagName(language: lang)}" loading="lazy" height="24" class="hd-translator-flag" />
-                                                        <f:link.action action="detail" arguments="{keyTranslation: index, languageTranslation: lang}">{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</f:link.action>
-                                                    </div>
-                                                </f:for>
-                                            </div>
-                                        </div>
-                                    </f:if>
-                                </td>
-                            </tr>
-                        </f:for>
-                    </tbody>
-                </table>
-            </div>
-        </f:if>
-    </div>
+	<f:render partial="Module/Header" arguments="{title: listTitle, pageData: pageData}" />
+
+	<f:if condition="{data}">
+		<f:then>
+			<div class="table-fit">
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr>
+							<th><f:translate key="list.file" /></th>
+							<th><f:translate key="list.existingTranslations" /></th>
+							<th class="col-control"></th>
+						</tr>
+					</thead>
+					<tbody>
+						<f:for each="{data}" key="index" as="file">
+							<tr>
+								<td class="hd-translator-nowrap"><strong>{file.label}</strong></td>
+								<td>
+									<f:if condition="{file.availableLanguages}">
+										<f:then>
+											<div class="hd-translator-language-list">
+												<f:for each="{file.availableLanguages}" as="lang" key="langShort">
+													<f:link.action action="detail" class="btn btn-default btn-sm"
+													               arguments="{keyTranslation: index, languageTranslation: langShort}">
+														<f:image title="{lang}" src="{translator:getFlagName(language: langShort)}" height="16" class="hd-translator-flag" alt="" />
+														{lang}
+													</f:link.action>
+												</f:for>
+											</div>
+										</f:then>
+										<f:else>
+											<span class="hd-translator-source-cell"><f:translate key="list.noTranslationsYet" /></span>
+										</f:else>
+									</f:if>
+								</td>
+								<td class="col-control">
+									<f:if condition="{file.languages}">
+										<div class="dropdown">
+											<button class="btn btn-default btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+												<core:icon identifier="actions-plus" size="small" />
+												<f:translate key="list.add_new" />
+											</button>
+											<ul class="dropdown-menu dropdown-menu-end">
+												<f:for each="{file.languages}" as="lang">
+													<li>
+														<f:link.action class="dropdown-item" action="detail"
+														               arguments="{keyTranslation: index, languageTranslation: lang}">
+															<f:image title="{lang}" src="{translator:getFlagName(language: lang)}" loading="lazy" height="16" class="hd-translator-flag" alt="" />
+															<span>{languagesArray.{lang}} [{lang -> f:format.case(mode: 'upper')}]</span>
+														</f:link.action>
+													</li>
+												</f:for>
+											</ul>
+										</div>
+									</f:if>
+								</td>
+							</tr>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'index.noTranslations.description\')}'
+			}" />
+		</f:else>
+	</f:if>
+</div>
 </f:section>
 </html>

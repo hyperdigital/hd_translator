@@ -183,6 +183,144 @@
             <trans-unit id="deepl.originalSources.headline">
                 <source>Deepl AI translations - original sources</source>
             </trans-unit>
+            <trans-unit id="common.pageContext">
+                <source>Translating page "%s" and its subpages</source>
+            </trans-unit>
+            <trans-unit id="common.back">
+                <source>Back</source>
+            </trans-unit>
+            <trans-unit id="index.categories.description">
+                <source>Pick a category to see the translation files it contains.</source>
+            </trans-unit>
+            <trans-unit id="index.noTranslations.headline">
+                <source>No translation files registered yet</source>
+            </trans-unit>
+            <trans-unit id="index.noTranslations.description">
+                <source>Register a locallang file to make it translatable here, or enable "All locallang.xlf files" in the extension configuration and synchronize.</source>
+            </trans-unit>
+            <trans-unit id="list.existingTranslations">
+                <source>Existing translations</source>
+            </trans-unit>
+            <trans-unit id="list.noTranslationsYet">
+                <source>Not translated yet</source>
+            </trans-unit>
+            <trans-unit id="list.file">
+                <source>Translation file</source>
+            </trans-unit>
+            <trans-unit id="detail.noResults">
+                <source>No strings match your search.</source>
+            </trans-unit>
+            <trans-unit id="detail.stringCount">
+                <source>%s strings</source>
+            </trans-unit>
+            <trans-unit id="form.sourceSystemLanguage">
+                <source>Source TYPO3 language</source>
+            </trans-unit>
+            <trans-unit id="form.sourceLanguageCode">
+                <source>Source language (XLF code)</source>
+            </trans-unit>
+            <trans-unit id="form.targetLanguageCode">
+                <source>Target language (XLF code)</source>
+            </trans-unit>
+            <trans-unit id="form.targetSystemLanguage">
+                <source>Target TYPO3 language</source>
+            </trans-unit>
+            <trans-unit id="form.pageUids">
+                <source>Page UID</source>
+            </trans-unit>
+            <trans-unit id="form.pageUids.description">
+                <source>A single uid or a comma separated list.</source>
+            </trans-unit>
+            <trans-unit id="form.includeSubpages">
+                <source>Include subpages</source>
+            </trans-unit>
+            <trans-unit id="form.ignoreExportFields">
+                <source>Ignore the export field limitation</source>
+            </trans-unit>
+            <trans-unit id="form.ignoreExportFields.description">
+                <source>Exports every accessible field instead of the ones listed in "translator_export".</source>
+            </trans-unit>
+            <trans-unit id="form.files">
+                <source>Files</source>
+            </trans-unit>
+            <trans-unit id="form.files.description">
+                <source>Accepted formats: xlf, zip.</source>
+            </trans-unit>
+            <trans-unit id="form.selectFiles">
+                <source>Select &amp; upload files</source>
+            </trans-unit>
+            <trans-unit id="form.translationSource">
+                <source>Translation source</source>
+            </trans-unit>
+            <trans-unit id="form.translationSource.description">
+                <source>Which XLF node the values are read from.</source>
+            </trans-unit>
+            <trans-unit id="form.export">
+                <source>Export</source>
+            </trans-unit>
+            <trans-unit id="form.import">
+                <source>Import</source>
+            </trans-unit>
+            <trans-unit id="form.languageQuickSelect">
+                <source>Insert a language code</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.headline">
+                <source>Import finished</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.inserted">
+                <source>Inserted</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.updated">
+                <source>Updated</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.failed">
+                <source>Failed</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.errors">
+                <source>Errors</source>
+            </trans-unit>
+            <trans-unit id="databaseImport.result.noErrors">
+                <source>The import finished without errors.</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.recordType">
+                <source>Type</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.couldBe">
+                <source>could be</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.table.label">
+                <source>Label</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.table.value">
+                <source>Value</source>
+            </trans-unit>
+            <trans-unit id="exportTableRow.table.key">
+                <source>Export key</source>
+            </trans-unit>
+            <trans-unit id="deepl.language.editTranslation">
+                <source>Edit this translation</source>
+            </trans-unit>
+            <trans-unit id="deepl.originalSources.description">
+                <source>Every source string that has at least one translation.</source>
+            </trans-unit>
+            <trans-unit id="deepl.original.table.actions">
+                <source>Actions</source>
+            </trans-unit>
+            <trans-unit id="deepl.searchBySource">
+                <source>Search by original sources</source>
+            </trans-unit>
+            <trans-unit id="deepl.removeAllStrings">
+                <source>Remove all strings</source>
+            </trans-unit>
+            <trans-unit id="form.group.languages">
+                <source>Languages</source>
+            </trans-unit>
+            <trans-unit id="form.group.scope">
+                <source>Scope</source>
+            </trans-unit>
+            <trans-unit id="form.group.upload">
+                <source>Upload</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -1,29 +1,66 @@
 <html
-    xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-    xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-    xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-    data-namespace-typo3-fluid="true">
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
 <div class="hd-translator">
-    <f:render partial="Search" arguments="{_all}" />
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'search.submit\')}',
+		subtitle: sword
+	}" />
 
-    <f:if condition="{data}">
-        <f:for each="{data}" key="category" as="items">
-            <h3>{category}</h3>
-            <f:if condition="{items}">
-                <f:for each="{items}" as="item" key="key">
-                    <div>{item.label}</div>
-                    <f:if condition="{item.languages}">
-                        <f:for each="{item.languages}" as="lang">
-                            <f:link.action action="detail" arguments="{keyTranslation: key, languageTranslation: lang}">{languagesArray.{lang}}</f:link.action>
-                        </f:for>
-                    </f:if>
-                </f:for>
-            </f:if>
-        </f:for>
-    </f:if>
+	<div class="hd-translator-toolbar">
+		<div class="hd-translator-toolbar-search">
+			<f:render partial="Search" arguments="{_all}" />
+		</div>
+	</div>
+
+	<f:if condition="{data}">
+		<f:then>
+			<div class="table-fit">
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr>
+							<th><f:translate key="index.categories.headline" /></th>
+							<th><f:translate key="list.file" /></th>
+							<th><f:translate key="list.existingTranslations" /></th>
+						</tr>
+					</thead>
+					<tbody>
+						<f:for each="{data}" key="category" as="items">
+							<f:for each="{items}" as="item" key="key">
+								<tr>
+									<td class="hd-translator-nowrap"><strong>{category}</strong></td>
+									<td>{item.label}</td>
+									<td>
+										<f:if condition="{item.languages}">
+											<div class="hd-translator-language-list">
+												<f:for each="{item.languages}" as="lang">
+													<f:link.action class="btn btn-default btn-sm" action="detail"
+													               arguments="{keyTranslation: key, languageTranslation: lang}">
+														{languagesArray.{lang}}
+													</f:link.action>
+												</f:for>
+											</div>
+										</f:if>
+									</td>
+								</tr>
+							</f:for>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'detail.noResults\')}'
+			}" />
+		</f:else>
+	</f:if>
 </div>
 </f:section>
 </html>

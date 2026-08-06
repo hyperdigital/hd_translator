@@ -1,209 +1,256 @@
-:root {
-    --hdtranslator-font-size: 14px;
-    --hdtranslator-gap-size: 32px;
-    --hdtranslator-main-color: #787575;
-    --hdtranslator-dark-color: #333333;
+/*
+ * Translator backend styles.
+ *
+ * Built on the TYPO3 backend design tokens so the module inherits the backend
+ * colour scheme, including light and dark mode, instead of hardcoding colours.
+ */
+.hd-translator {
+    --hdtranslator-gap: 1.5rem;
+    --hdtranslator-radius: var(--typo3-border-radius, 4px);
+    --hdtranslator-muted: var(--typo3-text-color-variant, #6c757d);
+    --hdtranslator-border: var(--typo3-component-border-color, rgba(0, 0, 0, .15));
+    --hdtranslator-surface: var(--typo3-component-bg, #fff);
 }
-.hd-translator .hd-translator-detail-grid *{
-    color: var(--hdtranslator-main-color);
-}
-.hd-translator img{
+
+.hd-translator img {
     max-width: 100%;
     height: auto;
 }
-.hd-translator h1 .subline{
-    font-size: 20px;
-    font-weight: 200;
+
+/* ---------------------------------------------------------------- header */
+.hd-translator-header {
+    margin-bottom: var(--hdtranslator-gap);
 }
-.hd-translator .search-section{
-    flex-grow: 1;
+
+.hd-translator-header-title {
+    margin-bottom: .25rem;
 }
-.hd-translator .search-wrap{
-    display: flex;
+
+.hd-translator-header-subtitle {
+    margin-inline-start: .5rem;
+    font-size: .6em;
+    font-weight: 300;
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-header-description {
+    margin-bottom: 0;
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-header-context {
+    display: inline-flex;
     align-items: center;
-    margin-right: var(--hdtranslator-gap-size);
+    gap: .375rem;
+    margin: .5rem 0 0;
+    padding: .125rem .5rem;
+    border: 1px solid var(--hdtranslator-border);
+    border-radius: var(--hdtranslator-radius);
+    font-size: .875rem;
+    color: var(--hdtranslator-muted);
 }
-.hd-translator .search-wrap svg{
-    height: 1rem;
-    width: auto;
+
+/* ---------------------------------------------------------------- toolbar */
+.hd-translator-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: var(--hdtranslator-gap);
 }
-.hd-translator .search-wrap input{
-    margin-left: -1rem;
-    padding-left: 1.5rem;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--hdtranslator-main-color);
-    width: 100%;
+
+.hd-translator-toolbar-search {
+    flex: 1 1 16rem;
+    max-width: 32rem;
 }
-.hd-translator .search-wrap input:focus{
-    outline: none;
-    border-bottom: 1px solid var(--hdtranslator-dark-color);
+
+.hd-translator-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
 }
-.popup-action{
-    position: relative;
+
+/* ------------------------------------------------------------ string grid */
+.hd-translator-detail-grid {
+    display: grid;
+    gap: var(--hdtranslator-gap);
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
 }
-.popup-content{
-    position: absolute;
-    right: 0;
-    padding: 10px;
-    min-width: 100%;
-    width: max-content;
-    white-space: nowrap;
-    border: 1px solid var(--bs-table-border-color);
-    background-color: white;
+
+.hd-translator-detail-categorytitle {
+    grid-column: 1 / -1;
+    margin: .5rem 0 0;
+    padding-bottom: .25rem;
+    border-bottom: 1px solid var(--hdtranslator-border);
+    font-size: 1.05rem;
     font-weight: 600;
-    z-index: 2;
-    max-height: 400px;
-    overflow-y: auto;
 }
-.popup-content.hidden{
-    display: none;
-}
-.popup-content > div {
-	margin-top: 5px;
-}
-.popup-content > div:first-child{
-	margin-top: 0px;
-}
-.import-upload-form{
+
+.hd-translator-detail-grid-item {
     display: flex;
     flex-direction: column;
-    grid-gap: 5px;
+    gap: .25rem;
+    min-width: 0;
 }
-.hd-translator-detail-grid{
-    display: grid;
-    grid-gap: calc(0.5 * var(--hdtranslator-gap-size)) var(--hdtranslator-gap-size);
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    font-size: var(--hdtranslator-font-size);
+
+/* Bootstrap 5 dropped .hidden, the filter script relies on it */
+.hd-translator .hidden {
+    display: none;
 }
-.popup-content .hd-translator-list-languageitem{
-    font-size: var(--bs-body-font-size);
+
+.hd-translator-key {
+    font-family: var(--typo3-font-family-monospace, monospace);
+    font-size: .75rem;
+    color: var(--hdtranslator-muted);
+    overflow-wrap: anywhere;
 }
-.hd-translator-list-table{
+
+.hd-translator-field input {
+    width: 100%;
 }
-.hd-translator-list-table td{
-    vertical-align: top;
-    padding: 2px 4px;
+
+.hd-translator-original {
+    padding-inline-start: .5rem;
+    border-inline-start: 2px solid var(--hdtranslator-border);
+    font-size: .8125rem;
+    color: var(--hdtranslator-muted);
+    overflow-wrap: anywhere;
 }
-.hd-translator-list-table-label, .hd-translator-list-table-flags{
+
+/* ------------------------------------------------------------------ flags */
+.hd-translator-flag {
+    width: 1.25rem;
+    height: auto;
+    border-radius: 2px;
+}
+
+.hd-translator-language-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .375rem;
+}
+
+.hd-translator-language-list .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+}
+
+/* ------------------------------------------------------------------ forms */
+.hd-translator-form-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.hd-translator-form-grid > [class*="col-"] {
+    padding: 0;
+}
+
+.hd-translator-quickselect {
+    max-width: 12rem;
+    flex: 0 0 auto;
+}
+
+.hd-translator-fieldset {
+    margin-bottom: var(--hdtranslator-gap);
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--hdtranslator-border);
+    border-radius: var(--hdtranslator-radius);
+    background: var(--hdtranslator-surface);
+}
+
+.hd-translator-fieldset-legend {
+    margin-bottom: .75rem;
+    font-size: .8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-filelist {
+    margin-top: .5rem;
+    font-size: .875rem;
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-select-tall {
+    min-height: 18rem;
+}
+
+/* ------------------------------------------------------------- statistics */
+.hd-translator-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: var(--hdtranslator-gap);
+}
+
+.hd-translator-stat {
+    flex: 1 1 8rem;
+    padding: .75rem 1rem;
+    border: 1px solid var(--hdtranslator-border);
+    border-radius: var(--hdtranslator-radius);
+    background: var(--hdtranslator-surface);
+}
+
+.hd-translator-stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.hd-translator-stat-label {
+    font-size: .8125rem;
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-stat-danger .hd-translator-stat-value {
+    color: var(--typo3-color-danger, #c83c3c);
+}
+
+/* --------------------------------------------------------------- dropdown */
+.hd-translator .dropdown-menu {
+    max-height: 24rem;
+    overflow-y: auto;
+}
+
+.hd-translator .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* ----------------------------------------------------------------- tables */
+.hd-translator-source-cell {
+    color: var(--hdtranslator-muted);
+}
+
+.hd-translator-nowrap {
     white-space: nowrap;
 }
-.hd-translator-list-table .hd-translator-list-table-tools{
-    min-width: 400px;
-}
-.hd-translator-list-flags-wrap{
-    display: flex;
-    margin-right: calc(-0.5 * var(--hdtranslator-gap-size))
-}
-.hd-translator-list-flags-wrap a{
-    margin-right: calc(0.5 * var(--hdtranslator-gap-size));
-}
-@media only screen and (min-width: 900px) {
-    .hd-translator-detail-grid{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media only screen and (min-width: 1250px) {
-    .hd-translator-detail-grid{
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-@media only screen and (min-width: 1440px) {
-    .hd-translator-detail-grid{
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-.hd-translator .toolbar-section{
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 1em;
-    align-items: center;
-}
-.hd-translator-detail-categorytitle{
-	font-size: 1.2em;
-	font-weight: bold;
-	text-transform: capitalize;
-	line-height: 1.5;
-	margin: 8px 0px 0px 0px;
-}
-.hd-translator-key{
-    font-size: 0.95em;
-}
-.hd-translator-field{
-    margin: calc(0.5 * 0.75em) 0px;
-}
-.hd-translator-original{
-    font-size: 0.75em;
-    font-weight: 800;
-}
-.hd-translator-field input{
-    width: 100%;
-    padding: calc(var(--hdtranslator-font-size) * 0.5);
-}
-.hd-translator .download-links a:hover{
-    text-decoration: none;
-}
-.hd-translator .toolbar-button-section{
-    display: flex;
-}
-.hd-translator-flag{
-    width: 1.8em;
-    height: auto;
-    box-sizing: border-box;
+
+/* -------------------------------------------------------------------- rtl */
+/*
+ * The module edits content in languages the backend is not running in, so the
+ * direction is set per element via a dir attribute. Everything below only makes
+ * sure the chrome follows that direction instead of fighting it.
+ */
+/* any element carrying a dir aligns to its own start edge, ltr or rtl */
+.hd-translator [dir] {
+    text-align: start;
 }
 
-.hd-translator-long_select{
-	min-height: 400px;
-}
-.hd-translator-list-languageitem{
-    font-size: var(--hdtranslator-font-size);
-}
-.hd-translator #translation-form-success *{
-	color: white;
-}
-#translation-form-success{
-	display: none;
-	position: fixed;
-	top: 55px;
+/* a monospaced key stays left to right even inside an rtl backend */
+.hd-translator .hd-translator-key {
+    unicode-bidi: plaintext;
 }
 
-.hd-translator-databaseexport-preview{
-    display: grid;
-    grid-gap: calc(0.5 * var(--hdtranslator-gap-size));
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    font-size: var(--hdtranslator-font-size);
-}
-@media only screen and (min-width: 900px) {
-    .hd-translator-databaseexport-preview{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media only screen and (min-width: 1250px) {
-    .hd-translator-databaseexport-preview{
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-@media only screen and (min-width: 1440px) {
-    .hd-translator-databaseexport-preview{
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-.hd-translator-databaseexport-preview-row-value{
-    color: var(--hdtranslator-dark-color);
-}
-.hd-translator-databaseexport-preview-row-key{
-    font-size: 0.95em;
-    font-weight: 600;
-    color: var(--hdtranslator-main-color);
-	overflow: hidden;
-}
-.hd-translator-databaseexport-preview-row-tablename{
-    font-size: 0.75em;
-    font-weight: 800;
-	overflow: hidden;
-}
-.form-select.hd-form-select{
-	background-color: var(--bs-btn-bg);
+/* keeps punctuation of a mixed source string attached to the right word */
+.hd-translator-original,
+.hd-translator-source-cell {
+    unicode-bidi: plaintext;
 }

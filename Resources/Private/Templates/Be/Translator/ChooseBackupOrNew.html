@@ -1,19 +1,46 @@
 <html
-        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-        data-namespace-typo3-fluid="true">
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
-    <h1>{f:translate(key: 'detail.chooseNewOrBackup')}</h1>
-    <f:link.action action="detail" class="btn btn-default" arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation, forceNew: 1}">
-        <core:icon identifier="actions-plus" size="small" />
-        {f:translate(key: 'detail.chooseNewOrBackup.new')}
-    </f:link.action>
-    <f:link.action action="revertBackup" class="btn btn-default" arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation}">
-        <core:icon identifier="apps-pagetree-folder-contains-board" size="small" />
-        {f:translate(key: 'detail.chooseNewOrBackup.backup')} <f:format.date format="Y-m-d H:i:s">{backupLastEdit}</f:format.date>
-    </f:link.action>
+<div class="hd-translator">
+	<f:variable name="backupSubtitle">[{languageTranslation -> f:format.case(mode: 'upper')}]</f:variable>
+
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'detail.chooseNewOrBackup\')}',
+		subtitle: backupSubtitle
+	}" />
+
+	<div class="hd-translator-form-grid">
+		<div class="col-12 col-md-5">
+			<div class="hd-translator-fieldset h-100">
+				<div class="hd-translator-fieldset-legend"><f:translate key="detail.chooseNewOrBackup.new" /></div>
+				<f:link.action action="detail" class="btn btn-default"
+				               arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation, forceNew: 1}">
+					<core:icon identifier="actions-plus" size="small" />
+					<f:translate key="detail.chooseNewOrBackup.new" />
+				</f:link.action>
+			</div>
+		</div>
+
+		<div class="col-12 col-md-5">
+			<div class="hd-translator-fieldset h-100">
+				<div class="hd-translator-fieldset-legend"><f:translate key="detail.chooseNewOrBackup.backup" /></div>
+				<p class="hd-translator-source-cell">
+					<core:icon identifier="actions-history" size="small" />
+					<f:format.date format="Y-m-d H:i:s">{backupLastEdit}</f:format.date>
+				</p>
+				<f:link.action action="revertBackup" class="btn btn-primary"
+				               arguments="{keyTranslation: keyTranslation, languageTranslation: languageTranslation}">
+					<core:icon identifier="actions-edit-restore" size="small" />
+					<f:translate key="detail.chooseNewOrBackup.backup" />
+				</f:link.action>
+			</div>
+		</div>
+	</div>
+</div>
 </f:section>
 </html>

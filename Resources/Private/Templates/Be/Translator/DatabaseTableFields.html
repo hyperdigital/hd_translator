@@ -1,77 +1,64 @@
 <html
-    xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-    xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-    xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-    data-namespace-typo3-fluid="true">
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
 <div class="hd-translator">
-	<h1>Database translator</h1>
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'exportDatabase.headline\')}',
+		description: '{f:translate(key: \'exportDatabase.chooseTablesForExport\')}'
+	}" />
+
 	<f:form action="databaseExport">
-		<div>
-			<f:form.select name="format">
-				<f:form.select.option value="xlf">
-					XLF
-				</f:form.select.option>
-				<f:form.select.option value="csv">
-					CSV
-				</f:form.select.option>
-				<f:form.select.option value="xml">
-					XML
-				</f:form.select.option>
+		<f:if condition="{pageUid}"><f:form.hidden name="id" value="{pageUid}" /></f:if>
+
+		<div class="hd-translator-fieldset">
+			<div class="hd-translator-form-grid">
+				<div class="col-12 col-md-4 col-xl-3">
+					<label class="form-label" for="storages"><f:translate key="form.pageUids" /></label>
+					<f:form.textfield id="storages" name="storages" value="" class="form-control" />
+					<div class="form-text"><f:translate key="form.pageUids.description" /></div>
+				</div>
+
+				<f:if condition="{allowedLanguages}">
+					<div class="col-12 col-md-4 col-xl-3">
+						<label class="form-label" for="sourceLanguageUid"><f:translate key="form.sourceSystemLanguage" /></label>
+						<f:form.select name="sourceLanguageUid" id="sourceLanguageUid" class="form-select" value="0">
+							<f:for each="{allowedLanguages}" as="lang">
+								<f:form.select.option value="{lang.uid}">{lang.title}</f:form.select.option>
+							</f:for>
+						</f:form.select>
+					</div>
+				</f:if>
+
+				<div class="col-12 col-md-4">
+					<div class="form-check form-switch mt-4">
+						<f:form.checkbox name="subpages" class="form-check-input" id="subpages-checkbox" value="1" />
+						<label class="form-check-label" for="subpages-checkbox"><f:translate key="form.includeSubpages" /></label>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="hd-translator-fieldset">
+			<div class="hd-translator-fieldset-legend"><f:translate key="exportDatabase.chooseTablesForExport" /></div>
+			<label class="visually-hidden" for="tables"><f:translate key="exportDatabase.chooseTablesForExport" /></label>
+			<f:form.select multiple="1" name="tables" id="tables" class="form-select hd-translator-select-tall">
+				<f:if condition="{tables}">
+					<f:for each="{tables}" as="fields" key="table">
+						<f:form.select.option value="{table}">{table}</f:form.select.option>
+					</f:for>
+				</f:if>
 			</f:form.select>
 		</div>
-		<div>
-			<div>
-				<label for="storage">
-					Comma separated storages (empty to enable all)
-				</label>
-			</div>
-			<f:form.textfield id="storage" name="storage" value="" />
-		</div>
-		<div>
-			<f:form.checkbox name="sublevels" value="1" /> Enable sublevels
-		</div>
-		<f:if condition="{allowedLanguages}">
-			<div>
-				TODO: from to
-				<div>
-					<f:form.select multiple="0" name="languageFrom">
-						<f:for each="{allowedLanguages}" as="lang">
-							<f:form.select.option value="{lang.uid}">
-								{lang.title}
-							</f:form.select.option>
-						</f:for>
-					</f:form.select>
-				</div>
-				<div>
-					<f:form.select multiple="0" name="languageTo">
-						<f:for each="{allowedLanguages}" as="lang">
-							<f:form.select.option value="{lang.uid}">
-								{lang.title}
-							</f:form.select.option>
-						</f:for>
-					</f:form.select>
-				</div>
-			</div>
-		</f:if>
-		<f:form.select multiple="1" name="tables" class="hd-translator-long_select">
-			<f:if condition="{tables}">
-				<f:for each="{tables}" as="fields" key="table">
-					<f:form.select.optgroup label="{table}">
-						<f:if condition="{fields}">
-							<f:for each="{fields}" as="field">
-								<f:form.select.option value="{table}.{field.fieldName}">[{field.fieldName}]</f:form.select.option>
-							</f:for>
-						</f:if>
-					</f:form.select.optgroup>
-				</f:for>
-			</f:if>
-		</f:form.select>
-		<div>
-			<f:form.submit value="EXPORT" />
-		</div>
+
+		<button class="btn btn-primary">
+			<core:icon identifier="actions-download" size="small" />
+			<f:translate key="form.export" />
+		</button>
 	</f:form>
 </div>
 </f:section>

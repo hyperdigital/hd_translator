@@ -6,19 +6,54 @@
 <f:layout name="Module" />
 
 <f:section name="Content">
-	<div class="hd-translator">
-		<div>UPDATED: {actions.updated}</div>
-		<div>INSERTED: {actions.inserted}</div>
-		<div>FAILS: {actions.fails}</div>
-		<f:if condition="{actions.failsMessages}">
-			<div>
-				<f:for each="{actions.failsMessages}" as="message">
-					<div>
-						{message}
-					</div>
-				</f:for>
-			</div>
-		</f:if>
+<div class="hd-translator">
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'databaseImport.result.headline\')}'
+	}" />
+
+	<div class="hd-translator-stats">
+		<div class="hd-translator-stat">
+			<div class="hd-translator-stat-value">{actions.inserted}</div>
+			<div class="hd-translator-stat-label"><f:translate key="databaseImport.result.inserted" /></div>
+		</div>
+		<div class="hd-translator-stat">
+			<div class="hd-translator-stat-value">{actions.updated}</div>
+			<div class="hd-translator-stat-label"><f:translate key="databaseImport.result.updated" /></div>
+		</div>
+		<div class="hd-translator-stat{f:if(condition: actions.fails, then: ' hd-translator-stat-danger')}">
+			<div class="hd-translator-stat-value">{actions.fails}</div>
+			<div class="hd-translator-stat-label"><f:translate key="databaseImport.result.failed" /></div>
+		</div>
 	</div>
+
+	<f:if condition="{actions.failsMessages}">
+		<f:then>
+			<h2><f:translate key="databaseImport.result.errors" /></h2>
+			<div class="table-fit">
+				<table class="table table-striped">
+					<tbody>
+						<f:for each="{actions.failsMessages}" as="message">
+							<tr><td>{message}</td></tr>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'success',
+				icon: 'actions-check',
+				message: '{f:translate(key: \'databaseImport.result.noErrors\')}'
+			}" />
+		</f:else>
+	</f:if>
+
+	<p>
+		<f:link.action action="databaseImportIndex" class="btn btn-default">
+			<core:icon identifier="actions-arrow-down-left" size="small" />
+			<f:translate key="common.back" />
+		</f:link.action>
+	</p>
+</div>
 </f:section>
 </html>

@@ -1,47 +1,68 @@
 <html
-        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
-        xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
-        xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
-        data-namespace-typo3-fluid="true">
-
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+		xmlns:translator="http://typo3.org/ns/Hyperdigital/HdTranslator/ViewHelpers"
+		data-namespace-typo3-fluid="true">
 <f:layout name="Module" />
 
 <f:section name="Content">
+<div class="hd-translator">
+	<f:render partial="Module/Header" arguments="{
+		title: '{f:translate(key: \'deepl.original.headline\')}'
+	}" />
 
-    <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.headline" /></h1>
-    <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.subheadline" /></h2>
-    <p>{source.original_source}</p>
+	<div class="hd-translator-fieldset">
+		<div class="hd-translator-fieldset-legend"><f:translate key="deepl.original.subheadline" /></div>
+		<p class="mb-0" dir="auto">{source.original_source}</p>
+	</div>
 
-    <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.availableTranslations" /></h2>
-    <f:if condition="{translations}">
-        <f:else>
-            <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.noTranslationsFound" /></p>
-        </f:else>
-        <f:then>
-            <table  class="table table-hover">
-                <thead>
-                <tr>
-                    <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.table.language" /></th>
-                    <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.table.translation" /></th>
-                </tr>
-                </thead>
-                <tbody>
-                <f:for each="{translations}" as="string">
-                    <tr>
-                        <td>
-                            <f:link.action action="deeplTranslationLanguage" arguments="{language: string.target_language}">{string.target_language}</f:link.action>
-                        </td>
-                        <td>
-                            <be:link.editRecord uid="{string.uid}" returnUrl="{currentUri}" table="tx_hdtranslator_ai_translation">
-                                {string.translation}
-                            </be:link.editRecord>
-                        </td>
-                    </tr>
-                </f:for>
-                </tbody>
-            </table>
-        </f:then>
-    </f:if>
+	<h2><f:translate key="deepl.original.availableTranslations" /></h2>
+
+	<f:if condition="{translations}">
+		<f:then>
+			<div class="table-fit">
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr>
+							<th><f:translate key="deepl.original.table.language" /></th>
+							<th><f:translate key="deepl.original.table.translation" /></th>
+							<th class="col-control"></th>
+						</tr>
+					</thead>
+					<tbody>
+						<f:for each="{translations}" as="string">
+							<tr>
+								<td class="hd-translator-nowrap">
+									<f:link.action action="deeplTranslationLanguage" arguments="{language: string.target_language}">
+										<strong>{string.target_language}</strong>
+									</f:link.action>
+								</td>
+								<td dir="{translator:languageDirection(language: string.target_language)}" lang="{string.target_language}">
+									<be:link.editRecord uid="{string.uid}" returnUrl="{currentUri}" table="tx_hdtranslator_ai_translation">
+										{string.translation}
+									</be:link.editRecord>
+								</td>
+								<td class="col-control">
+									<be:link.editRecord uid="{string.uid}" class="btn btn-default btn-sm"
+									                    returnUrl="{currentUri}" table="tx_hdtranslator_ai_translation"
+									                    title="{f:translate(key: 'deepl.language.editTranslation')}">
+										<core:icon identifier="actions-open" size="small" />
+									</be:link.editRecord>
+								</td>
+							</tr>
+						</f:for>
+					</tbody>
+				</table>
+			</div>
+		</f:then>
+		<f:else>
+			<f:render partial="Module/Callout" arguments="{
+				state: 'info',
+				message: '{f:translate(key: \'deepl.original.noTranslationsFound\')}'
+			}" />
+		</f:else>
+	</f:if>
+</div>
 </f:section>
 </html>

@@ -1,0 +1,24 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+      data-namespace-typo3-fluid="true">
+<f:comment>
+	Shared screen header.
+	Arguments: title, subtitle, description, pageData
+</f:comment>
+<div class="hd-translator-header">
+	<h1 class="hd-translator-header-title">
+		{title}<f:if condition="{subtitle}"><span class="hd-translator-header-subtitle">{subtitle}</span></f:if>
+	</h1>
+
+	<f:if condition="{description}">
+		<p class="hd-translator-header-description">{description}</p>
+	</f:if>
+
+	<f:if condition="{pageData}">
+		<p class="hd-translator-header-context">
+			<core:icon identifier="actions-localize" size="small" />
+			<f:translate key="common.pageContext" arguments="{0: pageData.title}" />
+		</p>
+	</f:if>
+</div>
+</html>

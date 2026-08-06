@@ -1,0 +1,20 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      data-namespace-typo3-fluid="true">
+<f:comment>
+	Free text XLF language code with a quick select that copies a code into the field.
+	Arguments: name, id, selectName, label, value, languages
+</f:comment>
+<div class="col-12 col-md-4 col-xl-3">
+	<label class="form-label" for="{id}">{label}</label>
+	<div class="input-group">
+		<f:form.textfield name="{name}" id="{id}" value="{value}" class="form-control" />
+		<f:form.select name="{selectName}" id="{id}-temp" class="form-select hd-translator-quickselect"
+		               additionalAttributes="{aria-label: '{f:translate(key: \'form.languageQuickSelect\')}'}">
+			<f:form.select.option value=""></f:form.select.option>
+			<f:for each="{languages}" as="language" key="key">
+				<f:form.select.option value="{key}">{language}</f:form.select.option>
+			</f:for>
+		</f:form.select>
+	</div>
+</div>
+</html>

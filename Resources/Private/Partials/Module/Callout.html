@@ -1,0 +1,28 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+      data-namespace-typo3-fluid="true">
+<f:comment>
+	Shared callout, used for empty states and hints.
+	Arguments: state, icon, title, message, actionUri, actionLabel, actionIcon
+</f:comment>
+<f:variable name="calloutState">{f:if(condition: state, then: state, else: 'info')}</f:variable>
+<f:variable name="calloutIcon">{f:if(condition: icon, then: icon, else: 'actions-info')}</f:variable>
+
+<div class="callout callout-{calloutState}">
+	<div class="callout-icon"><span class="icon-emphasized"><core:icon identifier="{calloutIcon}" size="small" /></span></div>
+	<div class="callout-content">
+		<f:if condition="{title}">
+			<div class="callout-title">{title}</div>
+		</f:if>
+		<div class="callout-body">
+			<f:if condition="{message}"><p>{message}</p></f:if>
+			<f:if condition="{actionUri}">
+				<a class="btn btn-default" href="{actionUri}">
+					<f:if condition="{actionIcon}"><core:icon identifier="{actionIcon}" size="small" /></f:if>
+					{actionLabel}
+				</a>
+			</f:if>
+		</div>
+	</div>
+</div>
+</html>
