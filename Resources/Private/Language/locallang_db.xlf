@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" datatype="plaintext" original="messages" date="2026-08-06T00:00:00Z" product-name="hd_translator">
+        <header/>
+        <body>
+            <trans-unit id="sys_reaction.reaction_type.hd_translator_import">
+                <source>Import a translation</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_language">
+                <source>Target language</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_language.description">
+                <source>The language the file is written into, unless the payload names one.</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_site">
+                <source>Restrict to site</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_site.description">
+                <source>Records outside the page tree of this site are refused, so one endpoint per site can be handed out separately.</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_site.all">
+                <source>All sites</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_qa_mode">
+                <source>Quality check</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_qa_mode.description">
+                <source>What happens to entries whose length, placeholders or markup do not match the source.</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_qa_mode.report">
+                <source>Report only, import everything</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_qa_mode.skip">
+                <source>Skip the failing entries</source>
+            </trans-unit>
+            <trans-unit id="sys_reaction.hdtranslator_qa_mode.reject">
+                <source>Reject the whole file</source>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>

@@ -48,6 +48,27 @@ Database export and import
     file references and FlexForm fields) into XLIFF, and import the translated files
     back as TYPO3 translation records.
 
+Exchange formats
+    XLIFF 1.2 and XLIFF 2.0 are read and written. Gettext PO, JSON, YAML and CSV are
+    available too, through the loaders and dumpers of the Symfony Translation component
+    TYPO3 ships. Those carry the translation only, so XLIFF stays the format that keeps
+    the field label, the maximum length and the notes.
+
+Quality check on import
+    An uploaded file is checked before it is written: length overruns, lost or invented
+    :php:`sprintf` placeholders, unbalanced markup, empty targets, and entries a file
+    marks as untouched. Findings are listed on the import result screen, and the failing
+    entries can be held back.
+
+Coverage
+    Per site and language, how many translatable records exist and how many are
+    translated, broken down by table, plus the key coverage of every registered static
+    string file.
+
+Import over HTTP
+    With EXT:reactions installed, a translation system can push a finished file back to
+    an endpoint instead of somebody re-uploading it by hand. See :ref:`import-reaction`.
+
 DeepL AI translations
     Translate frontend output on the fly through DeepL, with every string cached in the
     database so the API limits are not hit repeatedly.
@@ -285,3 +306,60 @@ Or call the service directly:
     $deeplApi = GeneralUtility::makeInstance(DeeplApiService::class);
     $languages = $deeplApi->getAvailableLanguages(true);
     $translations = $deeplApi->translateTexts(['Translate me this content'], 'de');
+
+
+..  _import-reaction:
+
+Importing over HTTP
+===================
+
+With :composer:`typo3/cms-reactions` installed, the module registers a reaction of the
+type *Import a translation*. Create one in :guilabel:`System > Reactions` and set:
+
+:guilabel:`Target language`
+    The language the file is written into, unless the payload names another one.
+
+:guilabel:`Restrict to site`
+    Records outside the page tree of that site are refused. This is how one endpoint per
+    site is handed to different agencies without either of them being able to write the
+    content of the other.
+
+:guilabel:`Quality check`
+    Report the findings only, skip the entries that fail, or reject the whole file.
+
+:guilabel:`Impersonate user`
+    The import enforces the usual table and page permissions. Without a user with write
+    access to the tables and pages in question, every entry is refused.
+
+The payload is JSON:
+
+..  code-block:: json
+
+    {
+        "language": 2,
+        "format": "xlf",
+        "content": "<?xml version=\"1.0\"?><xliff version=\"1.2\">…</xliff>"
+    }
+
+:json:`content` may be replaced by :json:`contentBase64` when the sending system cannot
+put raw XML into a JSON string. :json:`format` accepts any extension the import accepts
+and defaults to :json:`xlf`. :json:`language` is optional and overrides the language of
+the reaction record.
+
+The keys inside the file are the ones the export writes, :json:`table.uid.field`.
+
+..  code-block:: bash
+
+    curl -X POST https://example.org/typo3/reaction/<uuid> \
+        -H 'x-api-key: <secret>' \
+        -H 'Content-Type: application/json' \
+        --data-binary @payload.json
+
+The response reports what happened::
+
+    {"success":true,"language":2,"inserted":1,"updated":0,"failed":0,
+     "failMessages":[],"outOfScope":[],
+     "qa":{"errors":0,"warnings":1,"checked":12,"findings":[…]}}
+
+The status is 200 when everything was written, 207 when some entries failed, 400 for a
+malformed request and 422 when the file was rejected or nothing was left to import.

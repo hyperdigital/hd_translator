@@ -35,12 +35,14 @@
     }
   },
   "suggest": {
-    "typo3/cms-extensionmanager": "Needed for the \"Synchronize all locallang.xlf files\" feature"
+    "typo3/cms-extensionmanager": "Needed for the \"Synchronize all locallang.xlf files\" feature",
+    "typo3/cms-reactions": "Provides the HTTP endpoint a translation system can push a finished translation to"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.0",
     "phpunit/phpunit": "^11.5",
-    "typo3/testing-framework": "^9.0"
+    "typo3/testing-framework": "^9.0",
+    "typo3/cms-reactions": ">=14.0 <14.99"
   },
   "autoload-dev": {
     "psr-4": {

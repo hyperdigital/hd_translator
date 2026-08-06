@@ -86,7 +86,7 @@ class TranslationCoverageService
      */
     public function getDatabaseCoverage(Site $site, array $tables): array
     {
-        $pages = $this->getPagesOfSite($site);
+        $pages = TranslationHelper::getPagesOfSite($site, self::MAX_TREE_DEPTH);
         if (empty($pages)) {
             return [];
         }
@@ -198,46 +198,6 @@ class TranslationCoverageService
         }
 
         return $candidates;
-    }
-
-    /**
-     * Uids of the pages of a site, the root page included.
-     *
-     * @return array<int, int>
-     */
-    protected function getPagesOfSite(Site $site): array
-    {
-        $rootPageId = $site->getRootPageId();
-        if ($rootPageId <= 0) {
-            return [];
-        }
-
-        $pages = [$rootPageId];
-        $level = [$rootPageId];
-
-        for ($depth = 0; $depth < self::MAX_TREE_DEPTH && !empty($level); $depth++) {
-            $queryBuilder = $this->getQueryBuilder('pages');
-            $rows = $queryBuilder
-                ->select('uid')
-                ->from('pages')
-                ->where(
-                    $queryBuilder->expr()->in(
-                        'pid',
-                        $queryBuilder->createNamedParameter($level, Connection::PARAM_INT_ARRAY)
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'sys_language_uid',
-                        $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)
-                    )
-                )
-                ->executeQuery()
-                ->fetchFirstColumn();
-
-            $level = array_map('intval', $rows);
-            $pages = array_merge($pages, $level);
-        }
-
-        return array_values(array_unique($pages));
     }
 
     /**

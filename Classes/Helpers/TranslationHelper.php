@@ -46,6 +46,53 @@ class TranslationHelper
         return (int)($row['pid'] ?? 0);
     }
 
+    /**
+     * Uids of the pages of a site, the root page included.
+     *
+     * Used wherever something has to be restricted to one site: the coverage numbers and the
+     * import endpoint, which refuses records outside the site its reaction is bound to.
+     *
+     * @return array<int, int>
+     */
+    public static function getPagesOfSite(\TYPO3\CMS\Core\Site\Entity\Site $site, int $maxDepth = 99): array
+    {
+        $rootPageId = $site->getRootPageId();
+        if ($rootPageId <= 0) {
+            return [];
+        }
+
+        $pages = [$rootPageId];
+        $level = [$rootPageId];
+
+        for ($depth = 0; $depth < $maxDepth && !empty($level); $depth++) {
+            $queryBuilder = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ConnectionPool::class)
+                ->getQueryBuilderForTable('pages');
+            $queryBuilder->getRestrictions()->removeAll()
+                ->add(\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction::class));
+
+            $rows = $queryBuilder
+                ->select('uid')
+                ->from('pages')
+                ->where(
+                    $queryBuilder->expr()->in(
+                        'pid',
+                        $queryBuilder->createNamedParameter($level, \TYPO3\CMS\Core\Database\Connection::PARAM_INT_ARRAY)
+                    ),
+                    $queryBuilder->expr()->eq(
+                        'sys_language_uid',
+                        $queryBuilder->createNamedParameter(0, \TYPO3\CMS\Core\Database\Connection::PARAM_INT)
+                    )
+                )
+                ->executeQuery()
+                ->fetchFirstColumn();
+
+            $level = array_map('intval', $rows);
+            $pages = array_merge($pages, $level);
+        }
+
+        return array_values(array_unique($pages));
+    }
+
     public static function getStoragePath()
     {
         $storage = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'storagePath');
