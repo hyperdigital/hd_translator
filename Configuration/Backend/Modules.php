@@ -2,8 +2,10 @@
 
 return [
     'hd_translator_engine' => [
-        'parent' => 'web',
-        'position' => ['after' => 'web_info'],
+        // TYPO3 14 replaced the "web" main module with "content", and "web_info" no longer exists.
+        // The explicit "path" below is kept, so all generated links stay valid.
+        'parent' => 'content',
+        'position' => ['after' => 'records'],
         'access' => 'user',
         'iconIdentifier' => 'hd_translator_icon',
         'navigationComponentId' => '',
