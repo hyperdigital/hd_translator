@@ -16,7 +16,6 @@ fileUpload.addEventListener("change", (e) => {
     });
 
     fileUploadPreview.innerHTML = output;
-    console.log(fileUploadPreview);
 });
 
 form.addEventListener("submit", (e) => {

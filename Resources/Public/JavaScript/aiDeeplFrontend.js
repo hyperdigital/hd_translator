@@ -73,7 +73,6 @@ async function hdtranslator_translateWholePage(targetLang) {
         });
     }
 
-    console.log("Page translation complete with whitespace preserved.");
 }
 
 function hdtranslator_collectTextNodes(root) {

@@ -1,0 +1,16 @@
+includes:
+    # Pre-existing defensive coding in the legacy service, empty() on variables that are always
+    # set and similar. Not real errors, but kept out of the way so the analysis stays green and
+    # new findings are visible. Entries should be burned down, never extended.
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - Classes
+
+    ignoreErrors:
+        # EXT:extensionmanager is an optional dependency, guarded by isExtensionManagerAvailable()
+        -
+            identifier: class.notFound
+            path: Classes/Controller/Be/TranslatorController.php

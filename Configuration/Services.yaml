@@ -7,6 +7,11 @@ services:
   Hyperdigital\HdTranslator\:
     resource: '../Classes/*'
 
+  # Carries the bookkeeping of a single export or import run, so every caller has to get its own
+  # instance. As a shared service two runs in the same request would add up into each other.
+  Hyperdigital\HdTranslator\Services\DatabaseEntriesService:
+    shared: false
+
   Hyperdigital\HdTranslator\Hooks\DocHeaderButtonsHook:
     tags:
       - name: event.listener

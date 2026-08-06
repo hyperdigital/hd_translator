@@ -2,7 +2,6 @@
 
 namespace Hyperdigital\HdTranslator\Services;
 
-use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 class XlfService
@@ -123,7 +122,7 @@ class XlfService
                     }
 
                     $noteLabel = $domtree->createElement('note');
-                    $noteLabel->setAttribute('priority', $priority);
+                    $noteLabel->setAttribute('priority', (string)$priority);
                     $noteText = $domtree->createTextNode($note);
                     $noteLabel->appendChild($noteText);
                     $item->appendChild($noteLabel);

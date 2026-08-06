@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master, v14]
+  pull_request:
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: intl, mbstring, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install
+        run: composer install --no-interaction --no-progress
+
+      - name: Lint PHP
+        run: find Classes Configuration Tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
+      - name: Lint XLIFF
+        run: |
+          for file in $(find Resources/Private/Language -name '*.xlf'); do
+            php -r 'exit(simplexml_load_file($argv[1]) === false ? 1 : 0);' "$file" \
+              || { echo "invalid XLIFF: $file"; exit 1; }
+          done
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Unit tests
+        run: vendor/bin/phpunit -c Build/phpunit/UnitTests.xml

@@ -3,7 +3,6 @@ namespace Hyperdigital\HdTranslator\Helpers;
 
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 
 class TranslationHelper
 {

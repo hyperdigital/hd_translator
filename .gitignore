@@ -1,0 +1,11 @@
+# composer / dev tooling
+/vendor/
+/composer.lock
+/.phpunit.cache/
+/Build/phpunit/.phpunit.cache/
+
+# artefacts created when composer install runs inside the extension itself
+/public/
+/var/
+
+.DS_Store

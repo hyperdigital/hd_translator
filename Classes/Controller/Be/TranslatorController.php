@@ -10,7 +10,7 @@ use TYPO3\CMS\Backend\Template\ModuleTemplateFactory;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Site\SiteFinder;
-use TYPO3\CMS\Core\Site\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Imaging\IconSize;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -37,18 +37,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $backupExtension = '.backup';
     protected $langFiles = [];
     protected $languageService;
-
-    /**
-     * @var array
-     * Used in database import. It starts with original (default) language and chnaged items are overwritten
-     */
-    protected $originalData = [];
-
-    /**
-     * @var array
-     * Used in database import. It always holds original (default) language.
-     */
-    protected $superOriginalData = [];
 
     protected $pageUid = 0;
     protected $pageData = [];
@@ -222,6 +210,22 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     // HELPERS
+    /**
+     * Whether the current user may read records of the given table.
+     *
+     * The exports read with the query builder, so the table access of the user has to be checked
+     * explicitly. Returns true when there is no backend user, for example on the command line.
+     */
+    protected function mayReadTable(string $tablename): bool
+    {
+        $backendUser = $GLOBALS['BE_USER'] ?? null;
+        if (!$backendUser instanceof \TYPO3\CMS\Core\Authentication\BackendUserAuthentication) {
+            return true;
+        }
+
+        return $backendUser->isAdmin() || $backendUser->check('tables_select', $tablename);
+    }
+
     /**
      * EXT:extensionmanager is optional in composer based installations. It is only needed to scan
      * all extensions for locallang files, so its absence just disables that single feature.
@@ -928,7 +932,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $tables = [];
         foreach ($GLOBALS['TCA'] as $tableName => $data) {
-            if (!empty($data['ctrl']['languageField'])) {
+            if (!empty($data['ctrl']['languageField']) && $this->mayReadTable((string)$tableName)) {
                 $tables[] = [
                     'tableName' => $tableName,
                     'tableTitle' => !empty($data['ctrl']['title']) ? $data['ctrl']['title'] : $tableName,
@@ -998,6 +1002,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $output = '';
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
+                if (!$this->mayReadTable((string)$tablename)) {
+                    $output .= ' No access to ' . $tablename;
+                    continue;
+                }
+
                 $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLanguageUid, false);
                 if(empty($contentRows)) {
                     $output .= ' No entries in '.$tablename.' for pid '.$storage;
@@ -1018,11 +1027,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
                         if ($saveToZip) {
                             $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
-                            if (version_compare(PHP_VERSION, '8.0.0') >= 0) {
-                                $zip->addFromString($zipFilename, $output, \ZipArchive::FL_OVERWRITE);
-                            } else {
-                                $zip->addFromString($zipFilename, $output);
-                            }
+                            $zip->addFromString($zipFilename, $output, \ZipArchive::FL_OVERWRITE);
                         }
                     }
                 }
@@ -1042,7 +1047,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
+        $filenameSuffix = $storages[0] ?? '0';
+
+        return $this->fileDownloadResponse($output, 'page-' . $filenameSuffix . '.xlf', 'text/xml');
     }
 
     /**
@@ -1082,8 +1089,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
 
             foreach($files as $file) {
-                $finfo = new \finfo(FILEINFO_MIME_TYPE);
-
                 $extension = explode('.', $file->getClientFilename());
                 $extension = strtolower($extension[count($extension) - 1]);
 
@@ -1116,12 +1121,16 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
         }
 
+        $importStats = isset($databaseEntriesService)
+            ? $databaseEntriesService->getImportStats()
+            : ['failsMessages' => [], 'inserts' => 0, 'updates' => 0, 'fails' => 0];
+
         $this->moduleTemplate->assignMultiple([
             'actions' => [
-                'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
-                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
-                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
-                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
+                'failsMessages' => $importStats['failsMessages'],
+                'inserted' => $importStats['inserts'],
+                'updated' => $importStats['updates'],
+                'fails' => $importStats['fails'],
             ]
         ]);
 
@@ -1192,6 +1201,16 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $this->indexMenu();
 
+        if (!$this->mayReadTable($tablename)) {
+            $this->moduleTemplate->addFlashMessage(
+                'No access to the table ' . $tablename,
+                '',
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+            );
+
+            return $this->redirect('index');
+        }
+
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
         $row = $databaseEntriesService->getCompleteRow($tablename, $rowUid);
 
@@ -1203,8 +1222,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
         $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
         $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
-        $this->moduleTemplate->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
-        $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
+        $this->moduleTemplate->assign('rowType', $databaseEntriesService->getRowType());
+        $this->moduleTemplate->assign('rowTypeCouldBe', $databaseEntriesService->getRowTypeCouldBe());
 
         return $this->moduleTemplate->renderResponse('Be/Translator/ExportTableRowIndex');
     }
@@ -1215,6 +1234,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function exportTableRowExportAction(string $tablename, int $rowUid)
     {
+        if (!$this->mayReadTable($tablename)) {
+            return $this->redirect('index');
+        }
+
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
         $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
         // optional: values of an already existing translation are offered as the target
@@ -1242,6 +1265,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
      */
     public function pageContentExportProccessAction(string $storages)
     {
+        // this export always reads pages and their content
+        foreach (['pages', 'tt_content'] as $requiredTable) {
+            if (!$this->mayReadTable($requiredTable)) {
+                return $this->redirect('index');
+            }
+        }
+
         $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
 
         if ($storages == '') {
@@ -1323,58 +1353,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
-    }
+        $filenameSuffix = $storages[0] ?? '0';
 
-    public function databaseTableFieldsAction()
-    {
-        $uriBuilder = $this->uriBuilder->setRequest($this->request);
-        $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-
-        $uriBuilder->setRequest($this->request);
-        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
-        $returnButton = $buttonBar->makeLinkButton()
-            ->setHref($uriBuilder->reset()->uriFor('database', $this->withPageContext()))
-            ->setIcon($iconFactory->getIcon('actions-arrow-down-left', IconSize::SMALL))
-            ->setShowLabelText(true)
-            ->setTitle('Return');
-        $buttonBar->addButton($returnButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
-
-        $tables = [];
-        if (!$this->request->hasArgument('tables')) {
-            $errors[] = 'Tables is missing';
-        } else {
-            $tables = $this->request->getArgument('tables');
-        }
-
-        $fields = [];
-        $disabledFields = [];
-        $disabledFields[] = 't3_origuid';
-        foreach ($tables as $table) {
-            $targetUidField = 'l10n_parent';
-            if (!empty($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])) {
-                $targetUidField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-            }
-            $langaugeField = 'sys_language_uid';
-            if (!empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
-                $langaugeField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
-            }
-            $disabledFields[] = $targetUidField;
-            $disabledFields[] = $langaugeField;
-
-            foreach ($GLOBALS['TCA'][$table]['columns'] as $key => $columnData) {
-                if (!in_array($key, $disabledFields)) {
-                    $fields[$table][] = [
-                        'fieldName' => $key,
-                    ];
-                }
-            }
-        }
-
-        $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
-        $this->moduleTemplate->assign('tables', $fields);
-
-        return $this->moduleTemplate->renderResponse('Be/Translator/DatabaseTableFields');
+        return $this->fileDownloadResponse($output, 'page-' . $filenameSuffix . '.xlf', 'text/xml');
     }
 
     public function syncLocallangsAction()

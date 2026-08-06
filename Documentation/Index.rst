@@ -52,6 +52,44 @@ DeepL AI translations
     Translate frontend output on the fly through DeepL, with every string cached in the
     database so the API limits are not hit repeatedly.
 
+..  _translating-strings:
+
+Translating static strings
+==========================
+
+Pick a category, then a translation file and the language to work on. The edit screen shows the
+key, the field to translate and the source string below it.
+
+Two helpers sit in the toolbar:
+
+:guilabel:`Show other languages`
+    Lists every language the file is already translated into and shows those translations as a
+    reference under each field. A language is offered when it either has an override in the storage
+    path or the extension ships one next to the original file, ``cs.locallang.xlf`` beside
+    ``locallang.xlf``. The references are toggled in the browser, so switching them on or off never
+    discards what has been typed.
+
+:guilabel:`Multiline`
+    Switches the fields to text areas, for labels that have to contain a line break.
+
+Both settings are remembered per browser.
+
+Fields carry the writing direction of the language being translated, so a right to left language is
+edited right to left even when the backend itself runs left to right.
+
+..  _permissions:
+
+Permissions
+===========
+
+Reaching the module requires access to it. On top of that:
+
+*   an export only offers and reads tables the user may select,
+*   an import only writes records whose table the user may modify and whose page the user may edit.
+
+Records that fail the check are counted as failed on the import result screen rather than skipped
+silently.
+
 ..  _installation:
 
 Installation
@@ -123,8 +161,11 @@ TCA options for database export
     :type: string
     :Path: :php:`$GLOBALS['TCA'][$table]['types'][$type]['translator_export']`
 
-    Comma separated list of fields to export. When unset, all non-core fields are
-    exported.
+    Comma separated list of fields to export. When unset, every field of the record that
+    holds translatable text is exported, which are the types ``input``, ``text``, ``slug``
+    and ``email`` plus the container types ``flex``, ``inline`` and ``file``. A field of
+    any other type, a ``link`` or a ``datetime`` for example, is only exported when it is
+    named here explicitly.
 
 ..  confval:: translator_export_column
 
@@ -199,6 +240,21 @@ all, keep the previous behaviour and repeat the source value in ``<target>``.
     The prefill matches fields by the same keys the export uses, so it relies on translated inline
     records pointing at their default language original. Records translated in free mode, which do
     not keep that pointer, are exported without a prefill rather than with a wrong one.
+
+..  _development:
+
+Development
+===========
+
+..  code-block:: bash
+
+    composer install
+    composer test          # phpstan and the unit tests
+    composer test:unit
+    composer test:phpstan
+
+``phpstan-baseline.neon`` holds pre-existing findings of the legacy service. It is there so new
+findings stay visible, entries should be removed over time and never added to.
 
 ..  _deepl:
 
