@@ -882,7 +882,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                             $defaultUid = (int)$contentRow['l10n_parent'];
                             $contentRowForKeys['uid'] = $defaultUid;
                         }
-                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys);
+                        // keys use the default language uid, values and children come from $contentRowUid
+                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
                         $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source);
 
                         if ($saveToZip) {
@@ -1095,7 +1096,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $defaultUid = (int)$row['l10n_parent'];
             $rowForKeys['uid'] = $defaultUid;
         }
-        $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys);
+        // getCompleteRow() already rewrote "uid" to the default language, so the uid of the record
+        // the values come from is taken from the row it stored it in
+        $sourceUid = (int)($row[\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::SOURCE_UID_FIELD] ?? $defaultUid);
+        $cleanRow = $databaseEntriesService->getExportFields($tablename, $rowForKeys, $sourceUid);
         $output = $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $this->request->getArgument('language'), $tablename, true, $this->request->getArgument('source'));
 
         return $this->fileDownloadResponse($output, $label . '.xlf', 'text/xml');

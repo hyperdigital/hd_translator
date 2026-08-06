@@ -16,6 +16,15 @@ use Doctrine\DBAL\Types\Type;
 
 class DatabaseEntriesService
 {
+    /**
+     * Internal row key holding the uid of the record the exported values come from.
+     *
+     * Export keys always use the default language uid so an import can map them back, but the
+     * values, inline children and file references have to be read from the record of the selected
+     * source language. This key carries that uid next to the rewritten "uid".
+     */
+    public const SOURCE_UID_FIELD = '_hdTranslatorSourceUid';
+
     public static $databaseEntriesOriginal = [];
     public static $databaseEntriesTranslated = [];
     public static $rowType = '';
@@ -356,6 +365,12 @@ class DatabaseEntriesService
         }
 
         if (!empty($parentUidField) && !empty($row[$parentUidField])) {
+            // "uid" is rewritten to the default language uid, because it builds the export keys.
+            // Only a translation needs to remember where its values came from, so inline children
+            // and file references can be read from the correct language.
+            if ($parentUidField !== 'uid' && (int)$row[$parentUidField] !== (int)$row['uid']) {
+                $row[self::SOURCE_UID_FIELD] = (int)$row['uid'];
+            }
             $row['uid'] = $row[$parentUidField];
         }
 
@@ -465,7 +480,8 @@ class DatabaseEntriesService
                 }
                 $rowForKeys = $row;
                 $rowForKeys['uid'] = $defaultUid;
-                $return[$defaultUid] = $this->getExportFields($tablename, $rowForKeys);
+                // $row['uid'] is the record of the requested source language, its children belong to it
+                $return[$defaultUid] = $this->getExportFields($tablename, $rowForKeys, (int)$row['uid']);
             } else {
                 $return[$row['uid']] = $row;
             }
@@ -524,7 +540,7 @@ class DatabaseEntriesService
      * @param string $specialFieldNameOutput
      * @param $return
      */
-    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', $typeArray = [])
+    protected function getFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', $typeArray = [], int $sourceUid = 0)
     {
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
@@ -532,6 +548,10 @@ class DatabaseEntriesService
 
         if (empty($specialFieldNameOutput)) {
             $specialFieldNameOutput = $row['uid'].'.'.$field;
+        }
+
+        if ($sourceUid <= 0) {
+            $sourceUid = (int)($row[self::SOURCE_UID_FIELD] ?? $row['uid'] ?? 0);
         }
 
         if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'])) {
@@ -565,9 +585,12 @@ class DatabaseEntriesService
                     $return[$specialFieldNameOutput]['field'] = $field ?? '';
                     break;
                 case 'file':
-                    $this->getFileTranslatableData($tablename, $field, $row, $return, $specialFieldNameOutput);
+                    // getFileTranslatableData() already reads the complete sys_file_reference set of
+                    // this field, so this must not fall through into the inline handling
+                    $this->getFileTranslatableData($tablename, $field, $row, $return, $specialFieldNameOutput, $sourceUid);
+                    break;
                 case 'inline':
-                    $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput);
+                    $this->getInlinedRowsFieldKeyAndValue($tablename, $field, $row, $return, $specialFieldNameOutput, $sourceUid);
                     break;
                 case 'flex':
                     $limitedFields = [];
@@ -642,30 +665,73 @@ class DatabaseEntriesService
         }
     }
 
-    public function getFileTranslatableData($tablename, $field, $row, &$return, $specialFieldNameOutput = '')
+    public function getFileTranslatableData($tablename, $field, $row, &$return, $specialFieldNameOutput = '', int $sourceUid = 0)
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-        $result = $queryBuilder
-            ->select('*')
-            ->from('sys_file_reference')
-            ->where(
-                $queryBuilder->expr()->eq('uid_foreign', $row['uid']),
-                $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
-                $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
-            )
-            ->executeQuery();
+        $defaultUid = (int)$row['uid'];
+        if ($sourceUid <= 0) {
+            $sourceUid = $defaultUid;
+        }
 
+        // references of the selected source language, falling back to the default language
+        // when the translated record has no own references
+        $rows = $this->getFileReferencesForRecord($tablename, $field, $sourceUid);
+        if (empty($rows) && $sourceUid !== $defaultUid) {
+            $rows = $this->getFileReferencesForRecord($tablename, $field, $defaultUid);
+        }
 
-        while($rowInlined = $result->fetchAssociative()) {
+        foreach ($rows as $rowInlined) {
             $typeArray = [];
             $listOfFields = $this->getListOfTranslatableFields('sys_file_reference', $rowInlined, $typeArray);
 
-            foreach ($listOfFields as $field) {
-                $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
-                $this->getFieldKeyAndValue('sys_file_reference', $field, $rowInlined, $return, $tempName, $typeArray);
+            // the key has to stay on the default language reference, the values come from $rowInlined
+            $childRowForKeys = $rowInlined;
+            $childRowForKeys['uid'] = $this->getDefaultLanguageUid('sys_file_reference', $rowInlined);
+
+            foreach ($listOfFields as $childField) {
+                $tempName = $specialFieldNameOutput.'.'.$childRowForKeys['uid'].'.'.$childField;
+                $this->getFieldKeyAndValue('sys_file_reference', $childField, $childRowForKeys, $return, $tempName, $typeArray, (int)$rowInlined['uid']);
             }
         }
+    }
+
+    /**
+     * @return array all file references of one field of one record
+     */
+    protected function getFileReferencesForRecord(string $tablename, string $field, int $uidForeign): array
+    {
+        if ($uidForeign <= 0) {
+            return [];
+        }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
+        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        return $queryBuilder
+            ->select('*')
+            ->from('sys_file_reference')
+            ->where(
+                $queryBuilder->expr()->eq('uid_foreign', $queryBuilder->createNamedParameter($uidForeign, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
+                $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
+            )
+            ->executeQuery()
+            ->fetchAllAssociative();
+    }
+
+    /**
+     * Returns the uid the export key of a record has to use: its own uid in the default language,
+     * the uid of its default language original when the record is a translation.
+     */
+    protected function getDefaultLanguageUid(string $tablename, array $row): int
+    {
+        $languageField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'] ?? 'sys_language_uid';
+        $parentUidField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'] ?? 'l10n_parent';
+
+        if (!empty($row[$languageField]) && !empty($row[$parentUidField])) {
+            return (int)$row[$parentUidField];
+        }
+
+        return (int)$row['uid'];
     }
 
     /**
@@ -675,7 +741,7 @@ class DatabaseEntriesService
      * @param $return
      * @param string $specialFieldNameOutput
      */
-    protected function getInlinedRowsFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '')
+    protected function getInlinedRowsFieldKeyAndValue(string $tablename, string $field, $row, &$return, $specialFieldNameOutput = '', int $sourceUid = 0)
     {
         $foreginTable = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_table'];
         if (
@@ -694,13 +760,17 @@ class DatabaseEntriesService
             $foreginField = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['columnsOverrides'][$field]['config']['foreign_field'];
         }
 
-        $parentUid = $row['uid'];
         $parentUidLanguageField = $GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'] ?? 'l18n_parent';
         $sysLangaugeField = $GLOBALS['TCA'][$tablename]['ctrl']['languageField'] ?? 'sys_language_uid';
-        // has pointer to parent in default language and also it's not in default language
+
+        // "uid" of $row is the default language uid, because it builds the export keys.
+        // Children have to be read from the record of the selected source language instead.
+        $defaultParentUid = (int)$row['uid'];
         if (!empty($row[$parentUidLanguageField]) && !empty($row[$sysLangaugeField])) {
-            $parentUid = $row[$parentUidLanguageField];
+            $defaultParentUid = (int)$row[$parentUidLanguageField];
         }
+
+        $parentUid = $sourceUid > 0 ? $sourceUid : $defaultParentUid;
 
         $foreginField = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['foreign_field'] ?? '';
         if (
@@ -737,14 +807,23 @@ class DatabaseEntriesService
 
         $rows = $this->getCompleteInlinedRows($foreginTable, $parentUid, $foreginField, $foreginTableField, $tablename, $foreignMatchFields);
 
+        // a translated parent without own children still has to export the default language ones
+        if (empty($rows) && $parentUid !== $defaultParentUid) {
+            $rows = $this->getCompleteInlinedRows($foreginTable, $defaultParentUid, $foreginField, $foreginTableField, $tablename, $foreignMatchFields);
+        }
+
         if (!empty($rows)) {
             foreach ($rows as $rowInlined) {
                 $typeArray = [];
                 $listOfFields = $this->getListOfTranslatableFields($foreginTable, $rowInlined, $typeArray);
 
-                foreach ($listOfFields as $field) {
-                    $tempName = $specialFieldNameOutput.'.'.$rowInlined['uid'].'.'.$field;
-                    $this->getFieldKeyAndValue($foreginTable, $field, $rowInlined, $return, $tempName, $typeArray);
+                // the key has to stay on the default language child, the values come from $rowInlined
+                $childRowForKeys = $rowInlined;
+                $childRowForKeys['uid'] = $this->getDefaultLanguageUid($foreginTable, $rowInlined);
+
+                foreach ($listOfFields as $childField) {
+                    $tempName = $specialFieldNameOutput.'.'.$childRowForKeys['uid'].'.'.$childField;
+                    $this->getFieldKeyAndValue($foreginTable, $childField, $childRowForKeys, $return, $tempName, $typeArray, (int)$rowInlined['uid']);
                 }
             }
         }
@@ -840,6 +919,8 @@ class DatabaseEntriesService
         //Additional cleanup
         if (isset($row['l10n_state']))  unset($row['l10n_state']);
         if (isset($row['l10n_diffsource']))  unset($row['l10n_diffsource']);
+        // internal bookkeeping, never a translatable field
+        if (isset($row[self::SOURCE_UID_FIELD]))  unset($row[self::SOURCE_UID_FIELD]);
 
         return array_keys($row);
     }
@@ -929,9 +1010,13 @@ class DatabaseEntriesService
 
     /**
      * @param string $tablename name of the table
-     * @param int|array $row UID of entry or the whole row
+     * @param int|array $row UID of entry or the whole row. Its "uid" is expected to be the default
+     *                       language uid, because it builds the export keys.
+     * @param int $sourceUid uid of the record the values come from. Only differs from the row uid
+     *                       when a language other than the default one is exported. Defaults to the
+     *                       uid stored by getCompleteRow(), otherwise to the row uid itself.
      */
-    public function getExportFields(string $tablename, $row)
+    public function getExportFields(string $tablename, $row, int $sourceUid = 0)
     {
         if (is_int($row)) {
             $row = $this->getCompleteRow($tablename, $row);
@@ -941,13 +1026,17 @@ class DatabaseEntriesService
             return [];
         }
 
+        if ($sourceUid <= 0) {
+            $sourceUid = (int)($row[self::SOURCE_UID_FIELD] ?? $row['uid'] ?? 0);
+        }
+
         $return = [];
 
         $typeArray = [];
         $listOfFields = $this->getListOfTranslatableFields($tablename, $row, $typeArray);
 
         foreach ($listOfFields as $field) {
-            $this->getFieldKeyAndValue($tablename, $field, $row, $return, '', $typeArray);
+            $this->getFieldKeyAndValue($tablename, $field, $row, $return, '', $typeArray, $sourceUid);
         }
         return $return;
     }
@@ -1024,10 +1113,12 @@ class DatabaseEntriesService
         if (($row['sys_language_uid'] ?? 0) != 0) {
             $realUid = (int)$row['l10n_parent']; // The page is a translation; use default-language UID for export keys
         }
+        // uid of the page the values come from, differs from $realUid for a translated source language
+        $pageSourceUid = (int)($row[self::SOURCE_UID_FIELD] ?? $realUid);
         if ($clean) {
             $pageRowForKeys = $row;
             $pageRowForKeys['uid'] = $realUid;
-            $row = $this->getExportFields('pages', $pageRowForKeys);
+            $row = $this->getExportFields('pages', $pageRowForKeys, $pageSourceUid);
             $output = $this->prepareDataFromRow($realUid, $row, $targetLanguage, 'pages');
         }
 
@@ -1693,6 +1784,11 @@ class DatabaseEntriesService
         $listOfFields = $this->getListOfTranslatableFields($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent], $typeArray);
 
         foreach (self::$databaseEntriesOriginal[$tablename][$l10nParent] as $key => $parentValue) {
+            // internal bookkeeping of getCompleteRow(), not a database column
+            if ($key === self::SOURCE_UID_FIELD) {
+                continue;
+            }
+
             // if colmun is not exisitn then shouldn't be synced
             if (
                 !in_array($key, $listOfFields)

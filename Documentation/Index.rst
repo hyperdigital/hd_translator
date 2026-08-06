@@ -166,6 +166,21 @@ works on and passes :php:`id` along in its own links. This is what allows the so
 target language dropdowns to show the languages of the correct site - important as soon
 as two sites use different default languages.
 
+..  _source-language:
+
+Exporting a language other than the default one
+===============================================
+
+The export forms offer a :guilabel:`Source TYPO3 Language` select. It decides which language
+version is written into the XLF file, so an existing translation can be handed out for review or
+used as the base of a further language.
+
+The keys of the exported file always use the uid of the default language record, which is what
+lets the import map the file back onto the correct records no matter which language was exported.
+The values, including inline children and file references, come from the selected source language.
+If the selected language has no own inline children, the ones of the default language are exported
+instead, so nothing is silently lost.
+
 ..  _deepl:
 
 DeepL translations
