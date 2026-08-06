@@ -139,4 +139,19 @@ final class TranslatorControllerTest extends UnitTestCase
     {
         self::assertFalse($this->wouldEmpty('/does/not/exist.xlf', $this->write(['a' => ['default' => '']], 'default')));
     }
+
+    #[Test]
+    #[DataProvider('sourceLanguageKeys')]
+    public function theSourceLanguageCarriesNoReviewState(string $language): void
+    {
+        // it is a template of sources, there is no target to approve, which is why the editing
+        // screen does not offer a state there either
+        $xlf = $this->write(
+            ['a.key' => [$language => 'Skip links', '_state' => XlfService::STATE_TRANSLATED]],
+            $language
+        );
+
+        self::assertStringNotContainsString('approved=', $xlf);
+        self::assertStringNotContainsString('state=', $xlf);
+    }
 }

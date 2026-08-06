@@ -226,7 +226,12 @@
 				</div>
 			</f:for>
 		</f:if>
-		<f:if condition="{langaugeKey} != 'default'">
+		<f:comment>
+			The source language file is a template of sources, it has no target and therefore no
+			approval. Only a real translation carries a state, and only there does saving one mean
+			anything.
+		</f:comment>
+		<f:if condition="{langaugeKey} != 'default' && {langaugeKey} != 'en'">
 			<input type="hidden" name="{key}[default]" value="{originalSource}" />
 
 			<f:comment>
