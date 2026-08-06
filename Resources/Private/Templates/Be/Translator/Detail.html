@@ -198,6 +198,7 @@
 				langaugeKey: langaugeKey,
 				originalSource: value.0.source,
 				target: value.0.target,
+				state: value.0.state,
 				comparisons: value.comparisons
 			}" />
 		</f:for>
@@ -232,12 +233,17 @@
 				TYPO3 holds a label back whose unit is not approved, so anything below "reviewed"
 				falls back to its source in the frontend.
 			</f:comment>
+			<f:comment>
+				A section only ever sees the arguments it is rendered with, so the states are built
+				here rather than handed down through every f:render on the way.
+			</f:comment>
+			<f:variable name="currentState">{f:if(condition: state, then: state, else: 'final')}</f:variable>
 			<div class="hd-translator-state">
 				<label class="visually-hidden" for="state-{key}"><f:translate key="detail.state" /></label>
 				<select id="state-{key}" name="{key}[_state]" class="form-select form-select-sm hd-translator-state-select"
-				        data-state="{state}">
-					<f:for each="{translationStates}" as="stateLabel" key="stateValue">
-						<option value="{stateValue}"<f:if condition="{state} == {stateValue}"> selected="selected"</f:if>>{stateLabel}</option>
+				        data-state="{currentState}">
+					<f:for each="{0: 'initial', 1: 'translated', 2: 'reviewed', 3: 'final'}" as="stateValue">
+						<option value="{stateValue}"<f:if condition="{currentState} == {stateValue}"> selected="selected"</f:if>><f:translate key="state.{stateValue}" default="{stateValue}" /></option>
 					</f:for>
 				</select>
 			</div>

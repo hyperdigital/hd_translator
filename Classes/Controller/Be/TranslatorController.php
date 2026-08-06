@@ -388,21 +388,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
-     * The review states a label can carry, in the order they are worked through.
-     *
-     * @return array<string, string>
-     */
-    protected function getTranslationStates(): array
-    {
-        $states = [];
-        foreach ([XlfService::STATE_INITIAL, XlfService::STATE_TRANSLATED, XlfService::STATE_REVIEWED, XlfService::STATE_FINAL] as $state) {
-            $states[$state] = \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('state.' . $state, 'hd_translator') ?: $state;
-        }
-
-        return $states;
-    }
-
-    /**
      * Puts what is actually stored in the override file back on top of the resolved labels.
      *
      * LanguageService answers what the frontend would show, and TYPO3 holds a label back whose
@@ -745,7 +730,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $this->moduleTemplate->assign('comparisonLanguages', $comparisonLanguages);
-        $this->moduleTemplate->assign('translationStates', $this->getTranslationStates());
 
         if (\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'useCategorization')) {
             $output = [];
