@@ -373,11 +373,28 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $target = $source;
             }
 
+            // "target" is what the editor works on, "live" is what the frontend shows right now.
+            // They only differ once a label is stored but not approved, and then the difference is
+            // the whole point: LanguageService answers with the published value, so it already is
+            // the resolved one, whatever the fallback chain made of it.
+            //
             // A label nobody has marked is live: a 1.2 unit without an "approved" attribute is
             // approved as far as TYPO3 is concerned. Starting from anything else would make the
             // first save of a screen hide every label on it.
-            $data['default'][$key] = [0 => ['source' => $source, 'target' => $source, 'state' => XlfService::STATE_FINAL]];
-            $data[$languageKey][$key] = [0 => ['source' => $source, 'target' => $target, 'state' => XlfService::STATE_FINAL]];
+            $data['default'][$key] = [0 => [
+                'source' => $source,
+                'target' => $source,
+                'live' => $source,
+                'state' => XlfService::STATE_FINAL,
+                'pending' => false,
+            ]];
+            $data[$languageKey][$key] = [0 => [
+                'source' => $source,
+                'target' => $target,
+                'live' => $target,
+                'state' => XlfService::STATE_FINAL,
+                'pending' => false,
+            ]];
         }
 
         if ($keyTranslation !== '') {
@@ -420,6 +437,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if ($entry['state'] !== '') {
                 $data[$languageKey][$key][0]['state'] = $entry['state'];
             }
+
+            // A label held back by the approval gate is not what the frontend shows. What it does
+            // show is already in "live": the value LanguageService resolved without this entry,
+            // which may be a translation the extension ships rather than the english source.
+            $data[$languageKey][$key][0]['pending'] = trim($entry['target']) !== ''
+                && !XlfService::isApprovedState($entry['state'])
+                && $entry['target'] !== $data[$languageKey][$key][0]['live'];
         }
     }
 

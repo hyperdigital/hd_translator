@@ -474,6 +474,15 @@
             <trans-unit id="flashMessages.refusedEmptySave.description">
                 <source>Every label of this file would have been emptied. That happens when the screen did not load its values, so the save was refused and the file is unchanged. Reload the screen and check that the values are shown before saving again.</source>
             </trans-unit>
+            <trans-unit id="detail.pending">
+                <source>Not published</source>
+            </trans-unit>
+            <trans-unit id="detail.pending.description">
+                <source>This translation is stored but its review state keeps it from being shown. The site keeps using the value below until it is marked reviewed.</source>
+            </trans-unit>
+            <trans-unit id="detail.live">
+                <source>Shown instead</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

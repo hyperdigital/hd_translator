@@ -158,6 +158,8 @@
 				langaugeKey: langaugeKey,
 				originalSource: data.value.0.source,
 				target: data.value.0.target,
+				live: data.value.0.live,
+				pending: data.value.0.pending,
 				state: data.value.0.state,
 				comparisons: data.value.comparisons
 			}" />
@@ -171,6 +173,8 @@
 							langaugeKey: langaugeKey,
 							originalSource: subdata.value.0.source,
 							target: subdata.value.0.target,
+							live: subdata.value.0.live,
+							pending: subdata.value.0.pending,
 							state: subdata.value.0.state,
 							comparisons: subdata.value.comparisons
 						}" />
@@ -198,6 +202,8 @@
 				langaugeKey: langaugeKey,
 				originalSource: value.0.source,
 				target: value.0.target,
+				live: value.0.live,
+				pending: value.0.pending,
 				state: value.0.state,
 				comparisons: value.comparisons
 			}" />
@@ -217,6 +223,23 @@
 		</div>
 		<f:if condition="{originalSource}">
 			<div class="hd-translator-original" dir="auto">{originalSource}</div>
+		</f:if>
+
+		<f:comment>
+			The value above is stored but held back by the approval gate, so it is not what the site
+			shows. What the site shows is whatever the fallback resolved to, which can be a
+			translation the extension ships rather than the english source.
+		</f:comment>
+		<f:if condition="{pending}">
+			<div class="hd-translator-pending">
+				<span class="hd-translator-pending-badge" title="{f:translate(key: 'detail.pending.description')}">
+					<f:translate key="detail.pending" />
+				</span>
+				<span class="hd-translator-pending-live" dir="{fieldDirection}" lang="{langaugeKey}">
+					<span class="hd-translator-pending-label"><f:translate key="detail.live" />:</span>
+					{live}
+				</span>
+			</div>
 		</f:if>
 		<f:if condition="{comparisons}">
 			<f:for each="{comparisons}" as="comparison">

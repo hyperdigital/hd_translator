@@ -154,4 +154,116 @@ final class TranslatorControllerTest extends UnitTestCase
         self::assertStringNotContainsString('approved=', $xlf);
         self::assertStringNotContainsString('state=', $xlf);
     }
+
+    /**
+     * @param array<string, array{0: string, 1: string}> $units id => [target, state]
+     */
+    private function writeOverride(string $language, string $key, array $units): string
+    {
+        $storage = \TYPO3\CMS\Core\Core\Environment::getVarPath() . '/hdt-test/';
+        if (!is_dir($storage)) {
+            mkdir($storage, 0777, true);
+        }
+
+        $body = '';
+        foreach ($units as $id => [$target, $state]) {
+            $approved = XlfService::isApprovedState($state) ? 'yes' : 'no';
+            $body .= sprintf(
+                '<trans-unit id="%s" approved="%s"><source>%s EN</source><target state="%s">%s</target></trans-unit>',
+                $id,
+                $approved,
+                $id,
+                $state,
+                $target
+            );
+        }
+
+        $path = $storage . $language . '.' . $key . '.xlf';
+        file_put_contents(
+            $path,
+            '<?xml version="1.0"?><xliff version="1.2"><file source-language="en" target-language="' . $language
+            . '" original="messages" datatype="plaintext"><header/><body>' . $body . '</body></file></xliff>'
+        );
+
+        $property = new \ReflectionProperty(TranslatorController::class, 'storage');
+        $property->setValue($this->subject, $storage);
+
+        return $path;
+    }
+
+    private function overlay(array $data, string $language, string $key): array
+    {
+        $method = new \ReflectionMethod(TranslatorController::class, 'overlayStoredOverride');
+        $method->invokeArgs($this->subject, [&$data, $language, $key]);
+
+        return $data;
+    }
+
+    /**
+     * @param string $live what LanguageService resolved, which is what the frontend shows
+     */
+    private function resolved(string $live): array
+    {
+        return [0 => [
+            'source' => 'Source',
+            'target' => $live,
+            'live' => $live,
+            'state' => XlfService::STATE_FINAL,
+            'pending' => false,
+        ]];
+    }
+
+    #[Test]
+    public function anUnapprovedTranslationIsMarkedPendingAndKeepsTheLiveValueBesideIt(): void
+    {
+        // the frontend is showing the translation the extension ships, because the stored one is
+        // held back by the approval gate
+        $path = $this->writeOverride('de', 'probe', ['alpha' => ['Alpha DE pending', XlfService::STATE_TRANSLATED]]);
+
+        $data = $this->overlay(['de' => ['alpha' => $this->resolved('Alpha DE shipped')]], 'de', 'probe');
+
+        self::assertSame('Alpha DE pending', $data['de']['alpha'][0]['target']);
+        self::assertSame('Alpha DE shipped', $data['de']['alpha'][0]['live']);
+        self::assertSame(XlfService::STATE_TRANSLATED, $data['de']['alpha'][0]['state']);
+        self::assertTrue($data['de']['alpha'][0]['pending']);
+
+        unlink($path);
+    }
+
+    #[Test]
+    public function anApprovedTranslationIsNotPending(): void
+    {
+        $path = $this->writeOverride('de', 'probe', ['beta' => ['Beta DE reviewed', XlfService::STATE_REVIEWED]]);
+
+        $data = $this->overlay(['de' => ['beta' => $this->resolved('Beta DE reviewed')]], 'de', 'probe');
+
+        self::assertSame('Beta DE reviewed', $data['de']['beta'][0]['live']);
+        self::assertFalse($data['de']['beta'][0]['pending']);
+
+        unlink($path);
+    }
+
+    #[Test]
+    public function theEditorKeepsTheStoredTextEvenWhileItIsHeldBack(): void
+    {
+        // the whole reason the stored file is read at all: LanguageService would answer with the
+        // fallback, and saving that back would overwrite the translation with it
+        $path = $this->writeOverride('de', 'probe', ['gamma' => ['Gamma DE pending', XlfService::STATE_TRANSLATED]]);
+
+        $data = $this->overlay(['de' => ['gamma' => $this->resolved('Gamma EN')]], 'de', 'probe');
+
+        self::assertSame('Gamma DE pending', $data['de']['gamma'][0]['target']);
+        self::assertSame('Gamma EN', $data['de']['gamma'][0]['live']);
+        self::assertTrue($data['de']['gamma'][0]['pending']);
+
+        unlink($path);
+    }
+
+    #[Test]
+    public function theSourceLanguageHasNothingToOverlay(): void
+    {
+        $data = $this->overlay(['en' => ['alpha' => $this->resolved('Alpha EN')]], 'en', 'probe');
+
+        self::assertFalse($data['en']['alpha'][0]['pending']);
+    }
 }

@@ -405,6 +405,15 @@ A label nobody has marked counts as *Final*, because a unit without an :xml:`app
 attribute is approved as far as TYPO3 is concerned. Existing installations therefore keep
 behaving exactly as before.
 
+While a translation is held back, the detail screen shows both values: the field holds the
+stored translation you are editing, and a *Not published* marker underneath shows what the
+site is serving instead.
+
+That second value is not simply the english source. TYPO3 skips the unit that is not approved
+and carries on resolving, so what the visitor sees is whatever comes next in the chain - a
+translation the extension ships in the same language if there is one, and only the source if
+there is not. Both cases are shown as they actually resolve.
+
 The state travels with the file. The XLIFF 2.0 download of the detail screen writes it as the
 segment state, an importing tool sees it, and importing the file back restores it - so a
 translation that came back unreviewed stays hidden until somebody reviews it.

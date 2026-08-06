@@ -387,3 +387,34 @@
 .hd-translator-state-select[data-state="translated"] {
     border-color: var(--typo3-color-warning, #b78a00);
 }
+
+/* ------------------------------------------- pending, not published values */
+.hd-translator-pending {
+    grid-column: 2;
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-block-start: .25rem;
+    font-size: .85em;
+}
+
+.hd-translator-pending-badge {
+    flex: none;
+    padding-inline: .4em;
+    border-radius: .25rem;
+    background: var(--typo3-color-warning, #b78a00);
+    color: #fff;
+    font-size: .8em;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    cursor: help;
+}
+
+.hd-translator-pending-live {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+.hd-translator-pending-label {
+    font-weight: 600;
+}
