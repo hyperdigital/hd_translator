@@ -362,7 +362,7 @@ class DatabaseEntriesService
             ->executeQuery();
 
         $row = $result->fetchAssociative();
-        
+
         return $row;
     }
 
@@ -768,7 +768,7 @@ class DatabaseEntriesService
             ->select('*')
             ->from('sys_file_reference')
             ->where(
-                $queryBuilder->expr()->eq('uid_foreign', $queryBuilder->createNamedParameter($uidForeign, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('uid_foreign', (int) $uidForeign),
                 $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
                 $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
             )
@@ -1972,13 +1972,13 @@ class DatabaseEntriesService
 
         $this->tableSchemes[$tablename] = $columns;
     }
-    
+
     public function insertIntoTable($tablename, $l10nParent, $row, $targetLanguage)
     {
         if (empty($this->tableSchemes[$tablename])) {
             $this->initTableScheme($tablename);
         }
-        
+
         if (empty($this->databaseEntriesOriginal[$tablename][$l10nParent])) {
             $this->databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
         }
