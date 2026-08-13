@@ -711,7 +711,7 @@ class DatabaseEntriesService
             ->select('*')
             ->from('sys_file_reference')
             ->where(
-                $queryBuilder->expr()->eq('uid_foreign', $queryBuilder->createNamedParameter($uidForeign, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('uid_foreign', $uidForeign),
                 $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
                 $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
             )
