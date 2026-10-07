@@ -46,9 +46,9 @@ final class DeeplApiServiceTest extends UnitTestCase
                 return ['translations' => array_map(static fn(string $t): array => ['text' => 'xx:' . $t], $this->sent)];
             }
 
-            public function setLocalTranslation($source, $translation, $targetLanguage)
+            public function setLocalTranslations(array $translations, string $targetLanguage): void
             {
-                $this->stored[$source] = $translation;
+                $this->stored = $this->stored + $translations;
             }
         };
     }
@@ -131,5 +131,59 @@ final class DeeplApiServiceTest extends UnitTestCase
 
         self::assertSame([], $subject->sent);
         self::assertSame([], $subject->stored);
+    }
+
+    #[Test]
+    public function aStringWithoutALetterIsNeverPaidFor(): void
+    {
+        // page numbers, separators and currency signs come back unchanged anyway
+        $subject = $this->subject([]);
+
+        $result = $subject->translateTexts(['26', '|', '--', '12,50', 'Preis'], 'DE');
+
+        self::assertSame(['Preis'], $subject->sent);
+        self::assertSame('26', $result['26']['text']);
+        self::assertSame('|', $result['|']['text']);
+        self::assertSame('12,50', $result['12,50']['text']);
+    }
+
+    #[Test]
+    public function moreThanDeeplTakesIsSplitIntoSeveralCallsNotRefused(): void
+    {
+        // the endpoint accepts far more than DeepL's fifty, the splitting happens here
+        $subject = new class('test:fx') extends DeeplApiService {
+            public array $calls = [];
+            public function __construct(string $key) { $this->deeplApiKey = $key; $this->baseUrl = 'https://example.invalid/v2/'; }
+            protected function getLocalTranslations(array $sources, string $targetLanguage): array { return []; }
+            public function deeplPost($postData)
+            {
+                preg_match_all('/(?:^|&)text=([^&]*)/', (string)$postData, $matches);
+                $texts = array_map('urldecode', $matches[1]);
+                $this->calls[] = count($texts);
+                return ['translations' => array_map(static fn(string $t): array => ['text' => 'xx:' . $t], $texts)];
+            }
+            public function setLocalTranslations(array $translations, string $targetLanguage): void {}
+        };
+
+        $texts = [];
+        for ($i = 0; $i < 120; $i++) {
+            $texts[] = 'String ' . $i;
+        }
+
+        $result = $subject->translateTexts($texts, 'DE');
+
+        self::assertSame([50, 50, 20], $subject->calls);
+        self::assertCount(120, $result);
+        self::assertSame('xx:String 119', $result['String 119']['text']);
+    }
+
+    #[Test]
+    public function everythingFreshIsWrittenInOneGo(): void
+    {
+        $subject = $this->subject([]);
+
+        $subject->translateTexts(['One', 'Two'], 'DE');
+
+        self::assertSame(['One' => 'xx:One', 'Two' => 'xx:Two'], $subject->stored);
     }
 }

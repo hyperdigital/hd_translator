@@ -10,6 +10,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class DeeplApiService
 {
     /**
+     * Texts DeepL accepts in one call. The endpoint of this extension may take more than that,
+     * the surplus is split into several calls here instead of into several HTTP requests.
+     */
+    protected const DEEPL_TEXTS_PER_CALL = 50;
+
+    /**
      * @var string Deepl api version - https://developers.deepl.com/docs/getting-started/auth
      */
     protected $version = 'v2';
@@ -287,6 +293,36 @@ class DeeplApiService
         return $data;
     }
 
+    /**
+     * Writes a whole batch of fresh translations in one statement.
+     *
+     * @param array<string, string> $translations source text => translation
+     */
+    public function setLocalTranslations(array $translations, string $targetLanguage): void
+    {
+        if ($translations === []) {
+            return;
+        }
+
+        $rows = [];
+        foreach ($translations as $source => $translation) {
+            $rows[] = [
+                'target_language' => $targetLanguage,
+                'original_source' => (string)$source,
+                'original_translation' => $translation,
+                'translation' => $translation,
+            ];
+        }
+
+        GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getConnectionForTable('tx_hdtranslator_ai_translation')
+            ->bulkInsert(
+                'tx_hdtranslator_ai_translation',
+                $rows,
+                ['target_language', 'original_source', 'original_translation', 'translation']
+            );
+    }
+
     public function setLocalTranslation($source, $translation, $targetLanguage)
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_translation')->createQueryBuilder();
@@ -307,36 +343,49 @@ class DeeplApiService
         $texts = array_map('strval', $texts);
         $unique = array_values(array_unique($texts));
 
+        // "26", "|", "<" carry no language. DeepL would answer them unchanged and charge for
+        // the characters, so they never leave the server.
+        $translatable = array_values(array_filter(
+            $unique,
+            static fn(string $text): bool => preg_match('/\p{L}/u', $text) === 1
+        ));
+
         // one query for the whole batch, not one per string
-        $translations = $this->getLocalTranslations($unique, $targetLanguage);
+        $translations = $this->getLocalTranslations($translatable, $targetLanguage);
 
         $toTranslate = [];
-        foreach ($unique as $text) {
+        foreach ($translatable as $text) {
             if (!isset($translations[$text])) {
                 $toTranslate[] = $text;
             }
         }
 
         if ($toTranslate !== []) {
-            $postData = http_build_query(['target_lang' => $targetLanguage]);
-            foreach ($toTranslate as $text) {
-                $postData .= '&text=' . urlencode($text);
-            }
+            $fresh = [];
 
-            $data = $this->deeplPost($postData);
-
-            // DeepL answers in the order it was given, but a shorter response must not
-            // shift the mapping, so anything unmatched is left out
-            foreach (array_values($data['translations']) as $i => $translation) {
-                if (!isset($toTranslate[$i])) {
-                    break;
+            foreach (array_chunk($toTranslate, self::DEEPL_TEXTS_PER_CALL) as $chunk) {
+                $postData = http_build_query(['target_lang' => $targetLanguage]);
+                foreach ($chunk as $text) {
+                    $postData .= '&text=' . urlencode($text);
                 }
 
-                $source = $toTranslate[$i];
-                $translated = $translation['text'] ?? $source;
-                $translations[$source] = $translated;
-                $this->setLocalTranslation($source, $translated, $targetLanguage);
+                $data = $this->deeplPost($postData);
+
+                // DeepL answers in the order it was given, but a shorter response must not
+                // shift the mapping, so anything unmatched is left out
+                foreach (array_values($data['translations']) as $i => $translation) {
+                    if (!isset($chunk[$i])) {
+                        break;
+                    }
+
+                    $source = $chunk[$i];
+                    $translated = $translation['text'] ?? $source;
+                    $translations[$source] = $translated;
+                    $fresh[$source] = $translated;
+                }
             }
+
+            $this->setLocalTranslations($fresh, $targetLanguage);
         }
 
         // back into the order and multiplicity the caller asked for

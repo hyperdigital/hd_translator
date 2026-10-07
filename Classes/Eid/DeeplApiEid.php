@@ -11,9 +11,12 @@ class DeeplApiEid
 {
     /**
      * Maximum amount of strings accepted by a single translate request.
-     * Keeps one call from draining the DeepL quota.
+     *
+     * This is not DeepL's limit of 50, the service splits what it has to forward. A page that
+     * is already cached is resolved in one request instead of one per fifty strings, and what a
+     * single request may cost is still bound by MAX_TOTAL_LENGTH, which did not change.
      */
-    protected const MAX_TEXTS_PER_REQUEST = 50;
+    protected const MAX_TEXTS_PER_REQUEST = 500;
 
     /**
      * Maximum length of a single string (in characters)
