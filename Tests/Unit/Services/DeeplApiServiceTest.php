@@ -147,34 +147,90 @@ final class DeeplApiServiceTest extends UnitTestCase
         self::assertSame('12,50', $result['12,50']['text']);
     }
 
-    #[Test]
-    public function moreThanDeeplTakesIsSplitIntoSeveralCallsNotRefused(): void
+    /**
+     * @return object a service that records the size and shape of every call to DeepL
+     */
+    private function callRecorder(): object
     {
-        // the endpoint accepts far more than DeepL's fifty, the splitting happens here
-        $subject = new class('test:fx') extends DeeplApiService {
+        return new class('test:fx') extends DeeplApiService {
             public array $calls = [];
-            public function __construct(string $key) { $this->deeplApiKey = $key; $this->baseUrl = 'https://example.invalid/v2/'; }
-            protected function getLocalTranslations(array $sources, string $targetLanguage): array { return []; }
+            public array $bodySizes = [];
+
+            public function __construct(string $key)
+            {
+                $this->deeplApiKey = $key;
+                $this->baseUrl = 'https://example.invalid/v2/';
+            }
+
+            protected function getLocalTranslations(array $sources, string $targetLanguage): array
+            {
+                return [];
+            }
+
             public function deeplPost($postData)
             {
                 preg_match_all('/(?:^|&)text=([^&]*)/', (string)$postData, $matches);
                 $texts = array_map('urldecode', $matches[1]);
                 $this->calls[] = count($texts);
+                $this->bodySizes[] = strlen((string)$postData);
+
                 return ['translations' => array_map(static fn(string $t): array => ['text' => 'xx:' . $t], $texts)];
             }
+
             public function setLocalTranslations(array $translations, string $targetLanguage): void {}
         };
+    }
+
+    #[Test]
+    public function manyShortStringsStillTravelInOneCall(): void
+    {
+        // DeepL limits a call by the size of the body, not by the number of texts in it, so
+        // splitting by a count would only add round trips
+        $subject = $this->callRecorder();
 
         $texts = [];
-        for ($i = 0; $i < 120; $i++) {
+        for ($i = 0; $i < 300; $i++) {
             $texts[] = 'String ' . $i;
         }
 
         $result = $subject->translateTexts($texts, 'DE');
 
-        self::assertSame([50, 50, 20], $subject->calls);
-        self::assertCount(120, $result);
-        self::assertSame('xx:String 119', $result['String 119']['text']);
+        self::assertSame([300], $subject->calls);
+        self::assertCount(300, $result);
+    }
+
+    #[Test]
+    public function aBatchTooLargeForOneCallIsSplitByItsSize(): void
+    {
+        $subject = $this->callRecorder();
+
+        // 60 strings of 5000 characters, far beyond what one request may carry
+        $texts = [];
+        for ($i = 0; $i < 60; $i++) {
+            $texts[] = str_pad('Text ' . $i . ' ', 5000, 'abcdefghij');
+        }
+
+        $result = $subject->translateTexts($texts, 'DE');
+
+        self::assertGreaterThan(1, count($subject->calls));
+        self::assertSame(60, array_sum($subject->calls), 'every string has to be sent exactly once');
+        self::assertCount(60, $result);
+
+        foreach ($subject->bodySizes as $size) {
+            self::assertLessThanOrEqual(128 * 1024, $size, 'a call must stay under what DeepL accepts');
+        }
+    }
+
+    #[Test]
+    public function aSingleOversizedStringIsStillSent(): void
+    {
+        // it goes on its own rather than taking a whole batch down with it
+        $subject = $this->callRecorder();
+
+        $result = $subject->translateTexts([str_repeat('a', 5000), 'Short'], 'DE');
+
+        self::assertSame(2, array_sum($subject->calls));
+        self::assertCount(2, $result);
     }
 
     #[Test]
