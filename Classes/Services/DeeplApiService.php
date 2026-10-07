@@ -74,12 +74,12 @@ class DeeplApiService
         if (!empty($this->deeplApiKey)) {
             // otherwise, proxy DeepL
             $url = $this->baseUrl . 'languages?' . http_build_query([
-                    'auth_key' => $this->deeplApiKey,
                     'type' => 'target',
                 ]);
 
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [$this->getAuthorizationHeader()]);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             $response = curl_exec($ch);
@@ -89,7 +89,7 @@ class DeeplApiService
 
             if ($httpCode !== 200 || $response === false) {
                 throw new \RuntimeException(
-                    'DeepL API error (' . $httpCode . '): ' . $curlError,
+                    'DeepL API error (' . $httpCode . '): ' . $curlError . ' ' . (is_string($response) ? $response : ''),
                     1716200001
                 );
             }
@@ -238,13 +238,31 @@ class DeeplApiService
     /**
      * @throws \RuntimeException when DeepL cannot be reached or answers with an error
      */
+    /**
+     * DeepL removed the legacy "auth_key" parameter in November 2025 and answers requests
+     * carrying it with 403. The key goes into this header instead.
+     *
+     * @see https://developers.deepl.com/docs/resources/breaking-changes-change-notices/november-2025-deprecation-of-legacy-auth-methods
+     */
+    protected function getAuthorizationHeader(): string
+    {
+        return 'Authorization: DeepL-Auth-Key ' . $this->deeplApiKey;
+    }
+
     public function deeplPost($postData)
     {
+        // A caller may still hand over a body built the old way; the key never belongs
+        // into the payload any more, so it is stripped rather than sent and rejected.
+        $postData = ltrim((string)preg_replace('/(^|&)auth_key=[^&]*/', '', (string)$postData), '&');
+
         $ch = curl_init($this->baseUrl . 'translate');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/x-www-form-urlencoded',
+            $this->getAuthorizationHeader(),
+        ]);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
         curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
@@ -255,7 +273,9 @@ class DeeplApiService
 
         if ($response === false || $httpCode !== 200) {
             throw new \RuntimeException(
-                'Failed to contact DeepL (' . $httpCode . '): ' . $curlError,
+                // the body carries DeepL's own reason, which is the difference between
+                // "quota exhausted" and "this authentication method no longer exists"
+                'Failed to contact DeepL (' . $httpCode . '): ' . $curlError . ' ' . (is_string($response) ? $response : ''),
                 1716200003
             );
         }
@@ -285,62 +305,110 @@ class DeeplApiService
 
     public function translateTexts(array $texts, string $targetLanguage): array
     {
-        $return = [];
-        $toTranslate = [];
+        $texts = array_map('strval', $texts);
+        $unique = array_values(array_unique($texts));
 
-        // 1) First pass: handle cached hits immediately, collect *unique* uncached strings
-        foreach ($texts as $t) {
-            if ($cached = $this->getLocalTranslation($t, $targetLanguage)) {
-                $return[$t] = ['text' => $cached];
-            } elseif (!in_array($t, $toTranslate, true)) {
-                $toTranslate[] = $t;
+        // one query for the whole batch, not one per string
+        $translations = $this->getLocalTranslations($unique, $targetLanguage);
+
+        $toTranslate = [];
+        foreach ($unique as $text) {
+            if (!isset($translations[$text])) {
+                $toTranslate[] = $text;
             }
         }
 
-        // 2) If there’s anything new to send, do it
-        if (count($toTranslate) > 0) {
-            // build the POST body using the unique list
-            $postData = http_build_query([
-                'auth_key'   => $this->deeplApiKey,
-                'target_lang'=> $targetLanguage]);
-
-            foreach ($toTranslate as $tTemp) {
-                $postData .= '&text=' . urlencode($tTemp);
+        if ($toTranslate !== []) {
+            $postData = http_build_query(['target_lang' => $targetLanguage]);
+            foreach ($toTranslate as $text) {
+                $postData .= '&text=' . urlencode($text);
             }
 
             $data = $this->deeplPost($postData);
 
-            // 3) Map each returned translation to its source.
-            // DeepL answers in the same order as the submitted texts, but a shorter
-            // response must not shift the mapping, so unmatched entries are skipped.
-            $mapped = [];
-            foreach (array_values($data['translations']) as $i => $tr) {
+            // DeepL answers in the order it was given, but a shorter response must not
+            // shift the mapping, so anything unmatched is left out
+            foreach (array_values($data['translations']) as $i => $translation) {
                 if (!isset($toTranslate[$i])) {
                     break;
                 }
 
-                $sourceText = $toTranslate[$i];
-                $translatedText = $tr['text'] ?? $sourceText;
-                $mapped[$sourceText] = $translatedText;
-
-                // save locally
-                $this->setLocalTranslation($sourceText, $translatedText, $targetLanguage);
-            }
-
-            // 4) Merge into return array for any uncached items,
-            // falling back to the source text when DeepL did not return a translation
-            foreach ($toTranslate as $orig) {
-                $return[$orig] = ['text' => $mapped[$orig] ?? $orig];
+                $source = $toTranslate[$i];
+                $translated = $translation['text'] ?? $source;
+                $translations[$source] = $translated;
+                $this->setLocalTranslation($source, $translated, $targetLanguage);
             }
         }
 
-        // 5) Re-order $return so it matches the original $texts order:
+        // back into the order and multiplicity the caller asked for
         $ordered = [];
-        foreach ($texts as $t) {
-            $ordered[$t] = $return[$t] ?? ['text' => $t];
+        foreach ($texts as $text) {
+            $ordered[$text] = ['text' => $translations[$text] ?? $text];
         }
 
         return $ordered;
+    }
+
+    /**
+     * Cached translations for a whole batch of strings.
+     *
+     * The single string variant is kept for callers outside this class; a frontend batch of
+     * fifty strings used to mean fifty queries against a table that has no index for them.
+     *
+     * @param string[] $sources
+     * @return array<string, string> source text => translation
+     */
+    protected function getLocalTranslations(array $sources, string $targetLanguage): array
+    {
+        if ($sources === []) {
+            return [];
+        }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('tx_hdtranslator_ai_translation');
+
+        $rows = $queryBuilder
+            ->select('original_source', 'translation')
+            ->from('tx_hdtranslator_ai_translation')
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'target_language',
+                    $queryBuilder->createNamedParameter($targetLanguage)
+                ),
+                $queryBuilder->expr()->in(
+                    'original_source',
+                    $queryBuilder->createNamedParameter($sources, \TYPO3\CMS\Core\Database\Connection::PARAM_STR_ARRAY)
+                )
+            )
+            ->orderBy('uid')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $exact = [];
+        $caseInsensitive = [];
+        foreach ($rows as $row) {
+            $source = (string)$row['original_source'];
+            $translation = (string)$row['translation'];
+            if ($translation === '') {
+                continue;
+            }
+            // the first row wins, the same way a single fetchAssociative() did
+            $exact[$source] ??= $translation;
+            $caseInsensitive[mb_strtolower($source)] ??= $translation;
+        }
+
+        // The collation of the table is case insensitive, so the per string lookup matched
+        // "Necessary" against a stored "necessary" too. Keeping that avoids paying DeepL
+        // again for strings that only differ in case.
+        $return = [];
+        foreach ($sources as $source) {
+            $translation = $exact[$source] ?? $caseInsensitive[mb_strtolower($source)] ?? null;
+            if ($translation !== null) {
+                $return[$source] = $translation;
+            }
+        }
+
+        return $return;
     }
 
     public function getAllTranslationsForLanguage($language)
