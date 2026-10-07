@@ -45,35 +45,91 @@ async function hdtranslator_translateText(text, targetLang) {
     }
 }
 
+// Server limits, see DeeplApiEid. A batch that breaks one of them is rejected as a whole,
+// which would leave every string in it untranslated.
+const HDTRANSLATOR_MAX_TEXTS_PER_REQUEST = 500;
+const HDTRANSLATOR_MAX_TEXT_LENGTH = 5000;
+const HDTRANSLATOR_MAX_BATCH_CHARS = 45000;
+const HDTRANSLATOR_CONCURRENCY = 4;
+const HDTRANSLATOR_HAS_LETTER = /\p{L}/u;
+
+/**
+ * Splits the texts so that no batch exceeds what the endpoint accepts.
+ */
+function hdtranslator_buildBatches(texts) {
+    const batches = [];
+    let current = [];
+    let chars = 0;
+
+    for (const text of texts) {
+        if (current.length >= HDTRANSLATOR_MAX_TEXTS_PER_REQUEST || chars + text.length > HDTRANSLATOR_MAX_BATCH_CHARS) {
+            batches.push(current);
+            current = [];
+            chars = 0;
+        }
+        current.push(text);
+        chars += text.length;
+    }
+    if (current.length) batches.push(current);
+
+    return batches;
+}
+
 async function hdtranslator_translateWholePage(targetLang) {
-    // 1) Collect nodes + their whitespace
-    const textNodes = hdtranslator_collectTextNodes(document.body);
-    const nodesInfo = textNodes.map(node => {
+    // 1) Collect the nodes and group them by the text they hold. A label that appears in the
+    //    menu and again in the footer is one string to translate, not two.
+    const groups = new Map(); // text -> [{node, leading, trailing}]
+
+    for (const node of hdtranslator_collectTextNodes(document.body)) {
         const raw = node.nodeValue;
-        const leading  = raw.match(/^\s*/)[0];   // whitespace before
-        const trailing = raw.match(/\s*$/)[0];   // whitespace after
-        const coreText = raw.trim();             // text to translate
-        return { node, leading, coreText, trailing };
-    });
+        const coreText = raw.trim();
 
-    // 2) Batch up just the core texts
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < nodesInfo.length; i += BATCH_SIZE) {
-        const batchInfo = nodesInfo.slice(i, i + BATCH_SIZE);
-        const batchTexts = batchInfo.map(info => info.coreText);
-        const translatedBatch = await hdtranslator_translateTextBatch(batchTexts, targetLang);
-        if (!translatedBatch) continue;
+        // nothing to translate in "26", "|" or "€", and a string the server would refuse
+        // for its length must not take a whole batch down with it
+        if (!HDTRANSLATOR_HAS_LETTER.test(coreText) || coreText.length > HDTRANSLATOR_MAX_TEXT_LENGTH) {
+            continue;
+        }
 
-        // 3) Re-assign nodeValue with whitespace restored
-        translatedBatch.forEach((translated, idx) => {
-            if (translated) {
-                const {node, leading, trailing} = batchInfo[idx];
-                node.nodeValue = leading + translated + trailing;
-            }
-        });
+        const entry = { node, leading: raw.match(/^\s*/)[0], trailing: raw.match(/\s*$/)[0] };
+        const existing = groups.get(coreText);
+        if (existing) existing.push(entry);
+        else groups.set(coreText, [entry]);
     }
 
-    console.log("Page translation complete with whitespace preserved.");
+    if (!groups.size) return;
+
+    // 2) Request the batches a few at a time instead of strictly one after another
+    const queue = hdtranslator_buildBatches([...groups.keys()]);
+
+    const worker = async () => {
+        while (queue.length) {
+            const batch = queue.shift();
+            let translations;
+            try {
+                translations = await hdtranslator_translateTextBatch(batch, targetLang);
+            } catch (err) {
+                console.warn('Translation batch failed:', err);
+                continue;
+            }
+            if (!translations) continue;
+
+            // 3) Write the result back, whitespace restored, to every node holding that text
+            batch.forEach((text, idx) => {
+                const translated = translations[idx];
+                if (!translated) return;
+
+                for (const { node, leading, trailing } of groups.get(text)) {
+                    if (node.isConnected !== false) {
+                        node.nodeValue = leading + translated + trailing;
+                    }
+                }
+            });
+        }
+    };
+
+    await Promise.all(
+        Array.from({ length: Math.min(HDTRANSLATOR_CONCURRENCY, queue.length) }, worker)
+    );
 }
 
 function hdtranslator_collectTextNodes(root) {
