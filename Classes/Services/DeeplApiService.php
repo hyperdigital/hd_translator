@@ -10,10 +10,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class DeeplApiService
 {
     /**
-     * Texts DeepL accepts in one call. The endpoint of this extension may take more than that,
-     * the surplus is split into several calls here instead of into several HTTP requests.
+     * How large a request to DeepL may get. DeepL limits a call by the size of the body, not by
+     * the number of texts in it, and that limit is 128 KiB. The budget below leaves room for the
+     * rest of the body and for the request growing while it is encoded.
+     *
+     * @see https://developers.deepl.com/api-reference/translate/request-translation
      */
-    protected const DEEPL_TEXTS_PER_CALL = 50;
+    protected const DEEPL_MAX_REQUEST_BYTES = 100000;
 
     /**
      * @var string Deepl api version - https://developers.deepl.com/docs/getting-started/auth
@@ -363,12 +366,7 @@ class DeeplApiService
         if ($toTranslate !== []) {
             $fresh = [];
 
-            foreach (array_chunk($toTranslate, self::DEEPL_TEXTS_PER_CALL) as $chunk) {
-                $postData = http_build_query(['target_lang' => $targetLanguage]);
-                foreach ($chunk as $text) {
-                    $postData .= '&text=' . urlencode($text);
-                }
-
+            foreach ($this->chunkForDeepl($toTranslate, $targetLanguage) as [$chunk, $postData]) {
                 $data = $this->deeplPost($postData);
 
                 // DeepL answers in the order it was given, but a shorter response must not
@@ -395,6 +393,41 @@ class DeeplApiService
         }
 
         return $ordered;
+    }
+
+    /**
+     * Splits the texts into as few calls to DeepL as its request size allows, and hands back the
+     * encoded body with each one so it is not built twice.
+     *
+     * @param string[] $texts
+     * @return array<int, array{0: string[], 1: string}>
+     */
+    protected function chunkForDeepl(array $texts, string $targetLanguage): array
+    {
+        $base = http_build_query(['target_lang' => $targetLanguage]);
+
+        $chunks = [];
+        $current = [];
+        $body = $base;
+
+        foreach ($texts as $text) {
+            $encoded = '&text=' . urlencode($text);
+
+            if ($current !== [] && strlen($body) + strlen($encoded) > self::DEEPL_MAX_REQUEST_BYTES) {
+                $chunks[] = [$current, $body];
+                $current = [];
+                $body = $base;
+            }
+
+            $current[] = $text;
+            $body .= $encoded;
+        }
+
+        if ($current !== []) {
+            $chunks[] = [$current, $body];
+        }
+
+        return $chunks;
     }
 
     /**
