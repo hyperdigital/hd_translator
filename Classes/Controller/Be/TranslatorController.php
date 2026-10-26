@@ -1008,72 +1008,74 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $zipFolder = $this->createExchangeDirectory();
-        $zipPath = $zipFolder . 'translation.zip';
-        $zip = new \ZipArchive();
-        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
-            $this->removeExchangeDirectory($zipFolder);
-            throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
-        }
 
-        $messages = [];
-        foreach ($storages as $storage) {
-            foreach($tables as $tablename) {
-                $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLanguageUid, false);
-                if (empty($contentRows)) {
-                    $messages[] = 'No entries in ' . $tablename . ' for pid ' . $storage;
-                    continue;
-                }
+        // finally rather than a cleanup on each path: an exception between the two used to
+        // leave the directory behind, and every path added later is covered without thinking
+        // about it.
+        try {
+            $zipPath = $zipFolder . 'translation.zip';
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+                throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
+            }
 
-                foreach ($contentRows as $contentRowUid => $contentRow) {
-                    $defaultUid = (int)$contentRowUid;
-                    $contentRowForKeys = $contentRow;
-                    if ((int)($contentRow['sys_language_uid'] ?? 0) !== 0 && !empty($contentRow['l10n_parent'] ?? null)) {
-                        $defaultUid = (int)$contentRow['l10n_parent'];
-                        $contentRowForKeys['uid'] = $defaultUid;
+            $messages = [];
+            foreach ($storages as $storage) {
+                foreach($tables as $tablename) {
+                    $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLanguageUid, false);
+                    if (empty($contentRows)) {
+                        $messages[] = 'No entries in ' . $tablename . ' for pid ' . $storage;
+                        continue;
                     }
-                    // keys use the default language uid, values and children come from $contentRowUid
-                    $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
-                    $document = (string)$databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid);
 
-                    $filename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
-                    $zip->addFromString($filename, $document, \ZipArchive::FL_OVERWRITE);
+                    foreach ($contentRows as $contentRowUid => $contentRow) {
+                        $defaultUid = (int)$contentRowUid;
+                        $contentRowForKeys = $contentRow;
+                        if ((int)($contentRow['sys_language_uid'] ?? 0) !== 0 && !empty($contentRow['l10n_parent'] ?? null)) {
+                            $defaultUid = (int)$contentRow['l10n_parent'];
+                            $contentRowForKeys['uid'] = $defaultUid;
+                        }
+                        // keys use the default language uid, values and children come from $contentRowUid
+                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
+                        $document = (string)$databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid);
 
-                    $writtenFiles++;
-                    if ($writtenFiles === 1) {
-                        // kept, so a single record can be served as the file it is
-                        $singleFile = ['name' => $filename, 'content' => $document];
-                    } else {
-                        $singleFile = null;
+                        $filename = "$tablename-{$contentRow['pid']}-{$defaultUid}.xlf";
+                        $zip->addFromString($filename, $document, \ZipArchive::FL_OVERWRITE);
+
+                        $writtenFiles++;
+                        if ($writtenFiles === 1) {
+                            // kept, so a single record can be served as the file it is
+                            $singleFile = ['name' => $filename, 'content' => $document];
+                        } else {
+                            $singleFile = null;
+                        }
                     }
                 }
             }
-        }
 
-        $zip->close();
+            $zip->close();
 
-        if ($writtenFiles === 1 && $singleFile !== null) {
+            if ($writtenFiles === 1 && $singleFile !== null) {
+                return $this->fileDownloadResponse($singleFile['content'], $singleFile['name'], 'text/xml');
+            }
+
+            if ($writtenFiles > 1 && file_exists($zipPath)) {
+                $zipContent = (string)file_get_contents($zipPath);
+                return $this->fileDownloadResponse($zipContent, 'translation.zip', 'application/zip');
+            }
+
+            // Nothing was exported. Serving the explanation as an .xlf, which is what used to happen,
+            // only produces a file the translator cannot open and nobody reads.
+            $this->addFlashMessage(
+                implode("\n", $messages) ?: \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing.description', 'hd_translator') ?? '',
+                \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing', 'hd_translator') ?? '',
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING
+            );
+
+            return $this->redirect('database', null, null, $this->withPageContext());
+        } finally {
             $this->removeExchangeDirectory($zipFolder);
-
-            return $this->fileDownloadResponse($singleFile['content'], $singleFile['name'], 'text/xml');
         }
-
-        if ($writtenFiles > 1 && file_exists($zipPath)) {
-            $zipContent = (string)file_get_contents($zipPath);
-            $this->removeExchangeDirectory($zipFolder);
-
-            return $this->fileDownloadResponse($zipContent, 'translation.zip', 'application/zip');
-        }
-
-        // Nothing was exported. Serving the explanation as an .xlf, which is what used to happen,
-        // only produces a file the translator cannot open and nobody reads.
-        $this->removeExchangeDirectory($zipFolder);
-        $this->addFlashMessage(
-            implode("\n", $messages) ?: \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing.description', 'hd_translator') ?? '',
-            \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing', 'hd_translator') ?? '',
-            \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING
-        );
-
-        return $this->redirect('database', null, null, $this->withPageContext());
     }
 
     /**
@@ -1098,58 +1100,66 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $files = $this->request->getUploadedFiles()['files'] ?? false;
         }
 
-        if (!$files) {
-            $errors[] = 'No file uploaded';
-        } else {
-            $targetLanguage = 1;
-            if ($this->request->hasArgument('targetLanguageUid')) {
-                $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
-            }
-            $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-            $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
-            $sourcePart = 'target';
-            if ($this->request->hasArgument('translationSource')) {
-                $sourcePart = $this->request->getArgument('translationSource');
-            }
+        // finally: the directory a zip upload creates is removed even when a file in it throws
+        try {
+            if (!$files) {
+                $errors[] = 'No file uploaded';
+            } else {
+                $targetLanguage = 1;
+                if ($this->request->hasArgument('targetLanguageUid')) {
+                    $targetLanguage = (int) $this->request->getArgument('targetLanguageUid');
+                }
+                $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+                $databaseEntriesService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\DatabaseEntriesService::class);
+                $sourcePart = 'target';
+                if ($this->request->hasArgument('translationSource')) {
+                    $sourcePart = $this->request->getArgument('translationSource');
+                }
 
-            foreach($files as $file) {
-                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                foreach($files as $file) {
+                    $finfo = new \finfo(FILEINFO_MIME_TYPE);
 
-                $extension = explode('.', $file->getClientFilename());
-                $extension = strtolower($extension[count($extension) - 1]);
+                    $extension = explode('.', $file->getClientFilename());
+                    $extension = strtolower($extension[count($extension) - 1]);
 
-                switch($extension){
-                    case 'xlf':
-                        // XLF
-                        $data = (string) $file->getStream();
-                        $data = $xlfService->xlfToData($data, [], $sourcePart);
-                        $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        break;
-                    case 'zip':
-                        $zipFolder = $zipFolder ?? $this->createExchangeDirectory();
-                        $file->moveTo($zipFolder.$file->getClientFilename());
-                        // ZIP of packed translations
-                        $zip = new \ZipArchive();
-                        $zip->open($zipFolder.$file->getClientFilename());
-                        for($i = 0; $i < $zip->numFiles; $i++) {
-                            $data = $zip->getFromIndex($i);
+                    switch($extension){
+                        case 'xlf':
+                            // XLF
+                            $data = (string) $file->getStream();
                             $data = $xlfService->xlfToData($data, [], $sourcePart);
                             $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
-                        }
-                        break;
+                            break;
+                        case 'zip':
+                            $zipFolder = $zipFolder ?? $this->createExchangeDirectory();
+                            $file->moveTo($zipFolder.$file->getClientFilename());
+                            // ZIP of packed translations
+                            $zip = new \ZipArchive();
+                            $zip->open($zipFolder.$file->getClientFilename());
+                            for($i = 0; $i < $zip->numFiles; $i++) {
+                                $data = $zip->getFromIndex($i);
+                                $data = $xlfService->xlfToData($data, [], $sourcePart);
+                                $databaseEntriesService->importIntoDatabase($data, $targetLanguage);
+                            }
+                            break;
+                    }
                 }
             }
-        }
-        if (!empty($zipFolder) && file_exists($zipFolder)) {
+        } finally {
             $this->removeExchangeDirectory($zipFolder ?? null);
         }
 
+        // a protected instance property, so reading it statically is a fatal. Nothing may have
+        // been processed at all, in which case there is no service to ask.
+        $importStats = isset($databaseEntriesService)
+            ? $databaseEntriesService->getImportStats()
+            : ['failsMessages' => [], 'inserts' => 0, 'updates' => 0, 'fails' => 0];
+
         $this->moduleTemplate->assignMultiple([
             'actions' => [
-                'failsMessages' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['failsMessages'],
-                'inserted' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['inserts'],
-                'updated' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['updates'],
-                'fails' => \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$importStats['fails'],
+                'failsMessages' => $importStats['failsMessages'],
+                'inserted' => $importStats['inserts'],
+                'updated' => $importStats['updates'],
+                'fails' => $importStats['fails'],
             ]
         ]);
 
@@ -1312,43 +1322,46 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $source = $this->request->getArgument('source-language');
         }
 
-        if ($saveToZip) {
-            $zipFolder = $this->createExchangeDirectory();
-            $zipPath = $zipFolder . 'translation.zip';
-            $zip = new \ZipArchive();
-            if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
-                throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
-            }
-        }
-
-
-        $output = '';
-        foreach ($storages as $storage) {
-            $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage, true, $targetLanguageUid);
-
-            if (!empty($contentArray)) {
-                $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-                $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source);
-
-                if ($saveToZip) {
-                    $zip->addFromString("page-{$storage}.xlf", $output);
+        // finally: the archive directory is removed on the plain-xlf path and on a throw too
+        try {
+            if ($saveToZip) {
+                $zipFolder = $this->createExchangeDirectory();
+                $zipPath = $zipFolder . 'translation.zip';
+                $zip = new \ZipArchive();
+                if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
+                    throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
                 }
             }
-        }
 
-        if ($saveToZip) {
-            $zip->close();
 
-            // an empty archive is invalid and gets removed by ZipArchive, fall back to the plain xlf
-            if (file_exists($zipPath)) {
-                $zipContent = (string)file_get_contents($zipPath);
-                $this->removeExchangeDirectory($zipFolder);
+            $output = '';
+            foreach ($storages as $storage) {
+                $contentArray = $databaseEntriesService->getCompleteContentForPage((int)$storage, (int) $sourceLanguage, $targetLanguage, true, $targetLanguageUid);
 
-                return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
+                if (!empty($contentArray)) {
+                    $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+                    $output = $xlfService->dataToXlf($contentArray, $targetLanguage, $source);
+
+                    if ($saveToZip) {
+                        $zip->addFromString("page-{$storage}.xlf", $output);
+                    }
+                }
             }
-        }
 
-        return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
+            if ($saveToZip) {
+                $zip->close();
+
+                // an empty archive is invalid and gets removed by ZipArchive, fall back to the plain xlf
+                if (file_exists($zipPath)) {
+                    $zipContent = (string)file_get_contents($zipPath);
+                    return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
+                }
+            }
+
+            return $this->fileDownloadResponse($output, 'page-' . $storage . '.xlf', 'text/xml');
+        } finally {
+            $this->removeExchangeDirectory($zipFolder ?? null);
+        }
     }
 
     public function databaseTableFieldsAction()
