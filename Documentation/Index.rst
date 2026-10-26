@@ -342,6 +342,46 @@ tomorrow and yesterday's rows can no longer be tied to anybody. No address and n
 agent is written anywhere. See :confval:`aiRequestStatistics` to switch it off and
 :confval:`aiRequestStatisticsRetention` for how long rows are kept.
 
+Beside the chart the screen answers four more questions, three of them without storing
+anything that was not already there:
+
+**Which days the asking happens on.** Read out of the day each row carries, so a weekend
+audience and an office one are told apart at a glance.
+
+**Whether the demand is concentrated or spread.** The share held by the busiest three
+languages, and the sum of the squared shares as an index - 1 is everybody asking for the
+same language, 1/n is all of them asked for equally. This is the difference between
+building one mutation and building several.
+
+**What each language has cost.** DeepL charges by the character, and the source texts are
+already in the translation cache, so the :guilabel:`Characters translated` column is the
+closest thing to a bill the installation can answer without writing a number anywhere.
+
+**Where the asking happens.** The pages a translation was requested on, busiest first.
+This one needs a table, :sql:`tx_hdtranslator_ai_request_page`, and it is bounded on both
+ends: a language-day accepts at most fifty distinct pages, a day that has closed keeps the
+busiest ten, and pages are dropped after ninety days even where the counting rows live a
+year. The page comes from the referer the browser already sends - nothing changes in the
+frontend or in a project using it - and only the path is kept, never the query, so what a
+visitor typed into a search never reaches the table. It counts requests, not people: a page
+is not a visitor, and pairing the two would multiply the rows by the size of the site.
+
+..  _demand-history:
+
+History after the detail is gone
+--------------------------------
+
+When the retention drops the daily rows, the prune first folds them into
+:sql:`tx_hdtranslator_ai_request_month` - one row per language per month, so a decade of
+history costs less than a day of detail. It adds rather than replaces, which keeps it
+correct when the retention boundary falls inside a month, and running twice changes
+nothing because the rows are gone by then.
+
+What a month holds is **visitor-days**, not people: somebody who asked on three days counts
+three times. The number of distinct people in a month cannot be recovered once the daily
+rows are gone, because the visitor hash is re-salted every day on purpose, and the column
+does not pretend otherwise.
+
 The frontend endpoints are public. They only accept target languages that were
 synchronized from DeepL, and they reject requests with more than 500 strings, single
 strings longer than 5000 characters, or a total payload above 50000 characters. 500 is
