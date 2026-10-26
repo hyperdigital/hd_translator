@@ -1557,7 +1557,21 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
         $languages = $deeplApiService->getAvailableLanguagesWithAmounts();
+
+        // How many people asked for each language, which is what says whether a language is
+        // worth maintaining as real pages. This screen is the only place the numbers are read,
+        // so it is also where the old rows are dropped.
+        $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
+        $statisticsService->prune();
+        $statistics = $statisticsService->getStatisticsByLanguage();
+
+        foreach ($languages as $key => $language) {
+            $languages[$key]['statistics'] = $statistics[(string)($language['language'] ?? '')] ?? null;
+        }
+
         $this->moduleTemplate->assign('languages', $languages);
+        $this->moduleTemplate->assign('statisticsEnabled', $statisticsService->isEnabled());
+        $this->moduleTemplate->assign('retentionDays', $statisticsService->getRetentionDays());
         $this->moduleTemplate->assign('apiKey', $this->deeplApiKey);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplTranslationsList');

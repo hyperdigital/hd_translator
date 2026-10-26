@@ -33,16 +33,35 @@
                     <table class="table table-hover">
                         <thead>
                         <tr>
-                            <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.languages" /></th>
-                            <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.translation_count" /></th>
-                            <th class="col-control"></th>
+                            <th rowspan="2"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.languages" /></th>
+                            <th rowspan="2"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.translation_count" /></th>
+                            <f:if condition="{statisticsEnabled}">
+                                <th colspan="4"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors" /></th>
+                                <th rowspan="2"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.requests" /></th>
+                            </f:if>
+                            <th rowspan="2" class="col-control"></th>
                         </tr>
+                        <f:if condition="{statisticsEnabled}">
+                            <tr>
+                                <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors.today" /></th>
+                                <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors.week" /></th>
+                                <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors.month" /></th>
+                                <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors.total" /></th>
+                            </tr>
+                        </f:if>
                         </thead>
                         <tbody>
                         <f:for each="{languages}" as="language">
                             <tr>
                                 <td><f:link.action action="deeplTranslationLanguage" arguments="{language: language.language}">[{language.language}] {language.name}</f:link.action></td>
                                 <td>{language.translations_count}</td>
+                                <f:if condition="{statisticsEnabled}">
+                                    <td>{language.statistics.today -> f:format.number(decimals: 0)}</td>
+                                    <td>{language.statistics.week -> f:format.number(decimals: 0)}</td>
+                                    <td><strong>{language.statistics.month -> f:format.number(decimals: 0)}</strong></td>
+                                    <td>{language.statistics.total -> f:format.number(decimals: 0)}</td>
+                                    <td>{language.statistics.requests -> f:format.number(decimals: 0)}</td>
+                                </f:if>
                                 <td class="col-control">
                                     <div class="btn-group" role="group">
                                         <f:link.action action="deeplTranslationLanguage" class="btn btn-default" arguments="{language: language.language}">
@@ -57,6 +76,15 @@
                         </f:for>
                         </tbody>
                     </table>
+
+                    <f:if condition="{statisticsEnabled}">
+                        <f:then>
+                            <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.statistics.hint" arguments="{0: retentionDays}" /></p>
+                        </f:then>
+                        <f:else>
+                            <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.statistics.disabled" /></p>
+                        </f:else>
+                    </f:if>
                 </f:then>
             </f:if>
         </f:then>

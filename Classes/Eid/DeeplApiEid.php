@@ -1,6 +1,7 @@
 <?php
 namespace Hyperdigital\HdTranslator\Eid;
 
+use Hyperdigital\HdTranslator\Services\AiRequestStatisticsService;
 use Hyperdigital\HdTranslator\Services\DeeplApiService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -89,6 +90,11 @@ class DeeplApiEid
                 'error' => 'Payload too long, maximum is ' . self::MAX_TOTAL_LENGTH . ' characters',
             ], 413);
         }
+
+        // Counted here rather than in the service: this is the entry point a frontend goes
+        // through, and it stays counted even where a project replaces the service with its own.
+        GeneralUtility::makeInstance(AiRequestStatisticsService::class)
+            ->record($request, $targetLanguage, count($texts));
 
         try {
             $translations = $deeplApiService->translateTexts($texts, $targetLanguage);
