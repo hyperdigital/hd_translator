@@ -1834,30 +1834,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
         switch($extension) {
             case 'xlf':
-                $doc = new \DOMDocument();
-                $doc->loadXML($content);
-                $items = $doc->getElementsByTagName('trans-unit');
-                if ($items) {
-                    foreach ($items as $item) {
-                        $key = $item->getAttribute('id');
-
-                        $source = '';
-                        $sourceData = $item->getElementsByTagName('source');
-                        if ($sourceData[0]) {
-                            $source = $sourceData[0]->textContent;
-                        }
-                        $target = $source;
-                        $targetData = $item->getElementsByTagName('target');
-                        if ($targetData[0]) {
-                            $target = $targetData[0]->textContent;
-                        }
-
-                        $data[$key] = [
-                            'default' => $source,
-                            $languageTranslation => $target
-                        ];
-                    }
-                }
+                $data = $this->xlfToTranslationData($content, $languageTranslation);
                 break;
             case 'json':
                 $dataArray = json_decode($content);
@@ -1898,7 +1875,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if (!empty($data)) {
-            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data]);
+            // saveAction() writes the whole file from what it is handed, so an import that
+            // carries only the strings somebody worked on used to erase every other one. The
+            // imported units are laid over what is stored, and the file is written here:
+            // handing a whole file's worth of data to save through redirect arguments makes
+            // a location header the web server refuses.
+            $this->writeTranslationFile(
+                $keyTranslation,
+                $languageTranslation,
+                $this->overlayStoredTranslations($keyTranslation, $languageTranslation, $data)
+            );
+
+            return $this->redirect('detail', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
         }
 
         return $this->redirect('detail', null, null, [
@@ -2032,8 +2020,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             die();
         }
 
-        $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
+        $this->writeTranslationFile($keyTranslation, $languageTranslation, $data);
 
+        echo json_encode(['success' => 1]);
+        die();
+    }
+
+    /**
+     * Full path of a translation file, the one both the save screen and an import use.
+     */
+    protected function translationFilePath(string $keyTranslation, string $languageTranslation): string
+    {
         if ($languageTranslation == 'en' || $languageTranslation == 'default') {
             $filename = $keyTranslation . '.xlf';
         } else {
@@ -2045,15 +2042,93 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $path = \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName($this->storage . $filename);
-        if (empty($path)) {
-            $path = $this->storage . $filename;
-        }
-        file_put_contents($path, $xlfFileExport);
+
+        return empty($path) ? $this->storage . $filename : $path;
+    }
+
+    /**
+     * The one place a translation file is written, so the save screen and an import cannot
+     * drift apart.
+     *
+     * @param array<string, array<string, string>> $data
+     */
+    protected function writeTranslationFile(string $keyTranslation, string $languageTranslation, array $data): void
+    {
+        file_put_contents(
+            $this->translationFilePath($keyTranslation, $languageTranslation),
+            $this->dataToXlf($keyTranslation, $languageTranslation, $data)
+        );
 
         GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+    }
 
-        echo json_encode(['success' => 1]);
-        die();
+    /**
+     * Reads trans-units into the shape dataToXlf() writes back.
+     *
+     * @return array<string, array<string, string>>
+     */
+    protected function xlfToTranslationData(string $content, string $languageTranslation): array
+    {
+        $data = [];
+        if (trim($content) === '') {
+            return $data;
+        }
+
+        $doc = new \DOMDocument();
+        if (!@$doc->loadXML($content)) {
+            return $data;
+        }
+
+        foreach ($doc->getElementsByTagName('trans-unit') as $item) {
+            $key = $item->getAttribute('id');
+            if ($key === '') {
+                continue;
+            }
+
+            $source = '';
+            $sourceData = $item->getElementsByTagName('source');
+            if ($sourceData[0]) {
+                $source = $sourceData[0]->textContent;
+            }
+            $target = $source;
+            $targetData = $item->getElementsByTagName('target');
+            if ($targetData[0]) {
+                $target = $targetData[0]->textContent;
+            }
+
+            $data[$key] = [
+                'default' => $source,
+                $languageTranslation => $target
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Lays imported units over the ones already stored, so keys the import does not mention
+     * keep their translation. Imported values win; keys the file does not have yet are added.
+     *
+     * @param array<string, array<string, string>> $imported
+     * @return array<string, array<string, string>>
+     */
+    protected function overlayStoredTranslations(string $keyTranslation, string $languageTranslation, array $imported): array
+    {
+        $path = $this->translationFilePath($keyTranslation, $languageTranslation);
+        if (!file_exists($path)) {
+            return $imported;
+        }
+
+        $stored = $this->xlfToTranslationData((string)file_get_contents($path), $languageTranslation);
+        if (empty($stored)) {
+            return $imported;
+        }
+
+        foreach ($imported as $key => $value) {
+            $stored[$key] = $value;
+        }
+
+        return $stored;
     }
 
     protected function exec_enabled() {
