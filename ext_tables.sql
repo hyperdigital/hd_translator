@@ -15,18 +15,16 @@ CREATE TABLE tx_hdtranslator_ai_translation
 );
 
 --
--- How many people ask for a translation, per language and day.
--- "visitor" is a hash keyed with the day, it cannot be traced back to anybody and no address
--- is stored. See AiRequestStatisticsService.
+-- Who asked for which language on which day. One row is one visitor, one language, one day,
+-- and nothing else: the row is its own primary key, so InnoDB stores it once instead of a row
+-- plus an index pointing at it. "visitor" is a hash keyed with the day, it cannot be traced
+-- back to anybody and no address is stored. See AiRequestStatisticsService.
 --
 CREATE TABLE tx_hdtranslator_ai_request (
 	target_language varchar(16) DEFAULT '' NOT NULL,
 	day int(11) DEFAULT '0' NOT NULL,
-	visitor varchar(64) DEFAULT '' NOT NULL,
-	requests int(11) DEFAULT '0' NOT NULL,
-	strings int(11) DEFAULT '0' NOT NULL,
-	crdate int(11) DEFAULT '0' NOT NULL,
+	visitor varchar(16) DEFAULT '' NOT NULL,
 
-	UNIQUE KEY visit (target_language, day, visitor),
+	PRIMARY KEY (target_language, day, visitor),
 	KEY day (day)
 );

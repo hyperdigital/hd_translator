@@ -198,9 +198,6 @@
             <trans-unit id="deepl.index.table.visitors.total">
                 <source>Total</source>
             </trans-unit>
-            <trans-unit id="deepl.index.table.requests">
-                <source>Requests (30 days)</source>
-            </trans-unit>
             <trans-unit id="deepl.index.statistics.hint">
                 <source>Counted per language and day from an anonymous hash that changes every day. No address is stored. Kept for %s days.</source>
             </trans-unit>
@@ -227,6 +224,33 @@
             </trans-unit>
             <trans-unit id="export.nothing.description">
                 <source>No record of the selected tables was found on the selected pages.</source>
+            </trans-unit>
+            <trans-unit id="docHeader.deeplAnalytics">
+                <source>Demand</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.headline">
+                <source>Which languages people ask for</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.description">
+                <source>Unique visitors who requested a translation, so the languages worth building as real pages can be picked out. Every column sorts.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.trend">
+                <source>Trend</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.trend.new">
+                <source>new</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.asPages">
+                <source>Real pages</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.asPages.yes">
+                <source>yes</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.asPages.no">
+                <source>not yet</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.empty">
+                <source>Nobody has requested a translation yet. The numbers appear once the frontend translation is used.</source>
             </trans-unit>
         </body>
     </file>

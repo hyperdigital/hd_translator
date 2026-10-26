@@ -37,7 +37,6 @@
                             <th rowspan="2"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.translation_count" /></th>
                             <f:if condition="{statisticsEnabled}">
                                 <th colspan="4"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.visitors" /></th>
-                                <th rowspan="2"><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.table.requests" /></th>
                             </f:if>
                             <th rowspan="2" class="col-control"></th>
                         </tr>
@@ -60,7 +59,6 @@
                                     <td>{language.statistics.week -> f:format.number(decimals: 0)}</td>
                                     <td><strong>{language.statistics.month -> f:format.number(decimals: 0)}</strong></td>
                                     <td>{language.statistics.total -> f:format.number(decimals: 0)}</td>
-                                    <td>{language.statistics.requests -> f:format.number(decimals: 0)}</td>
                                 </f:if>
                                 <td class="col-control">
                                     <div class="btn-group" role="group">

@@ -1149,6 +1149,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
                 ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']) ? 1 : 0);
             $menu->addMenuItem($item);
+
+            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplAnalytics', 'hd_translator'))
+                ->setHref($uriBuilder->reset()->uriFor('deeplAnalytics', $this->withPageContext()))
+                ->setActive('deeplAnalytics' == $this->request->getControllerActionName());
+            $menu->addMenuItem($item);
         }
 
 
@@ -1608,6 +1613,65 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         return $domtree->saveXML();
     }
 
+    /**
+     * Template: Be/Translator/DeeplAnalytics
+     * Description: Which languages people actually ask for, sortable, so the one worth building
+     * as real pages can be picked out.
+     */
+    public function deeplAnalyticsAction()
+    {
+        $this->indexMenu();
+
+        $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
+        $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
+        $statistics = $statisticsService->getStatisticsByLanguage();
+
+        // languages that already exist as a real language of a site need no deciding about
+        $configured = [];
+        foreach (GeneralUtility::makeInstance(SiteFinder::class)->getAllSites() as $site) {
+            foreach ($site->getAllLanguages() as $siteLanguage) {
+                $configured[strtoupper(substr((string)$siteLanguage->getLocale()->getLanguageCode(), 0, 2))] = true;
+            }
+        }
+
+        $cached = [];
+        foreach ($deeplApiService->getAvailableLanguagesWithAmounts() as $language) {
+            $cached[(string)$language['language']] = [
+                'name' => (string)$language['name'],
+                'translations' => (int)$language['translations_count'],
+            ];
+        }
+
+        // a language appears when somebody asked for it, even if it was never synchronised
+        $rows = [];
+        foreach ($statistics as $code => $row) {
+            $rows[] = [
+                'language' => $code,
+                'name' => $cached[$code]['name'] ?? $code,
+                'today' => $row['today'],
+                'week' => $row['week'],
+                'month' => $row['month'],
+                'total' => $row['total'],
+                'previous' => $row['previous'],
+                'trend' => $row['trend'],
+                'translations' => $cached[$code]['translations'] ?? 0,
+                'configured' => isset($configured[strtoupper(substr($code, 0, 2))]),
+            ];
+        }
+
+        // most asked for first, which is the question the screen exists to answer
+        usort($rows, static fn(array $a, array $b): int => $b['month'] <=> $a['month']);
+
+        $this->moduleTemplate->assignMultiple([
+            'rows' => $rows,
+            'statisticsEnabled' => $statisticsService->isEnabled(),
+            'retentionDays' => $statisticsService->getRetentionDays(),
+            'apiKey' => $this->deeplApiKey,
+        ]);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplAnalytics');
+    }
+
     public function deeplTranslationsListAction()
     {
         $this->indexMenu();
@@ -1619,7 +1683,6 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // worth maintaining as real pages. This screen is the only place the numbers are read,
         // so it is also where the old rows are dropped.
         $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
-        $statisticsService->prune();
         $statistics = $statisticsService->getStatisticsByLanguage();
 
         foreach ($languages as $key => $language) {
