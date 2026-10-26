@@ -4,6 +4,7 @@ namespace Hyperdigital\HdTranslator\Services;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Service\FlexFormService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -105,6 +106,12 @@ class DatabaseEntriesService
 
     protected $flexFormTools;
     /**
+     * Where convertFlexFormContentToArray() lives differs per major: typo3 13 has it
+     * only here, 12 had it on both and 14 moved it back to FlexFormTools. The
+     * identifier call below still belongs to FlexFormTools, so both are kept.
+     */
+    protected FlexFormService $flexFormService;
+    /**
      * Logger instance. We use TYPO3 LogManager when available and
      * additionally write a fallback file log to var/log/hd_translator.log
      * to ensure visibility during imports.
@@ -116,10 +123,12 @@ class DatabaseEntriesService
     protected $tableSchemes = [];
 
     public function __construct(
-        FlexFormTools $flexFormTools
+        FlexFormTools $flexFormTools,
+        FlexFormService $flexFormService
     )
     {
         $this->flexFormTools = $flexFormTools;
+        $this->flexFormService = $flexFormService;
     }
 
     /**
@@ -684,7 +693,7 @@ class DatabaseEntriesService
     protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields, $typeArray = [], $fieldnamePrefix = '')
     {
         $flexString = $row[$field];
-        $data = $this->flexFormTools
+        $data = $this->flexFormService
             ->convertFlexFormContentToArray(strval($flexString));
 
         foreach ($data as $key => $value) {
