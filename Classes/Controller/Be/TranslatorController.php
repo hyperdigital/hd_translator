@@ -1510,12 +1510,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (!empty($this->deeplApiKey)) {
             $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplTranslations', 'hd_translator'))
                 ->setHref($uriBuilder->reset()->uriFor('deeplTranslationsList', $this->withPageContext()))
-                ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources']));
-            $menu->addMenuItem($item);
-
-            $item = $menu->makeMenuItem()->setTitle(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('docHeader.deeplAnalytics', 'hd_translator'))
-                ->setHref($uriBuilder->reset()->uriFor('deeplAnalytics', $this->withPageContext()))
-                ->setActive('deeplAnalytics' == $this->request->getControllerActionName());
+                // demand is one of the ai screens, reached from its list like the other
+                // drilldowns, so the menu keeps one entry for the whole area
+                ->setActive(in_array($this->request->getControllerActionName(), ['deeplTranslationsList', 'deeplSyncLanguages', 'deeplTranslationLanguage', 'deeplShowTranslationsOfOriginal', 'deeplOriginalSources', 'deeplAnalytics']));
             $menu->addMenuItem($item);
         }
 

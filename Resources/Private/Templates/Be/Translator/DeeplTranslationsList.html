@@ -26,6 +26,10 @@
 								<core:icon identifier="actions-search" size="small" />
 								<f:translate key="deepl.searchBySource" />
 							</f:link.action>
+							<f:link.action action="deeplAnalytics" class="btn btn-default">
+								<core:icon identifier="content-widget-chart-bar" size="small" />
+								<f:translate key="docHeader.deeplAnalytics" />
+							</f:link.action>
 						</div>
 					</div>
 
@@ -104,6 +108,11 @@
 						<f:link.action action="deeplSyncLanguages" class="btn btn-primary">
 							<core:icon identifier="actions-synchronize" size="small" />
 							<f:translate key="deepl.syncLanguages" />
+						</f:link.action>
+						<f:comment>reachable before anything is synchronised: that is when it answers what to synchronise</f:comment>
+						<f:link.action action="deeplAnalytics" class="btn btn-default">
+							<core:icon identifier="content-widget-chart-bar" size="small" />
+							<f:translate key="docHeader.deeplAnalytics" />
 						</f:link.action>
 					</p>
 				</f:else>
