@@ -120,6 +120,12 @@
 			<trans-unit id="index.synchronizeLocalizedFiles">
 				<source>Synchronize all files</source>
 			</trans-unit>
+            <trans-unit id="index.locallangConfiguration.missing">
+                <source>The list of locallang files has not been generated yet</source>
+            </trans-unit>
+            <trans-unit id="index.locallangConfiguration.missing.description">
+                <source>Synchronizing all locallang files is switched on, but its generated configuration is not in the storage path. Run the synchronization to build it.</source>
+            </trans-unit>
             <trans-unit id="deepl.missingKey.headline">
                 <source>Missing Deepl apiKey</source>
             </trans-unit>

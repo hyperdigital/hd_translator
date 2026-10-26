@@ -50,13 +50,37 @@
                     </div>
                 </f:then>
                 <f:else>
-                    <f:if condition="{enabledSync}">
-                        <f:link.action action="syncLocallangs" class="btn btn-default">TODO:Run sync</f:link.action>
-                    </f:if>
+                    <f:comment>
+                        Two reasons for an empty list, and the advice for one is the wrong
+                        advice for the other: the generated file is not there yet, or
+                        nothing was ever registered.
+                    </f:comment>
+                    <f:if condition="{locallangConfigurationMissing}">
+                        <f:then>
+                            <h3><f:translate key="index.locallangConfiguration.missing" /></h3>
+                            <p><f:translate key="index.locallangConfiguration.missing.description" /></p>
+                            <f:if condition="{enabledSync}">
+                                <p>
+                                    <f:link.action action="syncLocallangs" class="btn btn-primary">
+                                        <core:icon identifier="actions-synchronize" size="small" />
+                                        <f:translate key="index.synchronizeLocalizedFiles" />
+                                    </f:link.action>
+                                </p>
+                            </f:if>
+                        </f:then>
+                        <f:else>
+                            <f:if condition="{enabledSync}">
+                                <p>
+                                    <f:link.action action="syncLocallangs" class="btn btn-default">
+                                        <core:icon identifier="actions-synchronize" size="small" />
+                                        <f:translate key="index.synchronizeLocalizedFiles" />
+                                    </f:link.action>
+                                </p>
+                            </f:if>
 
-                    <h3>No translation enabled to be translated.</h3>
-                    <p>To set up the translation add this settings</p>
-                    <pre>$GLOBALS['TYPO3_CONF_VARS']['translator']['news'] = [
+                            <h3>No translation enabled to be translated.</h3>
+                            <p>To set up the translation add this settings</p>
+                            <pre>$GLOBALS['TYPO3_CONF_VARS']['translator']['news'] = [
     'label' => 'News',
     'path' => 'EXT:news/Resources/Private/Language/locallang.xlf',
     'category' => 'Category1',
@@ -65,6 +89,8 @@
         'default' // can be used also en, but still not fully compatible
     ]
 ];</pre>
+                        </f:else>
+                    </f:if>
                 </f:else>
             </f:if>
         </f:else>
