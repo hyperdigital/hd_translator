@@ -370,7 +370,13 @@ class DatabaseEntriesService
      * @param string $tablename name of the table
      * @param int $rowUid UID of entry
      */
-    public function getCompleteRow(string $tablename, int $rowUid, int $sourceLanguage = 0)
+    /**
+     * The record with everything the export needs, or an empty array when there is none.
+     *
+     * Never false: every caller indexes into the result, and a record that was deleted meanwhile
+     * used to turn that into a row of warnings about an offset on a bool instead of saying so.
+     */
+    public function getCompleteRow(string $tablename, int $rowUid, int $sourceLanguage = 0): array
     {
         $parentUidField = 'l10n_parent';
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
@@ -418,6 +424,10 @@ class DatabaseEntriesService
         //setup default language uid
         if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
             $parentUidField = 'uid';
+        }
+
+        if (!is_array($row)) {
+            return [];
         }
 
         if (!empty($parentUidField) && !empty($row[$parentUidField])) {

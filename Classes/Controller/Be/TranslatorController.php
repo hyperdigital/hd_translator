@@ -93,7 +93,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected function resolveCurrentPageUid(): int
     {
         // "id" as plain request parameter (docheader button, context menu, page tree)
-        $currentPid = $this->request->getParsedBody()['id'] ?? $this->request->getQueryParams()['id'] ?? null;
+        $parsedBody = $this->request->getParsedBody();
+        $currentPid = (is_array($parsedBody) ? ($parsedBody['id'] ?? null) : null)
+            ?? $this->request->getQueryParams()['id']
+            ?? null;
         if ((int)$currentPid > 0) {
             return (int)$currentPid;
         }
@@ -250,6 +253,33 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 ? \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
                 : \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING
         );
+    }
+
+    /**
+     * A directory of this one run, for the archive an export builds or the archive an import
+     * unpacks.
+     *
+     * All three used to share "var/translation/" and both exports wrote the same
+     * "translation.zip" into it, which two editors working at the same time overwrote for each
+     * other. The whole folder was then deleted afterwards, so an export running while somebody
+     * imported took the other one's files with it.
+     */
+    protected function createExchangeDirectory(): string
+    {
+        $directory = Environment::getVarPath() . '/translation/' . bin2hex(random_bytes(8)) . '/';
+        GeneralUtility::mkdir_deep($directory);
+
+        return $directory;
+    }
+
+    /**
+     * Removes a directory of createExchangeDirectory(), and nothing above it.
+     */
+    protected function removeExchangeDirectory(?string $directory): void
+    {
+        if (!empty($directory) && is_dir($directory)) {
+            \Hyperdigital\HdTranslator\Services\FileService::rmdir($directory);
+        }
     }
 
     /**
@@ -864,8 +894,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     'text/csv'
                 );
             case 'json':
+                // a label that is not valid UTF-8 makes json_encode() return false, and handing
+                // that to a string parameter is a fatal rather than a download
+                $json = json_encode($data[$languageTranslation], JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
+
                 return $this->fileDownloadResponse(
-                    json_encode($data[$languageTranslation], JSON_PRETTY_PRINT),
+                    $json !== false ? $json : '{}',
                     $downloadFilename . '.json',
                     'application/json'
                 );
@@ -994,8 +1028,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $data = $this->request->getArgument('data');
         }
         if (empty($data)) {
-            $content = file_get_contents('php://input');
-            $content = json_decode($content);
+            // The javascript of the detail screen posts the form as a json object. A body that is
+            // not that used to reach the foreach below as null, which warned and then saved
+            // nothing, reporting the same "nothing to save" as an empty form.
+            $content = json_decode((string)file_get_contents('php://input'));
+            if (!is_object($content) && !is_array($content)) {
+                $content = [];
+            }
+
             $string = '';
             $temp = [];
             foreach ($content as $key => $value) {
@@ -1136,7 +1176,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if (trim($storages) == '') {
             $storages = -1;
         }
-        $storages = GeneralUtility::trimExplode(',', $storages);
+        $storages = GeneralUtility::trimExplode(',', (string)$storages);
         if ($this->request->hasArgument('subpages') && $this->request->getArgument('subpages') == 1) {
             $tempStorage = $storages;
             foreach ($tempStorage as $storage) {
@@ -1145,6 +1185,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         $saveToZip = true;
+        $zipFolder = null;
 
         $defaultLanguage = 1;
         $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
@@ -1167,13 +1208,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if ($saveToZip) {
-            $zipFolder = Environment::getVarPath() . '/translation/';
-            if (!file_exists($zipFolder)) {
-                mkdir($zipFolder);
-            }
+            $zipFolder = $this->createExchangeDirectory();
             $zipPath = $zipFolder . 'translation.zip';
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
+                $this->removeExchangeDirectory($zipFolder);
                 throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
             }
         }
@@ -1221,11 +1260,14 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             //zip file is automatically deleted by ZipArchive, fallback to printing the output
             if (file_exists($zipPath)) {
                 $zipContent = (string)file_get_contents($zipPath);
-                \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+                $this->removeExchangeDirectory($zipFolder);
 
                 return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
             }
         }
+
+        // the archive stayed empty, so there is nothing to download from it and nothing to keep
+        $this->removeExchangeDirectory($zipFolder);
 
         $filenameSuffix = $storages[0] ?? '0';
 
@@ -1287,10 +1329,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 // every entry is [content, extension], a zip contributes one per packed file
                 $contents = [];
                 if ($extension === 'zip') {
-                    $zipFolder = Environment::getVarPath() . '/translation/';
-                    if (!file_exists($zipFolder)) {
-                        mkdir($zipFolder);
-                    }
+                    $zipFolder = $zipFolder ?? $this->createExchangeDirectory();
                     $file->moveTo($zipFolder.$file->getClientFilename());
                     // ZIP of packed translations
                     $zip = new \ZipArchive();
@@ -1326,9 +1365,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 }
             }
         }
-        if (!empty($zipFolder) && file_exists($zipFolder)) {
-            \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
-        }
+        $this->removeExchangeDirectory($zipFolder ?? null);
 
         $importStats = isset($databaseEntriesService)
             ? $databaseEntriesService->getImportStats()
@@ -1541,7 +1578,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         if ($storages == '') {
             $storages = -1;
         }
-        $storages = GeneralUtility::trimExplode(',', $storages);
+        $storages = GeneralUtility::trimExplode(',', (string)$storages);
         if ($this->request->hasArgument('subpages') && $this->request->getArgument('subpages') == 1) {
             $tempStorage = $storages;
             foreach ($tempStorage as $storage) {
@@ -1576,16 +1613,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if ($saveToZip) {
-            $zipFolder = Environment::getVarPath() . '/translation/';
-            if (!file_exists($zipFolder)) {
-                mkdir($zipFolder);
-            }
+            $zipFolder = $this->createExchangeDirectory();
             $zipPath = $zipFolder . 'translation.zip';
-            if (file_exists($zipPath)) {
-                unlink($zipPath);
-            }
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
+                $this->removeExchangeDirectory($zipFolder);
                 throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
             }
         }
@@ -1611,11 +1643,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             // an empty archive is invalid and gets removed by ZipArchive, fall back to the plain xlf
             if (file_exists($zipPath)) {
                 $zipContent = (string)file_get_contents($zipPath);
-                \Hyperdigital\HdTranslator\Services\FileService::rmdir($zipFolder);
+                $this->removeExchangeDirectory($zipFolder);
 
                 return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
             }
         }
+
+        $this->removeExchangeDirectory($zipFolder ?? null);
 
         $filenameSuffix = $storages[0] ?? '0';
 
@@ -1771,7 +1805,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if ($files) {
                 foreach ($files as $file) {
                     if ($file != '.' && $file != '..' && is_file($this->storage . $file)) {
-                        $content = strip_tags(file_get_contents($this->storage . $file));
+                        $content = strip_tags((string)file_get_contents($this->storage . $file));
                         if (strpos($content, $sword) !== false) {
                             $data[] = $file;
                         }

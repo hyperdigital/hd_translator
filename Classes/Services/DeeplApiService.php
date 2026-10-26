@@ -101,7 +101,7 @@ class DeeplApiService
                 );
             }
 
-            $response = json_decode($response, true);
+            $response = json_decode((string)$response, true);
             if (!is_array($response)) {
                 throw new \RuntimeException('DeepL API returned an unexpected response', 1716200002);
             }
@@ -286,7 +286,7 @@ class DeeplApiService
             );
         }
 
-        $data = json_decode($response, true);
+        $data = json_decode((string)$response, true);
         if (!is_array($data) || !isset($data['translations']) || !is_array($data['translations'])) {
             throw new \RuntimeException('DeepL returned an unexpected response', 1716200004);
         }
