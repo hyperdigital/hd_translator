@@ -173,6 +173,14 @@ This extension enables AI-powered translations using DeepL **in the frontend onl
    In the TYPO3 backend, open the **Translator** module and switch the header tab to **AI Translations**.
 3. **Synchronize languages**  
    Click **Synchronize available languages**. This will fetch all supported languages and make them available for translation.
+4. **See which languages people ask for**
+   The **Demand** button on the AI Translations screen opens a screen that answers which
+   languages visitors actually request. A chart draws the unique visitors per day over the last
+   7, 30, 90 or 365 days, and the table below it carries the same numbers sorted by any column,
+   with how many translations exist and whether the language is already a real language of a
+   site. Counting stores one row per language, per day, per visitor - the visitor being a daily
+   HMAC, so no address and no user agent is kept. It can be switched off in the extension
+   configuration (`aiRequestStatistics`).
 
 Once that’s done, you’ll see a list of languages along with any existing translations.
 

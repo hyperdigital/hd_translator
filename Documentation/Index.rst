@@ -162,6 +162,30 @@ Extension configuration
     DeepL API key. When empty, the :guilabel:`AI Translations` tab stays hidden and the
     frontend endpoints answer with HTTP 503.
 
+..  confval:: aiRequestStatistics
+
+    :type: boolean
+    :Default: 1
+
+    Counts how many distinct visitors ask for each language, which is what the
+    :guilabel:`Demand` screen shows. Switch it off and nothing is written at all.
+
+..  confval:: aiRequestStatisticsRetention
+
+    :type: integer
+    :Default: 365
+
+    Days a counting row is kept. Older rows are dropped once a day.
+
+..  confval:: requestsPerMinute
+
+    :type: integer
+    :Default: 60
+
+    How many translate requests one address may send per minute. Above it the endpoint
+    answers HTTP 429 with a :html:`Retry-After` header. The endpoint has no login,
+    because the frontend has to reach it, and every unseen string is paid for at DeepL.
+
 ..  _registering-files:
 
 Registering a locallang file
@@ -300,9 +324,30 @@ Add your API key, open the :guilabel:`AI Translations` tab and click
 Elements marked with :html:`class="notranslate"`, :html:`data-notranslate` or
 :html:`translate="no"` are skipped.
 
+Which languages people ask for
+------------------------------
+
+The :guilabel:`Demand` button on the :guilabel:`AI Translations` screen opens a screen
+that answers which languages visitors actually request, so the one worth building as
+real pages can be picked out. A chart draws the unique visitors per day over the last
+7, 30, 90 or 365 days; hovering names every language at once and clicking a legend key
+hides one. The table below it carries the same numbers, sorted by any column, together
+with how many translations exist and whether the language is already a real language of
+a site.
+
+What is stored is one row per language, per day, per visitor - no counters and no
+timestamps. The visitor is an HMAC of the address and the user agent, keyed with the
+installation's encryption key **and the day**, so the same person hashes differently
+tomorrow and yesterday's rows can no longer be tied to anybody. No address and no user
+agent is written anywhere. See :confval:`aiRequestStatistics` to switch it off and
+:confval:`aiRequestStatisticsRetention` for how long rows are kept.
+
 The frontend endpoints are public. They only accept target languages that were
-synchronized from DeepL, and they reject requests with more than 50 strings, single
-strings longer than 5000 characters, or a total payload above 50000 characters.
+synchronized from DeepL, and they reject requests with more than 500 strings, single
+strings longer than 5000 characters, or a total payload above 50000 characters. 500 is
+not DeepL's own limit: the service splits what it has to forward by request size, so a
+page that is already cached is resolved in one request rather than one per fifty
+strings. Requests above :confval:`requestsPerMinute` are answered with HTTP 429.
 
 Or call the service directly:
 
