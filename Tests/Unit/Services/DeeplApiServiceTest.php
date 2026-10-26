@@ -242,4 +242,74 @@ final class DeeplApiServiceTest extends UnitTestCase
 
         self::assertSame(['One' => 'xx:One', 'Two' => 'xx:Two'], $subject->stored);
     }
+
+    /**
+     * @return object a service whose pagination maths can be called
+     */
+    private function paginator(): object
+    {
+        return new class('test:fx') extends DeeplApiService {
+            public function __construct(string $key) { $this->deeplApiKey = $key; }
+            public function result(array $rows, int $total, int $page): array { return $this->pageResult($rows, $total, $page); }
+            public function offset(int $page, int $total): int { return $this->offsetOf($page, $total); }
+        };
+    }
+
+    #[Test]
+    public function aPageBeyondTheLastOneIsClampedToIt(): void
+    {
+        // somebody editing the url, or a list that shrank since the link was made
+        $subject = $this->paginator();
+
+        $result = $subject->result([], 250, 99);
+
+        self::assertSame(3, $result['pages']);
+        self::assertSame(3, $result['page']);
+        self::assertSame(200, $subject->offset(99, 250));
+    }
+
+    #[Test]
+    public function aPageBelowOneIsClampedToTheFirst(): void
+    {
+        $subject = $this->paginator();
+
+        self::assertSame(1, $subject->result([], 250, -5)['page']);
+        self::assertSame(0, $subject->offset(-5, 250));
+    }
+
+    #[Test]
+    public function anEmptyListStillHasOnePage(): void
+    {
+        $result = $this->paginator()->result([], 0, 1);
+
+        self::assertSame(1, $result['pages']);
+        self::assertSame(1, $result['page']);
+        self::assertSame([1], $result['numbers']);
+        self::assertSame(0, $result['previous']);
+        self::assertSame(0, $result['next']);
+    }
+
+    #[Test]
+    public function thePagerShowsAWindowAroundTheCurrentPageNotEveryPage(): void
+    {
+        // a list of hundreds of pages would otherwise render hundreds of links
+        $result = $this->paginator()->result([], 100000, 50);
+
+        self::assertSame(1000, $result['pages']);
+        self::assertSame([47, 48, 49, 50, 51, 52, 53], $result['numbers']);
+        self::assertSame(49, $result['previous']);
+        self::assertSame(51, $result['next']);
+    }
+
+    #[Test]
+    public function theWindowDoesNotRunPastTheEnds(): void
+    {
+        $first = $this->paginator()->result([], 1000, 1);
+        self::assertSame([1, 2, 3, 4], $first['numbers']);
+        self::assertSame(0, $first['previous']);
+
+        $last = $this->paginator()->result([], 1000, 10);
+        self::assertSame([7, 8, 9, 10], $last['numbers']);
+        self::assertSame(0, $last['next']);
+    }
 }

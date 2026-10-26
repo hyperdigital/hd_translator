@@ -1,12 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^If condition is always true\.$#'
-			identifier: if.alwaysTrue
-			count: 4
-			path: Classes/Controller/Be/TranslatorController.php
-
-		-
 			message: '#^Variable \$keyArray in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1

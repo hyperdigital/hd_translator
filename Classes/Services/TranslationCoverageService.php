@@ -93,6 +93,12 @@ class TranslationCoverageService
 
         $return = [];
 
+        // every table is counted once, for all of its languages at once
+        $counts = [];
+        foreach ($tables as $table) {
+            $counts[(string)$table] = $this->countRecordsByLanguage((string)$table, $pages);
+        }
+
         foreach ($site->getAllLanguages() as $siteLanguage) {
             $languageId = $siteLanguage->getLanguageId();
             if ($languageId === 0) {
@@ -104,8 +110,8 @@ class TranslationCoverageService
             $siteTranslated = 0;
 
             foreach ($tables as $table) {
-                $default = $this->countRecords((string)$table, $pages, 0);
-                $translated = $this->countRecords((string)$table, $pages, $languageId);
+                $default = $counts[(string)$table][0] ?? 0;
+                $translated = $counts[(string)$table][$languageId] ?? 0;
 
                 if ($default === 0 && $translated === 0) {
                     // a table without content in this page tree says nothing, leave it out
@@ -201,43 +207,55 @@ class TranslationCoverageService
     }
 
     /**
+     * How many records of a table each language has, in one query instead of one per language.
+     *
+     * Asking per language meant two queries for every table and every language, which is a few
+     * hundred for one screen on a site with several languages.
+     *
      * @param array<int, int> $pages
+     * @return array<int, int> language uid => number of records
      */
-    protected function countRecords(string $table, array $pages, int $languageId): int
+    protected function countRecordsByLanguage(string $table, array $pages): array
     {
         if (empty($GLOBALS['TCA'][$table]['ctrl']['languageField'])) {
-            return 0;
+            return [];
         }
 
         $languageField = (string)$GLOBALS['TCA'][$table]['ctrl']['languageField'];
         $queryBuilder = $this->getQueryBuilder($table);
+        $parameter = $queryBuilder->createNamedParameter($pages, Connection::PARAM_INT_ARRAY);
 
-        $constraints = [
-            $queryBuilder->expr()->in('pid', $queryBuilder->createNamedParameter($pages, Connection::PARAM_INT_ARRAY)),
-            $queryBuilder->expr()->eq($languageField, $queryBuilder->createNamedParameter($languageId, Connection::PARAM_INT)),
-        ];
-
-        // pages of a site live under their root page, the root page itself has the site as parent
         if ($table === 'pages') {
-            $constraints[0] = $queryBuilder->expr()->in(
-                'uid',
-                $queryBuilder->createNamedParameter($pages, Connection::PARAM_INT_ARRAY)
-            );
-            if ($languageId > 0 && !empty($GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'])) {
-                // a translated page is a row of its own, its uid is not in the default language list
-                $constraints[0] = $queryBuilder->expr()->in(
-                    (string)$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
-                    $queryBuilder->createNamedParameter($pages, Connection::PARAM_INT_ARRAY)
+            // a page of the default language is one of the pages themselves, a translated page is
+            // a row of its own that points at one of them
+            $scope = $queryBuilder->expr()->in('uid', $parameter);
+            if (!empty($GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'])) {
+                $scope = $queryBuilder->expr()->or(
+                    $scope,
+                    $queryBuilder->expr()->in((string)$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'], $parameter)
                 );
             }
+        } else {
+            $scope = $queryBuilder->expr()->in('pid', $parameter);
         }
 
-        return (int)$queryBuilder
-            ->count('uid')
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier($languageField),
+                'COUNT(' . $queryBuilder->quoteIdentifier('uid') . ') AS amount'
+            )
             ->from($table)
-            ->where(...$constraints)
+            ->where($scope)
+            ->groupBy($languageField)
             ->executeQuery()
-            ->fetchOne();
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(int)$row[$languageField]] = (int)$row['amount'];
+        }
+
+        return $return;
     }
 
     protected function getQueryBuilder(string $table)

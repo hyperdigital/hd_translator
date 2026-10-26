@@ -3,6 +3,7 @@ namespace Hyperdigital\HdTranslator\Eid;
 
 use Hyperdigital\HdTranslator\Services\AiRequestStatisticsService;
 use Hyperdigital\HdTranslator\Services\DeeplApiService;
+use Hyperdigital\HdTranslator\Services\RequestThrottleService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Http\JsonResponse;
@@ -46,6 +47,15 @@ class DeeplApiEid
 
         if (!$deeplApiService->isEnabled()) {
             return new JsonResponse(['error' => 'DeepL translations are not configured'], 503);
+        }
+
+        // The endpoint has no login, because the frontend has to reach it, and every string it
+        // has not seen is paid for at DeepL. Without this anybody who finds the url can spend
+        // the quota and fill the request statistics with invented visitors.
+        $throttle = GeneralUtility::makeInstance(RequestThrottleService::class);
+        if ($throttle->isExceeded($request)) {
+            return (new JsonResponse(['error' => 'Too many requests'], 429))
+                ->withHeader('Retry-After', (string)$throttle->getRetryAfter());
         }
 
         $input = json_decode((string)$request->getBody(), true);

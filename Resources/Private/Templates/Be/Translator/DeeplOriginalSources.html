@@ -14,7 +14,11 @@
 
 	<f:if condition="{sources}">
 		<f:then>
-			<div class="table-fit">
+			<f:render partial="Module/ListPagination" arguments="{
+						action: 'deeplOriginalSources', language: '', search: search, pagination: pagination
+					}" />
+
+					<div class="table-fit">
 				<table class="table table-striped table-hover">
 					<thead>
 						<tr><th><f:translate key="deepl.original.subheadline" /></th></tr>
@@ -29,6 +33,9 @@
 						</f:for>
 					</tbody>
 				</table>
+					<f:render partial="Module/ListPagination" arguments="{
+						action: 'deeplOriginalSources', language: '', search: search, pagination: pagination
+					}" />
 			</div>
 		</f:then>
 		<f:else>

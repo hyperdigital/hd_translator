@@ -256,6 +256,26 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
+     * The page a list screen is on.
+     */
+    protected function getListPage(): int
+    {
+        return $this->request->hasArgument('page')
+            ? max((int)$this->request->getArgument('page'), 1)
+            : 1;
+    }
+
+    /**
+     * What a list screen is filtered by.
+     */
+    protected function getListSearchWord(): string
+    {
+        return $this->request->hasArgument('search')
+            ? trim((string)$this->request->getArgument('search'))
+            : '';
+    }
+
+    /**
      * A directory of this one run, for the archive an export builds or the archive an import
      * unpacks.
      *
@@ -1184,8 +1204,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             }
         }
 
-        $saveToZip = true;
+        // One record is one file: a single one is served as it is, several go into an archive.
+        // This used to be a hardcoded "always zip" with an unreachable branch beside it that
+        // concatenated whole XLIFF documents into one string, which no importer can read.
         $zipFolder = null;
+        $writtenFiles = 0;
+        $singleFile = null;
 
         $defaultLanguage = 1;
         $sourceLanguageUid = $this->getOptionalLanguageUidArgument('sourceLanguageUid', 0) ?? 0;
@@ -1207,75 +1231,82 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             $databaseEntriesService->setIgnoreExportFields((bool) $this->request->getArgument('ignoreExport'));
         }
 
-        if ($saveToZip) {
-            $zipFolder = $this->createExchangeDirectory();
-            $zipPath = $zipFolder . 'translation.zip';
-            $zip = new \ZipArchive();
-            if ($zip->open($zipPath, \ZipArchive::CREATE)!==TRUE) {
-                $this->removeExchangeDirectory($zipFolder);
-                throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
-            }
+        $zipFolder = $this->createExchangeDirectory();
+        $zipPath = $zipFolder . 'translation.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            $this->removeExchangeDirectory($zipFolder);
+            throw new \RuntimeException('Cannot open zip archive ' . $zipPath, 1716200005);
         }
 
-        $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
-        $output = '';
+        $messages = [];
         foreach ($storages as $storage) {
             foreach($tables as $tablename) {
                 if (!$this->mayReadTable((string)$tablename)) {
-                    $output .= ' No access to ' . $tablename;
+                    $messages[] = 'No access to ' . $tablename;
                     continue;
                 }
 
                 $contentRows = $databaseEntriesService->getAllCompleteteRowsForPid($tablename, (int) $storage, $sourceLanguageUid, false);
-                if(empty($contentRows)) {
-                    $output .= ' No entries in '.$tablename.' for pid '.$storage;
-                } else {
-                    foreach ($contentRows as $contentRowUid => $contentRow) {
-                        if ($saveToZip) {
-                            $output = '';
-                        }
-                        $defaultUid = (int)$contentRowUid;
-                        $contentRowForKeys = $contentRow;
-                        if ((int)($contentRow['sys_language_uid'] ?? 0) !== 0 && !empty($contentRow['l10n_parent'] ?? null)) {
-                            $defaultUid = (int)$contentRow['l10n_parent'];
-                            $contentRowForKeys['uid'] = $defaultUid;
-                        }
-                        // keys use the default language uid, values and children come from $contentRowUid
-                        $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
-                        $output .= $databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid, $exportFormat);
+                if (empty($contentRows)) {
+                    $messages[] = 'No entries in ' . $tablename . ' for pid ' . $storage;
+                    continue;
+                }
 
-                        if ($saveToZip) {
-                            $zipFilename = "$tablename-{$contentRow['pid']}-{$defaultUid}." . $this->translationFormatService->getFileExtension($exportFormat);
-                            $zip->addFromString($zipFilename, $output, \ZipArchive::FL_OVERWRITE);
-                        }
+                foreach ($contentRows as $contentRowUid => $contentRow) {
+                    $defaultUid = (int)$contentRowUid;
+                    $contentRowForKeys = $contentRow;
+                    if ((int)($contentRow['sys_language_uid'] ?? 0) !== 0 && !empty($contentRow['l10n_parent'] ?? null)) {
+                        $defaultUid = (int)$contentRow['l10n_parent'];
+                        $contentRowForKeys['uid'] = $defaultUid;
+                    }
+                    // keys use the default language uid, values and children come from $contentRowUid
+                    $cleanRow = $databaseEntriesService->getExportFields($tablename, $contentRowForKeys, (int)$contentRowUid);
+                    $document = (string)$databaseEntriesService->exportDatabaseRowToXlf($defaultUid, $cleanRow, $targetLanguage, $tablename, $enableTranslatedData, $source, $targetLanguageUid, $exportFormat);
+
+                    $filename = "$tablename-{$contentRow['pid']}-{$defaultUid}." . $this->translationFormatService->getFileExtension($exportFormat);
+                    $zip->addFromString($filename, $document, \ZipArchive::FL_OVERWRITE);
+
+                    $writtenFiles++;
+                    if ($writtenFiles === 1) {
+                        // kept, so a single record can be served as the file it is
+                        $singleFile = ['name' => $filename, 'content' => $document];
+                    } else {
+                        $singleFile = null;
                     }
                 }
             }
         }
 
-        if ($saveToZip) {
-            $zip->close();
+        $zip->close();
 
-            //if no records are found, the zip file would be empty, which is not valid
-            //zip file is automatically deleted by ZipArchive, fallback to printing the output
-            if (file_exists($zipPath)) {
-                $zipContent = (string)file_get_contents($zipPath);
-                $this->removeExchangeDirectory($zipFolder);
+        if ($writtenFiles === 1 && $singleFile !== null) {
+            $this->removeExchangeDirectory($zipFolder);
 
-                return $this->fileDownloadResponse($zipContent, basename($zipPath), 'application/zip');
-            }
+            return $this->fileDownloadResponse(
+                $singleFile['content'],
+                $singleFile['name'],
+                $this->translationFormatService->getContentType($exportFormat)
+            );
         }
 
-        // the archive stayed empty, so there is nothing to download from it and nothing to keep
+        if ($writtenFiles > 1 && file_exists($zipPath)) {
+            $zipContent = (string)file_get_contents($zipPath);
+            $this->removeExchangeDirectory($zipFolder);
+
+            return $this->fileDownloadResponse($zipContent, 'translation.zip', 'application/zip');
+        }
+
+        // Nothing was exported. Serving the explanation as an .xlf, which is what used to happen,
+        // only produces a file the translator cannot open and nobody reads.
         $this->removeExchangeDirectory($zipFolder);
-
-        $filenameSuffix = $storages[0] ?? '0';
-
-        return $this->fileDownloadResponse(
-            $output,
-            'page-' . $filenameSuffix . '.' . $this->translationFormatService->getFileExtension($exportFormat),
-            $this->translationFormatService->getContentType($exportFormat)
+        $this->addFlashMessage(
+            implode("\n", $messages) ?: \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing.description', 'hd_translator') ?? '',
+            \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('export.nothing', 'hd_translator') ?? '',
+            \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::WARNING
         );
+
+        return $this->redirect('database', null, null, $this->withPageContext());
     }
 
     /**
@@ -2050,9 +2081,13 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     //        $this->indexMenu();
         $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
-        $strings = $deeplApiService->getAllTranslationsForLanguage($language);
+        $search = $this->getListSearchWord();
+        $result = $deeplApiService->getTranslationsForLanguage($language, $this->getListPage(), $search);
         $currentLanguage = $deeplApiService->getLanguageByCode($language);
-        $this->moduleTemplate->assign('strings', $strings);
+
+        $this->moduleTemplate->assign('strings', $result['rows']);
+        $this->moduleTemplate->assign('pagination', $result);
+        $this->moduleTemplate->assign('search', $search);
         $this->moduleTemplate->assign('currentLanguage', $currentLanguage);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplTranslationLanguage');
@@ -2101,9 +2136,12 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
 
     //        $this->indexMenu();
         $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
-        $sources = $deeplApiService->getUniqueOriginals();
+        $search = $this->getListSearchWord();
+        $result = $deeplApiService->getUniqueOriginals($this->getListPage(), $search);
 
-        $this->moduleTemplate->assign('sources', $sources);
+        $this->moduleTemplate->assign('sources', $result['rows']);
+        $this->moduleTemplate->assign('pagination', $result);
+        $this->moduleTemplate->assign('search', $search);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplOriginalSources');
 

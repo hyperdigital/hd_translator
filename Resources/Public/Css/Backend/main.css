@@ -418,3 +418,16 @@
 .hd-translator-pending-label {
     font-weight: 600;
 }
+
+/* ------------------------------------------------------------- pagination */
+.hd-translator-pagination {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    flex-wrap: wrap;
+    margin-block: .75rem;
+}
+
+.hd-translator-pagination > .hd-translator-muted {
+    margin-inline-start: .5rem;
+}
