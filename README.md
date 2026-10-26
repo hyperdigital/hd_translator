@@ -179,6 +179,17 @@ This extension enables AI-powered translations using DeepL **in the frontend onl
    HMAC, so no address and no user agent is kept. It can be switched off in the extension
    configuration (`aiRequestStatistics`).
 
+   The same screen also shows which days of the week the asking happens on, whether the demand
+   sits on a few languages or spreads across many, how many characters each language has been
+   translated of - which is what DeepL charges by - and which pages the requests came from. Only
+   the last of those stores anything new, and it is capped: fifty pages per language-day, ten
+   once the day has closed, ninety days at most. The page is taken from the referer the browser
+   already sends and only its path is kept, never the query.
+
+   When the retention drops the daily rows they are first folded into one row per language per
+   month, so the long view survives. That row holds visitor-days, not distinct people: the
+   visitor hash is re-salted daily on purpose, so monthly uniques cannot be recovered.
+
 Once that’s done, you’ll see a list of languages along with any existing translations.
 
 ---
