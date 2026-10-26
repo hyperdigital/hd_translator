@@ -1654,6 +1654,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 'total' => $row['total'],
                 'previous' => $row['previous'],
                 'trend' => $row['trend'],
+                // fluid has no identity operator, so whether a trend exists is decided here
+                'trendKnown' => $row['trend'] !== null,
                 'translations' => $cached[$code]['translations'] ?? 0,
                 'configured' => isset($configured[strtoupper(substr($code, 0, 2))]),
             ];
