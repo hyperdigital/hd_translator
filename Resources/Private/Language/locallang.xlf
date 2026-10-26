@@ -552,6 +552,15 @@
             <trans-unit id="deepl.analytics.empty">
                 <source>Nobody has requested a translation yet. The numbers appear once the frontend translation is used.</source>
             </trans-unit>
+            <trans-unit id="detail.search.count">
+                <source>%1 of %2</source>
+            </trans-unit>
+            <trans-unit id="detail.unsavedChanges">
+                <source>Unsaved changes</source>
+            </trans-unit>
+            <trans-unit id="form.export.busy">
+                <source>Preparing the export…</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

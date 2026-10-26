@@ -451,3 +451,24 @@
 
 .hd-translator-trend.is-up { color: var(--typo3-color-success, #79a548); font-weight: 600; }
 .hd-translator-trend.is-down { color: var(--typo3-color-danger, #c83c3c); }
+
+/* ------------------------------------------------- unsaved changes, busy ui */
+.hd-translator-has-changes .t3js-module-docheader [data-action="save"] {
+    position: relative;
+}
+
+.hd-translator-has-changes .t3js-module-docheader [data-action="save"]::after {
+    content: '';
+    position: absolute;
+    inset-block-start: .25rem;
+    inset-inline-end: .25rem;
+    inline-size: .5rem;
+    block-size: .5rem;
+    border-radius: 50%;
+    background: var(--typo3-color-warning, #b78a00);
+}
+
+button.is-busy {
+    opacity: .65;
+    cursor: progress;
+}

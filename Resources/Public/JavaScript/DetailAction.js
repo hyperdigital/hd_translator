@@ -6,6 +6,40 @@
  */
 const form = document.getElementById('translation-form');
 
+// Leaving this screen with edits in it loses them without a word, and the save button sits in
+// the docheader far from where the typing happens.
+let hdtranslatorDirty = false;
+
+const markClean = () => {
+    hdtranslatorDirty = false;
+    document.body.classList.remove('hd-translator-has-changes');
+};
+
+const markDirty = () => {
+    if (hdtranslatorDirty) return;
+    hdtranslatorDirty = true;
+    document.body.classList.add('hd-translator-has-changes');
+};
+
+if (form) {
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!hdtranslatorDirty) return;
+        event.preventDefault();
+        // the browser shows its own wording, it only needs to be told there is something to lose
+        event.returnValue = '';
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            saveAction();
+        }
+    });
+}
+
 const saveAction = () => {
     if (!form) {
         return;
@@ -22,6 +56,7 @@ const saveAction = () => {
         .then((response) => (response.ok ? response.json() : Promise.reject(response)))
         .then((payload) => {
             if (payload.success) {
+                markClean();
                 top.TYPO3.Notification.success(form.getAttribute('data-message-success'));
             } else {
                 top.TYPO3.Notification.error(form.getAttribute('data-message-error'));
@@ -93,6 +128,14 @@ if (search && items.length) {
 
         if (noResults) {
             noResults.classList.toggle('hidden', visible > 0);
+        }
+
+        // "12 of 121" is the difference between trusting the filter and counting rows by hand
+        const counter = document.getElementById('hd_translator-search-count');
+        if (counter) {
+            counter.textContent = terms.length === 0
+                ? ''
+                : counter.getAttribute('data-template').replace('%1', visible).replace('%2', items.length);
         }
     };
 

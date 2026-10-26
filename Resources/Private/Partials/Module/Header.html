@@ -2,9 +2,11 @@
       xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
       data-namespace-typo3-fluid="true">
 <f:comment>
-	Shared screen header.
+	Shared screen header. Every screen renders it, which is why the shared behaviour of the
+	module is pulled in here rather than repeated in sixteen templates.
 	Arguments: title, subtitle, description, pageData
 </f:comment>
+<f:asset.script identifier="hd_translator_module_ui" src="EXT:hd_translator/Resources/Public/JavaScript/ModuleUi.js" />
 <div class="hd-translator-header">
 	<h1 class="hd-translator-header-title">
 		{title}<f:if condition="{subtitle}"><span class="hd-translator-header-subtitle">{subtitle}</span></f:if>

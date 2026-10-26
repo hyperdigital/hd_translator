@@ -1,10 +1,40 @@
 /**
- * Sorting for the analytics table, in the browser.
+ * Small conveniences shared by every screen of the module.
  *
- * There are at most a hundred or so languages, which fit on one page, so a round trip per sort
- * would only add waiting. A cell carries the value to sort by in data-value when what it shows
- * is not what should be compared - a percentage with a sign, an icon for yes and no.
+ * - a form that was submitted says so, because an export of a whole page tree takes seconds
+ *   during which the button otherwise looks untouched and gets clicked again
+ * - a table marked sortable can be sorted by clicking its headers
  */
+
+/* ------------------------------------------------- submitting takes a while */
+
+document.querySelectorAll('.hd-translator form').forEach((form) => {
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('button[type=submit], button:not([type])');
+        if (!button || button.dataset.busy) return;
+
+        button.dataset.busy = '1';
+        button.disabled = true;
+        button.classList.add('is-busy');
+
+        const label = button.dataset.busyLabel;
+        if (label) {
+            button.dataset.idleLabel = button.innerHTML;
+            button.textContent = label;
+        }
+
+        // a download leaves the page standing, so the button has to come back on its own
+        window.setTimeout(() => {
+            button.disabled = false;
+            button.classList.remove('is-busy');
+            delete button.dataset.busy;
+            if (button.dataset.idleLabel) button.innerHTML = button.dataset.idleLabel;
+        }, 20000);
+    });
+});
+
+/* --------------------------------------------------------- sortable tables */
+
 document.querySelectorAll('table.hd-translator-sortable').forEach((table) => {
     const body = table.querySelector('tbody');
     if (!body) return;
@@ -24,7 +54,7 @@ document.querySelectorAll('table.hd-translator-sortable').forEach((table) => {
     };
 
     const sortBy = (header, direction) => {
-        const index = headers.indexOf(header) >= 0 ? [...header.parentElement.children].indexOf(header) : -1;
+        const index = [...header.parentElement.children].indexOf(header);
         if (index < 0) return;
 
         const type = header.dataset.sort;
@@ -51,10 +81,7 @@ document.querySelectorAll('table.hd-translator-sortable').forEach((table) => {
         header.tabIndex = 0;
         header.classList.add('hd-translator-sortable-header');
 
-        const toggle = () => {
-            const ascending = !header.classList.contains('is-sorted-asc');
-            sortBy(header, ascending ? 'asc' : 'desc');
-        };
+        const toggle = () => sortBy(header, header.classList.contains('is-sorted-asc') ? 'desc' : 'asc');
 
         header.addEventListener('click', toggle);
         header.addEventListener('keydown', (event) => {
@@ -66,8 +93,9 @@ document.querySelectorAll('table.hd-translator-sortable').forEach((table) => {
 
         // the column the server already sorted by shows that it is sorted
         if (header.dataset.sortDefault) {
-            header.classList.add(header.dataset.sortDefault === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
-            header.setAttribute('aria-sort', header.dataset.sortDefault === 'asc' ? 'ascending' : 'descending');
+            const descending = header.dataset.sortDefault !== 'asc';
+            header.classList.add(descending ? 'is-sorted-desc' : 'is-sorted-asc');
+            header.setAttribute('aria-sort', descending ? 'descending' : 'ascending');
         }
     });
 });

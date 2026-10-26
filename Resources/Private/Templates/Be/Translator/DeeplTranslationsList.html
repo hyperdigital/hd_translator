@@ -30,11 +30,11 @@
 					</div>
 
 					<div class="table-fit">
-						<table class="table table-striped table-hover">
+						<table class="table table-striped table-hover hd-translator-sortable">
 							<thead>
 								<tr>
-									<th rowspan="2"><f:translate key="deepl.index.table.languages" /></th>
-									<th rowspan="2"><f:translate key="deepl.index.table.translation_count" /></th>
+									<th rowspan="2" data-sort="text"><f:translate key="deepl.index.table.languages" /></th>
+									<th rowspan="2" data-sort="number"><f:translate key="deepl.index.table.translation_count" /></th>
 									<f:if condition="{statisticsEnabled}">
 										<th colspan="4" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors" /></th>
 									</f:if>
