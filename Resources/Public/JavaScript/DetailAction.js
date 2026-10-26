@@ -1,3 +1,38 @@
+// Leaving this screen with edits in it loses them without a word, and the save button sits in
+// the docheader far from where the typing happens.
+const hdtranslatorForm = document.getElementById('translation-form');
+let hdtranslatorDirty = false;
+
+const markClean = () => {
+    hdtranslatorDirty = false;
+    document.body.classList.remove('hd-translator-has-changes');
+};
+
+if (hdtranslatorForm) {
+    const markDirty = () => {
+        if (hdtranslatorDirty) return;
+        hdtranslatorDirty = true;
+        document.body.classList.add('hd-translator-has-changes');
+    };
+
+    hdtranslatorForm.addEventListener('input', markDirty);
+    hdtranslatorForm.addEventListener('change', markDirty);
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!hdtranslatorDirty) return;
+        event.preventDefault();
+        // the browser shows its own wording, it only needs to be told there is something to lose
+        event.returnValue = '';
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            saveAction();
+        }
+    });
+}
+
 let save = document.querySelector('a[data-action=save]')
 if (save){
     save.addEventListener('click', (event) => {
@@ -29,6 +64,7 @@ const saveAction = () => {
         return Promise.reject(response);
     }).then((data) => {
         if (data.success) {
+            markClean();
             top.TYPO3.Notification.success(
                 fromElement.getAttribute('data-message-success')
             );
