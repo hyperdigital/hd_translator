@@ -18,12 +18,20 @@
 
             <table class="table table-hover">
                 {f:variable(name: 'currentUri', value: '')}
+                <thead>
+                <tr>
+                    <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.subheadline" /></th>
+                    <th><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.original.availableTranslations" /></th>
+                </tr>
+                </thead>
                 <tbody>
                 <f:for each="{sources}" as="string">
                     <tr>
                         <td>
                             <f:link.action action="deeplShowTranslationsOfOriginal" arguments="{string: string.uid}">{string.original_source}</f:link.action>
                         </td>
+                        <f:comment>the count the query already groups by, which nothing used to show</f:comment>
+                        <td>{string.languages}</td>
                     </tr>
                 </f:for>
                 </tbody>
