@@ -51,6 +51,23 @@ class AiRequestStatisticsService
      */
     protected const PRUNE_MARKER = 'hdtranslator-pruned';
 
+    /**
+     * Months survive their days. One row per language per month, written when the daily rows
+     * of that month fall out of retention.
+     */
+    public const TABLE_MONTH = 'tx_hdtranslator_ai_request_month';
+
+    /**
+     * Which page a language was asked for on, bounded on both ends: a language-day accepts at
+     * most PAGE_SLOTS distinct pages, and once the day has closed the prune keeps PAGE_KEEP of
+     * them. Pages are also dropped sooner than the counting rows - a page that was busy a year
+     * ago answers nothing anybody asks today.
+     */
+    public const TABLE_PAGE = 'tx_hdtranslator_ai_request_page';
+    protected const PAGE_SLOTS = 50;
+    protected const PAGE_KEEP = 10;
+    protected const PAGE_RETENTION_DAYS = 90;
+
     public function isEnabled(): bool
     {
         try {
@@ -248,15 +265,56 @@ class AiRequestStatisticsService
     public function prune(?int $retentionDays = null): int
     {
         $days = $retentionDays ?? $this->getRetentionDays();
+        $firstDayKept = $this->firstDayOf($days);
+
+        // the month keeps what the days are about to lose, so a year of detail turning into
+        // twelve rows is the only thing that happens at the retention boundary
+        $this->rollUpBefore($firstDayKept);
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
 
-        return (int)$queryBuilder
+        $dropped = (int)$queryBuilder
             ->delete(self::TABLE)
             ->where(
-                $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+                $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($firstDayKept, Connection::PARAM_INT))
             )
             ->executeStatement();
+
+        $this->prunePages($days);
+
+        return $dropped;
+    }
+
+    /**
+     * Pages are dropped sooner than the counting rows, and every day that has closed is cut
+     * down to the busiest PAGE_KEEP of its pages.
+     */
+    protected function prunePages(int $retentionDays): void
+    {
+        $keepFrom = $this->firstDayOf(min($retentionDays, self::PAGE_RETENTION_DAYS));
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+        $queryBuilder
+            ->delete(self::TABLE_PAGE)
+            ->where(
+                $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($keepFrom, Connection::PARAM_INT))
+            )
+            ->executeStatement();
+
+        $closed = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+        $days = $closed
+            ->select('target_language', 'day')
+            ->from(self::TABLE_PAGE)
+            ->where(
+                $closed->expr()->lt('day', $closed->createNamedParameter($this->today(), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        foreach ($days as $row) {
+            $this->trimPagesOfDay((string)$row['target_language'], (int)$row['day'], self::PAGE_KEEP);
+        }
     }
 
     /**
@@ -298,6 +356,401 @@ class AiRequestStatisticsService
     protected function today(): int
     {
         return (int)date('Ymd', $GLOBALS['EXEC_TIME'] ?? time());
+    }
+
+
+    /**
+     * Which page the translation was asked for on, taken from the referer the browser sends
+     * with the endpoint call - no change to the frontend and none to a project using it.
+     *
+     * This counts requests, not people: a page is not a visitor and pairing the two would
+     * multiply the rows by the size of the site. See TABLE_PAGE for how it stays bounded.
+     */
+    public function recordPage(ServerRequestInterface $request, string $targetLanguage): void
+    {
+        if (!$this->isEnabled() || $targetLanguage === '') {
+            return;
+        }
+
+        $page = $this->pageOf($request);
+        if ($page === '') {
+            return;
+        }
+
+        try {
+            $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable(self::TABLE_PAGE);
+            $day = $this->today();
+
+            // update first: a page that was already seen today is the common case and costs
+            // one statement, a page seen for the first time costs two
+            $updated = $connection->executeStatement(
+                'UPDATE ' . $connection->quoteIdentifier(self::TABLE_PAGE)
+                    . ' SET ' . $connection->quoteIdentifier('requests') . ' = ' . $connection->quoteIdentifier('requests') . ' + 1'
+                    . ' WHERE ' . $connection->quoteIdentifier('target_language') . ' = ?'
+                    . ' AND ' . $connection->quoteIdentifier('day') . ' = ?'
+                    . ' AND ' . $connection->quoteIdentifier('page') . ' = ?',
+                [$targetLanguage, $day, $page]
+            );
+
+            if ($updated > 0) {
+                return;
+            }
+
+            $connection->insert(self::TABLE_PAGE, [
+                'target_language' => $targetLanguage,
+                'day' => $day,
+                'page' => $page,
+                'requests' => 1,
+            ]);
+
+            // only a page nobody had seen today can push the day over its cap, so the trim
+            // runs on that path alone
+            $this->trimPagesOfDay($targetLanguage, $day, self::PAGE_SLOTS);
+        } catch (\Throwable $e) {
+            // a page that could not be counted is not worth failing a translation over
+        }
+    }
+
+    /**
+     * Requests per page for a language, busiest first.
+     *
+     * @return array<string, array<int, array{page: string, requests: int}>> language => pages
+     */
+    public function getTopPages(int $days = 30, int $limit = 10): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('page'),
+                'SUM(' . $queryBuilder->quoteIdentifier('requests') . ') AS requests'
+            )
+            ->from(self::TABLE_PAGE)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'page')
+            ->orderBy('requests', 'DESC')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $language = (string)$row['target_language'];
+            if (count($return[$language] ?? []) >= $limit) {
+                continue;
+            }
+            $return[$language][] = ['page' => (string)$row['page'], 'requests' => (int)$row['requests']];
+        }
+
+        return $return;
+    }
+
+    /**
+     * How the demand sits across the week. Read from the day column rather than asked of the
+     * database, so it does not depend on which date functions the platform has.
+     *
+     * @return array<int, array{weekday: int, visitors: int, share: int}> monday first, share
+     *         being the height of the busiest day in percent so a bar needs no arithmetic
+     */
+    public function getWeekdayProfile(int $days = 90): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('day'),
+                'COUNT(*) AS visitors'
+            )
+            ->from(self::TABLE)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $profile = array_fill(1, 7, 0);
+        foreach ($rows as $row) {
+            $date = \DateTimeImmutable::createFromFormat('Ymd', (string)$row['day']);
+            if ($date === false) {
+                continue;
+            }
+            $profile[(int)$date->format('N')] += (int)$row['visitors'];
+        }
+
+        $busiest = max($profile);
+
+        $return = [];
+        foreach ($profile as $weekday => $visitors) {
+            $return[] = [
+                'weekday' => $weekday,
+                'visitors' => $visitors,
+                'share' => $busiest > 0 ? (int)round($visitors / $busiest * 100) : 0,
+            ];
+        }
+
+        return $return;
+    }
+
+    /**
+     * Whether the demand sits on a few languages or spreads across many.
+     *
+     * The share of the busiest three answers "would building one or two mutations serve most
+     * of it". The index is the sum of the squared shares: 1 is everybody asking for the same
+     * language, 1/n is every language asked for equally often.
+     *
+     * @param array<string, array<string, int|null>> $statistics as getStatisticsByLanguage() returns
+     * @return array{languages: int, total: int, topShare: int, index: float, leaders: array<int, string>}
+     */
+    public function getConcentration(array $statistics, string $window = 'month'): array
+    {
+        $totals = [];
+        foreach ($statistics as $language => $row) {
+            $value = (int)($row[$window] ?? 0);
+            if ($value > 0) {
+                $totals[(string)$language] = $value;
+            }
+        }
+
+        $sum = array_sum($totals);
+        if ($sum === 0) {
+            return ['languages' => 0, 'total' => 0, 'topShare' => 0, 'index' => 0.0, 'leaders' => []];
+        }
+
+        arsort($totals);
+        $leaders = array_slice(array_keys($totals), 0, 3);
+
+        $top = 0;
+        foreach ($leaders as $language) {
+            $top += $totals[$language];
+        }
+
+        $index = 0.0;
+        foreach ($totals as $value) {
+            $index += ($value / $sum) ** 2;
+        }
+
+        return [
+            'languages' => count($totals),
+            'total' => $sum,
+            'topShare' => (int)round($top / $sum * 100),
+            'index' => round($index, 3),
+            'leaders' => $leaders,
+        ];
+    }
+
+    /**
+     * What each language has been translated of, in strings and in characters.
+     *
+     * Characters are what DeepL charges by, so this is the closest thing to the bill that the
+     * installation itself can answer - without storing a number anywhere, because the source
+     * texts are already in the cache.
+     *
+     * @return array<string, array{strings: int, characters: int}>
+     */
+    public function getVolumeByLanguage(): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('tx_hdtranslator_ai_translation');
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                'COUNT(*) AS strings',
+                'SUM(CHAR_LENGTH(' . $queryBuilder->quoteIdentifier('original_source') . ')) AS characters'
+            )
+            ->from('tx_hdtranslator_ai_translation')
+            ->groupBy('target_language')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']] = [
+                'strings' => (int)$row['strings'],
+                'characters' => (int)$row['characters'],
+            ];
+        }
+
+        return $return;
+    }
+
+    /**
+     * Visitor-days per language and month, the archived months first joined with the ones whose
+     * daily rows are still here, so the history does not jump at the retention boundary.
+     *
+     * @return array{months: array<int, int>, series: array<string, array<int, int>>}
+     */
+    public function getMonthlyHistory(int $months = 24): array
+    {
+        $months = max(min($months, 120), 1);
+
+        $totals = [];
+
+        $archived = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable(self::TABLE_MONTH)
+            ->select('target_language', 'month', 'visitor_days')
+            ->from(self::TABLE_MONTH)
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        foreach ($archived as $row) {
+            $totals[(string)$row['target_language']][(int)$row['month']] = (int)$row['visitor_days'];
+        }
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
+        $live = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('day'),
+                'COUNT(*) AS visitor_days'
+            )
+            ->from(self::TABLE)
+            ->groupBy('target_language', 'day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        foreach ($live as $row) {
+            $month = (int)substr((string)$row['day'], 0, 6);
+            $language = (string)$row['target_language'];
+            $totals[$language][$month] = ($totals[$language][$month] ?? 0) + (int)$row['visitor_days'];
+        }
+
+        $calendar = [];
+        $cursor = new \DateTimeImmutable(date('Y-m-01', $GLOBALS['EXEC_TIME'] ?? time()));
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $calendar[] = (int)$cursor->modify('-' . $i . ' months')->format('Ym');
+        }
+
+        $series = [];
+        foreach ($totals as $language => $byMonth) {
+            $row = [];
+            $seen = false;
+            foreach ($calendar as $month) {
+                $value = (int)($byMonth[$month] ?? 0);
+                $seen = $seen || $value > 0;
+                $row[] = $value;
+            }
+            if ($seen) {
+                $series[$language] = $row;
+            }
+        }
+
+        ksort($series);
+
+        return ['months' => $calendar, 'series' => $series];
+    }
+
+    /**
+     * Folds the days that are about to be dropped into their month.
+     *
+     * Each row of TABLE is one language, one day, one visitor, so counting them per month is
+     * exactly the visitor-days of that month. Adding rather than replacing keeps it correct
+     * when the retention boundary falls inside a month and the rest arrives a prune later;
+     * running twice adds nothing, because the rows are gone by then.
+     */
+    protected function rollUpBefore(int $firstDayKept): void
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('day'),
+                'COUNT(*) AS visitor_days'
+            )
+            ->from(self::TABLE)
+            ->where(
+                $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($firstDayKept, Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $byMonth = [];
+        foreach ($rows as $row) {
+            $month = (int)substr((string)$row['day'], 0, 6);
+            $byMonth[(string)$row['target_language']][$month] = ($byMonth[(string)$row['target_language']][$month] ?? 0)
+                + (int)$row['visitor_days'];
+        }
+
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable(self::TABLE_MONTH);
+        foreach ($byMonth as $language => $months) {
+            foreach ($months as $month => $visitorDays) {
+                $updated = $connection->executeStatement(
+                    'UPDATE ' . $connection->quoteIdentifier(self::TABLE_MONTH)
+                        . ' SET ' . $connection->quoteIdentifier('visitor_days') . ' = ' . $connection->quoteIdentifier('visitor_days') . ' + ?'
+                        . ' WHERE ' . $connection->quoteIdentifier('target_language') . ' = ?'
+                        . ' AND ' . $connection->quoteIdentifier('month') . ' = ?',
+                    [$visitorDays, $language, $month]
+                );
+
+                if ($updated === 0) {
+                    $connection->insert(self::TABLE_MONTH, [
+                        'target_language' => $language,
+                        'month' => $month,
+                        'visitor_days' => $visitorDays,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Keeps the busiest $keep pages of one language-day and drops the rest.
+     */
+    protected function trimPagesOfDay(string $targetLanguage, int $day, int $keep): void
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+
+        $pages = $queryBuilder
+            ->select('page')
+            ->from(self::TABLE_PAGE)
+            ->where(
+                $queryBuilder->expr()->eq('target_language', $queryBuilder->createNamedParameter($targetLanguage)),
+                $queryBuilder->expr()->eq('day', $queryBuilder->createNamedParameter($day, Connection::PARAM_INT))
+            )
+            ->orderBy('requests', 'DESC')
+            ->addOrderBy('page', 'ASC')
+            ->executeQuery()
+            ->fetchFirstColumn();
+
+        $drop = array_slice($pages, $keep);
+        if ($drop === []) {
+            return;
+        }
+
+        $delete = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+        $delete
+            ->delete(self::TABLE_PAGE)
+            ->where(
+                $delete->expr()->eq('target_language', $delete->createNamedParameter($targetLanguage)),
+                $delete->expr()->eq('day', $delete->createNamedParameter($day, Connection::PARAM_INT)),
+                $delete->expr()->in('page', $delete->createNamedParameter($drop, Connection::PARAM_STR_ARRAY))
+            )
+            ->executeStatement();
+    }
+
+    /**
+     * The page a request came from, as a path. The referer is a full url and carries whatever
+     * query the page had; only the path is kept, so nothing a visitor typed into a search or a
+     * form ends up in the table.
+     */
+    protected function pageOf(ServerRequestInterface $request): string
+    {
+        $referer = trim($request->getHeaderLine('Referer'));
+        if ($referer === '') {
+            return '';
+        }
+
+        $path = parse_url($referer, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return '';
+        }
+
+        return substr($path, 0, 191);
     }
 
     /**
