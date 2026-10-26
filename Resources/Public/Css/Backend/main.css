@@ -431,3 +431,23 @@
 .hd-translator-pagination > .hd-translator-muted {
     margin-inline-start: .5rem;
 }
+
+/* --------------------------------------------------------------- analytics */
+.hd-translator-sortable-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.hd-translator-sortable-header::after {
+    content: '';
+    display: inline-block;
+    inline-size: .6em;
+    opacity: .35;
+}
+
+.hd-translator-sortable-header.is-sorted-asc::after { content: '\2191'; opacity: 1; }
+.hd-translator-sortable-header.is-sorted-desc::after { content: '\2193'; opacity: 1; }
+
+.hd-translator-trend.is-up { color: var(--typo3-color-success, #79a548); font-weight: 600; }
+.hd-translator-trend.is-down { color: var(--typo3-color-danger, #c83c3c); }

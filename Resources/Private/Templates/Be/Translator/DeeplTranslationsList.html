@@ -37,7 +37,6 @@
 									<th rowspan="2"><f:translate key="deepl.index.table.translation_count" /></th>
 									<f:if condition="{statisticsEnabled}">
 										<th colspan="4" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors" /></th>
-										<th rowspan="2" class="hd-translator-nowrap"><f:translate key="deepl.index.table.requests" /></th>
 									</f:if>
 									<th rowspan="2" class="col-control"></th>
 								</tr>
@@ -64,7 +63,6 @@
 											<td class="hd-translator-nowrap">{language.statistics.week -> f:format.number(decimals: 0)}</td>
 											<td class="hd-translator-nowrap"><strong>{language.statistics.month -> f:format.number(decimals: 0)}</strong></td>
 											<td class="hd-translator-nowrap">{language.statistics.total -> f:format.number(decimals: 0)}</td>
-											<td class="hd-translator-nowrap hd-translator-muted">{language.statistics.requests -> f:format.number(decimals: 0)}</td>
 										</f:if>
 										<td class="col-control">
 											<div class="btn-group" role="group">

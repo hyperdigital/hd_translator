@@ -81,8 +81,10 @@ final class AiRequestStatisticsServiceTest extends UnitTestCase
     {
         $hash = $this->hashOf($this->request('203.0.113.9', 'Mozilla/5.0 Firefox'), '20260101');
 
-        self::assertSame(64, strlen($hash));
-        self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $hash);
+        // shortened on purpose: 64 bits is plenty to tell visitors of one day apart and the
+        // value costs a third of the table otherwise
+        self::assertSame(16, strlen($hash));
+        self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $hash);
         self::assertStringNotContainsString('203.0.113', $hash);
     }
 

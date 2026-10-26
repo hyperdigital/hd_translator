@@ -1,0 +1,89 @@
+<html
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
+	<f:asset.script identifier="hd_translator_sortable" src="EXT:hd_translator/Resources/Public/JavaScript/SortableTable.js" />
+
+	<div class="hd-translator">
+		<f:render partial="Module/Header" arguments="{
+			title: '{f:translate(key: \'deepl.analytics.headline\')}',
+			description: '{f:translate(key: \'deepl.analytics.description\')}'
+		}" />
+
+		<f:if condition="{statisticsEnabled}">
+			<f:then>
+				<f:if condition="{rows}">
+					<f:then>
+						<div class="table-fit">
+							<f:comment>Sorted by the last thirty days; every header sorts.</f:comment>
+							<table class="table table-striped table-hover hd-translator-sortable">
+								<thead>
+									<tr>
+										<th data-sort="text"><f:translate key="deepl.index.table.languages" /></th>
+										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors.today" /></th>
+										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors.week" /></th>
+										<th data-sort="number" data-sort-default="desc" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors.month" /></th>
+										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.analytics.trend" /></th>
+										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.index.table.visitors.total" /></th>
+										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.index.table.translation_count" /></th>
+										<th data-sort="text"><f:translate key="deepl.analytics.asPages" /></th>
+									</tr>
+								</thead>
+								<tbody>
+									<f:for each="{rows}" as="row">
+										<tr>
+											<td class="hd-translator-nowrap">
+												<strong>{row.name}</strong> <span class="hd-translator-source-cell">[{row.language}]</span>
+											</td>
+											<td data-value="{row.today}">{row.today}</td>
+											<td data-value="{row.week}">{row.week}</td>
+											<td data-value="{row.month}"><strong>{row.month}</strong></td>
+											<td data-value="{row.trend}">
+												<f:if condition="{row.trend} === NULL">
+													<f:then><span class="hd-translator-muted"><f:translate key="deepl.analytics.trend.new" /></span></f:then>
+													<f:else>
+														<span class="hd-translator-trend{f:if(condition: '{row.trend} > 0', then: ' is-up')}{f:if(condition: '{row.trend} < 0', then: ' is-down')}">
+															<f:if condition="{row.trend} > 0">+</f:if>{row.trend}&nbsp;%
+														</span>
+													</f:else>
+												</f:if>
+											</td>
+											<td data-value="{row.total}">{row.total}</td>
+											<td data-value="{row.translations}" class="hd-translator-muted">{row.translations}</td>
+											<td data-value="{f:if(condition: row.configured, then: '1', else: '0')}">
+												<f:if condition="{row.configured}">
+													<f:then><core:icon identifier="actions-check" size="small" /> <f:translate key="deepl.analytics.asPages.yes" /></f:then>
+													<f:else><span class="hd-translator-muted"><f:translate key="deepl.analytics.asPages.no" /></span></f:else>
+												</f:if>
+											</td>
+										</tr>
+									</f:for>
+								</tbody>
+							</table>
+						</div>
+
+						<p class="hd-translator-muted">
+							<f:translate key="deepl.index.statistics.hint" arguments="{0: retentionDays}" />
+						</p>
+					</f:then>
+					<f:else>
+						<f:render partial="Module/Callout" arguments="{
+							state: 'info',
+							message: '{f:translate(key: \'deepl.analytics.empty\')}'
+						}" />
+					</f:else>
+				</f:if>
+			</f:then>
+			<f:else>
+				<f:render partial="Module/Callout" arguments="{
+					state: 'info',
+					message: '{f:translate(key: \'deepl.index.statistics.disabled\')}'
+				}" />
+			</f:else>
+		</f:if>
+	</div>
+</f:section>
+</html>
