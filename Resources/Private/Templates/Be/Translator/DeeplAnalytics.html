@@ -11,6 +11,17 @@
     <h1><f:translate key="deepl.analytics.headline" /></h1>
     <p><f:translate key="deepl.analytics.description" /></p>
 
+    <f:comment>
+        the module menu stays on "ai translations" while this screen is open, so picking it
+        again fires nothing - the way back has to be on the page
+    </f:comment>
+    <p>
+        <f:link.action action="deeplTranslationsList" class="btn btn-default">
+            <core:icon identifier="actions-arrow-left" size="small" />
+            <f:translate key="docHeader.deeplTranslations" />
+        </f:link.action>
+    </p>
+
     <f:if condition="{statisticsEnabled}">
         <f:then>
             <f:if condition="{rows}">
