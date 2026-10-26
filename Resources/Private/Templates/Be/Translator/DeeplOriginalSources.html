@@ -21,7 +21,10 @@
 					<div class="table-fit">
 				<table class="table table-striped table-hover">
 					<thead>
-						<tr><th><f:translate key="deepl.original.subheadline" /></th></tr>
+						<tr>
+							<th><f:translate key="deepl.original.subheadline" /></th>
+							<th class="hd-translator-nowrap"><f:translate key="deepl.original.availableTranslations" /></th>
+						</tr>
 					</thead>
 					<tbody>
 						<f:for each="{sources}" as="string">
@@ -29,6 +32,8 @@
 								<td dir="auto">
 									<f:link.action action="deeplShowTranslationsOfOriginal" arguments="{string: string.uid}">{string.original_source}</f:link.action>
 								</td>
+								<f:comment>the count the query already groups by, which nothing used to show</f:comment>
+								<td class="hd-translator-nowrap">{string.languages}</td>
 							</tr>
 						</f:for>
 					</tbody>
