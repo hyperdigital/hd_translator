@@ -312,7 +312,7 @@ button.is-busy { opacity: .65; cursor: progress; }
 
 /* recessive chrome: the data is the ink */
 .hd-translator-chart-grid {
-    stroke: var(--typo3-border-color, #d7d7d7);
+    stroke: var(--typo3-component-border-color, light-dark(#d7d7d7, #333));
     stroke-width: 1;
     opacity: .5;
 }
@@ -336,7 +336,7 @@ button.is-busy { opacity: .65; cursor: progress; }
 }
 
 .hd-translator-chart-direct {
-    fill: var(--typo3-text-color, #1a1a1a);
+    fill: var(--typo3-text-color-base, light-dark(#1a1a1a, #d9d9d9));
     font-size: 11px;
     font-weight: 600;
 }
@@ -354,7 +354,7 @@ button.is-busy { opacity: .65; cursor: progress; }
     z-index: 2;
     min-inline-size: 7rem;
     padding: .4rem .6rem;
-    border: 1px solid var(--typo3-border-color, #d7d7d7);
+    border: 1px solid var(--typo3-component-border-color, light-dark(#d7d7d7, #333));
     border-radius: 4px;
     background: var(--hdt-chart-surface);
     box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
@@ -401,7 +401,7 @@ button.is-busy { opacity: .65; cursor: progress; }
     border: 0;
     border-radius: 3px;
     background: none;
-    color: var(--typo3-text-color, #1a1a1a);
+    color: var(--typo3-text-color-base, light-dark(#1a1a1a, #d9d9d9));
     font-size: .85em;
     cursor: pointer;
 }
