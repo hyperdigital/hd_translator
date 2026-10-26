@@ -1662,11 +1662,25 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // most asked for first, which is the question the screen exists to answer
         usort($rows, static fn(array $a, array $b): int => $b['month'] <=> $a['month']);
 
+        // Colour follows the language, not its rank, so changing the range or hiding a series
+        // never repaints the ones that stay. A stable order decides the slot.
+        $palette = array_keys($statistics);
+        sort($palette);
+
+        $range = $this->request->hasArgument('range') ? (int)$this->request->getArgument('range') : 30;
+        $range = in_array($range, [7, 30, 90, 365], true) ? $range : 30;
+
         $this->moduleTemplate->assignMultiple([
             'rows' => $rows,
             'statisticsEnabled' => $statisticsService->isEnabled(),
             'retentionDays' => $statisticsService->getRetentionDays(),
             'apiKey' => $this->deeplApiKey,
+            'range' => $range,
+            'ranges' => [7, 30, 90, 365],
+            'chart' => json_encode(
+                $statisticsService->getDailySeries($range) + ['order' => $palette],
+                JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
         ]);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplAnalytics');

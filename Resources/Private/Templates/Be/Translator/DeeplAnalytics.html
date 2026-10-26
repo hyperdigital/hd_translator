@@ -7,6 +7,7 @@
 <f:section name="Content">
     <f:asset.script identifier="hd_translator_module_ui" src="EXT:hd_translator/Resources/Public/JavaScript/ModuleUi.js" />
 
+    <div class="hd-translator">
     <h1><f:translate key="deepl.analytics.headline" /></h1>
     <p><f:translate key="deepl.analytics.description" /></p>
 
@@ -14,6 +15,37 @@
         <f:then>
             <f:if condition="{rows}">
                 <f:then>
+                    <f:comment>
+                        Date range first, in one row above the chart: it is the filter
+                        every reader reaches for.
+                    </f:comment>
+                    <div class="btn-group mb-3" role="group"
+                         aria-label="{f:translate(key: 'deepl.analytics.range')}">
+                        <f:for each="{ranges}" as="option">
+                            <f:if condition="{option} == {range}">
+                                <f:then>
+                                    <span class="btn btn-primary btn-sm"><f:translate key="deepl.analytics.range.days" arguments="{0: option}" /></span>
+                                </f:then>
+                                <f:else>
+                                    <f:link.action class="btn btn-default btn-sm" action="deeplAnalytics" arguments="{range: option}">
+                                        <f:translate key="deepl.analytics.range.days" arguments="{0: option}" />
+                                    </f:link.action>
+                                </f:else>
+                            </f:if>
+                        </f:for>
+                    </div>
+
+                    <figure class="hd-translator-chart-figure">
+                        <figcaption class="hd-translator-chart-caption">
+                            <f:translate key="deepl.analytics.chart.caption" arguments="{0: range}" />
+                        </figcaption>
+                        <div id="hd-translator-chart" class="hd-translator-chart"></div>
+                        <div id="hd-translator-chart-legend" class="hd-translator-chart-legend"></div>
+                    </figure>
+
+                    <script type="application/json" id="hd-translator-chart-data">{chart -> f:format.raw()}</script>
+                    <f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
+
                     <table class="table table-hover hd-translator-sortable">
                         <thead>
                         <tr>
@@ -68,5 +100,6 @@
             <p><f:translate key="deepl.index.statistics.disabled" /></p>
         </f:else>
     </f:if>
+    </div>
 </f:section>
 </html>
