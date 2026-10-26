@@ -367,6 +367,50 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
+     * The one place a translation file is written, so the save screen and an import cannot
+     * drift apart.
+     *
+     * @param array<string, array<string, string>> $data
+     */
+    protected function writeTranslationFile(string $keyTranslation, string $languageTranslation, array $data): void
+    {
+        file_put_contents(
+            $this->getTranslationPath($languageTranslation, $keyTranslation),
+            $this->dataToXlf($keyTranslation, $languageTranslation, $data)
+        );
+
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+    }
+
+    /**
+     * Lays imported units over the ones already stored, so keys the import does not mention
+     * keep their translation. Imported values win; keys the file does not have yet are added.
+     *
+     * @param array<string, array<string, string>> $imported
+     * @return array<string, array<string, string>>
+     */
+    protected function overlayStoredTranslations(string $keyTranslation, string $languageTranslation, array $imported): array
+    {
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+        if (!file_exists($path)) {
+            return $imported;
+        }
+
+        $stored = GeneralUtility::makeInstance(XlfService::class)
+            ->xlfToData((string)file_get_contents($path), ['default', $languageTranslation]);
+
+        if (empty($stored)) {
+            return $imported;
+        }
+
+        foreach ($imported as $key => $value) {
+            $stored[$key] = $value;
+        }
+
+        return $stored;
+    }
+
+    /**
      * @param string $languageTranslation
      * @param string $keyTranslation
      *
@@ -773,7 +817,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if (!empty($data)) {
-            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data, 'redirectToDetail' => true]);
+            // saveAction() writes the whole file from what it is handed, so an import that
+            // carries only the strings somebody worked on used to erase every other one.
+            // A translator sending back a partial file is the normal case, so the imported
+            // units are laid over what is already stored instead of replacing it.
+            $this->writeTranslationFile(
+                $keyTranslation,
+                $languageTranslation,
+                $this->overlayStoredTranslations($keyTranslation, $languageTranslation, $data)
+            );
+
+            return $this->redirect('detail', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
         }
 
         return $this->redirect('detail', null, null, [
@@ -827,11 +881,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             return new \TYPO3\CMS\Core\Http\JsonResponse(['success' => 0]);
         }
 
-        $xlfFileExport = $this->dataToXlf($keyTranslation, $languageTranslation, $data);
-        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
-        file_put_contents($path, $xlfFileExport);
-
-        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+        $this->writeTranslationFile($keyTranslation, $languageTranslation, $data);
 
         if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
             return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
@@ -1183,8 +1233,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $this->moduleTemplate->assign('fields', $databaseEntriesService->getExportFields($tablename, $row));
         $this->moduleTemplate->assign('languages', $this->listOfPossibleLanguages);
         $this->moduleTemplate->assign('allowedLanguages', $this->getAllowedSystemLanguages());
-        $this->moduleTemplate->assign('rowType', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowType);
-        $this->moduleTemplate->assign('rowTypeCouldBe', \Hyperdigital\HdTranslator\Services\DatabaseEntriesService::$rowTypeCouldBe);
+        // both are protected instance properties, so reading them statically is a fatal
+        $this->moduleTemplate->assign('rowType', $databaseEntriesService->getRowType());
+        $this->moduleTemplate->assign('rowTypeCouldBe', $databaseEntriesService->getRowTypeCouldBe());
 
         return $this->moduleTemplate->renderResponse('Be/Translator/ExportTableRowIndex');
     }
