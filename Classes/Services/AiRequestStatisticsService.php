@@ -138,6 +138,62 @@ class AiRequestStatisticsService
     }
 
     /**
+     * Unique visitors per language and day, for a chart.
+     *
+     * One query; days nobody asked on are filled in as zero here rather than leaving gaps the
+     * chart would have to guess at.
+     *
+     * @return array{days: array<int, string>, series: array<string, array<int, int>>}
+     */
+    public function getDailySeries(int $days): array
+    {
+        $days = max(min($days, 365), 2);
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('day'),
+                'COUNT(DISTINCT ' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
+            )
+            ->from(self::TABLE)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $counted = [];
+        foreach ($rows as $row) {
+            $counted[(string)$row['target_language']][(int)$row['day']] = (int)$row['visitors'];
+        }
+
+        $now = $GLOBALS['EXEC_TIME'] ?? time();
+        $calendar = [];
+        for ($back = $days - 1; $back >= 0; $back--) {
+            $timestamp = strtotime('-' . $back . ' days', $now);
+            $calendar[] = (int)date('Ymd', $timestamp !== false ? $timestamp : $now);
+        }
+
+        $series = [];
+        foreach ($counted as $language => $perDay) {
+            $series[$language] = [];
+            foreach ($calendar as $day) {
+                $series[$language][] = $perDay[$day] ?? 0;
+            }
+        }
+
+        return [
+            'days' => array_map(
+                static fn(int $day): string => substr((string)$day, 0, 4) . '-' . substr((string)$day, 4, 2) . '-' . substr((string)$day, 6, 2),
+                $calendar
+            ),
+            'series' => $series,
+        ];
+    }
+
+    /**
      * @param int $from first day of the window, as a Ymd integer
      * @param int|null $to last day of the window, null for "up to today"
      * @return array<string, int> language => unique visitors
