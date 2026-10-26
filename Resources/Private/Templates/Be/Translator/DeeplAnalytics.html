@@ -57,6 +57,53 @@
                     <script type="application/json" id="hd-translator-chart-data">{chart -> f:format.raw()}</script>
                     <f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
 
+                    <div class="hd-translator-insights">
+                        <f:comment>
+                            Whether the demand sits on a few languages or spreads, which is the
+                            question behind "should we build one mutation or several".
+                        </f:comment>
+                        <f:if condition="{concentration.total}">
+                            <div class="hd-translator-insight">
+                                <div class="hd-translator-insight-value">{concentration.topShare}&nbsp;%</div>
+                                <div class="hd-translator-insight-label">
+                                    <f:translate key="deepl.analytics.concentration" arguments="{0: concentration.languages}" />
+                                    <br />
+                                    <f:for each="{concentration.leaders}" as="leader" iteration="i">{leader}<f:if condition="!{i.isLast}">, </f:if></f:for>
+                                </div>
+                            </div>
+                        </f:if>
+
+                        <f:comment>Which days of the week the asking happens on.</f:comment>
+                        <div class="hd-translator-insight hd-translator-insight-wide">
+                            <div class="hd-translator-weekdays">
+                                <f:for each="{weekdays}" as="d">
+                                    <div class="hd-translator-weekday" title="{d.visitors}">
+                                        <div class="hd-translator-weekday-bar" style="height: {d.share}%"></div>
+                                        <div class="hd-translator-weekday-name"><f:translate key="deepl.analytics.weekday.{d.weekday}" /></div>
+                                    </div>
+                                </f:for>
+                            </div>
+                            <div class="hd-translator-insight-label"><f:translate key="deepl.analytics.weekdays" /></div>
+                        </div>
+                    </div>
+
+                    <f:if condition="{topPages}">
+                        <div class="hd-translator-pages">
+                            <h2><f:translate key="deepl.analytics.pages" /></h2>
+                            <p class="hd-translator-muted"><f:translate key="deepl.analytics.pages.description" /></p>
+                            <f:for each="{topPages}" as="pages" key="language">
+                                <div class="hd-translator-pagegroup">
+                                    <strong>{language}</strong>
+                                    <ul>
+                                        <f:for each="{pages}" as="p">
+                                            <li><span class="hd-translator-muted">{p.requests}&times;</span> {p.page}</li>
+                                        </f:for>
+                                    </ul>
+                                </div>
+                            </f:for>
+                        </div>
+                    </f:if>
+
                     <table class="table table-hover hd-translator-sortable">
                         <thead>
                         <tr>
@@ -67,6 +114,7 @@
                             <th data-sort="number"><f:translate key="deepl.analytics.trend" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.visitors.total" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.translation_count" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.characters" /></th>
                             <th data-sort="text"><f:translate key="deepl.analytics.asPages" /></th>
                         </tr>
                         </thead>
@@ -89,6 +137,8 @@
                                 </td>
                                 <td data-value="{row.total}">{row.total}</td>
                                 <td data-value="{row.translations}">{row.translations}</td>
+                                <f:comment>what DeepL charges by, so the closest thing to a bill this install can show</f:comment>
+                                <td data-value="{row.characters}"><f:format.number decimals="0" thousandsSeparator=" ">{row.characters}</f:format.number></td>
                                 <td data-value="{f:if(condition: row.configured, then: '1', else: '0')}">
                                     <f:if condition="{row.configured}">
                                         <f:then><f:translate key="deepl.analytics.asPages.yes" /></f:then>
