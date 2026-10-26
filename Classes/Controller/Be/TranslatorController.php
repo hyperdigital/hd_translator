@@ -460,6 +460,57 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
+     * The one place a translation file is written, so the save screen and an import cannot
+     * drift apart.
+     *
+     * @param array<string, array<string, string>> $data
+     */
+    protected function writeTranslationFile(string $keyTranslation, string $languageTranslation, array $data): void
+    {
+        file_put_contents(
+            $this->getTranslationPath($languageTranslation, $keyTranslation),
+            $this->dataToXlf($keyTranslation, $languageTranslation, $data)
+        );
+
+        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+    }
+
+    /**
+     * Lays imported units over the ones already stored, so keys the import does not mention
+     * keep their translation and their state. Imported values win; keys the file does not
+     * have yet are added.
+     *
+     * @param array<string, array<string, string>> $imported
+     * @return array<string, array<string, string>>
+     */
+    protected function overlayStoredTranslations(string $keyTranslation, string $languageTranslation, array $imported): array
+    {
+        $path = $this->getTranslationPath($languageTranslation, $keyTranslation);
+        if ($path === '' || !is_readable($path)) {
+            return $imported;
+        }
+
+        $stored = [];
+        foreach (GeneralUtility::makeInstance(XlfService::class)->parse((string)file_get_contents($path)) as $key => $entry) {
+            $stored[$key] = [
+                'default' => $entry['source'],
+                $languageTranslation => $entry['target'],
+                '_state' => $entry['state'],
+            ];
+        }
+
+        if (empty($stored)) {
+            return $imported;
+        }
+
+        foreach ($imported as $key => $value) {
+            $stored[$key] = $value;
+        }
+
+        return $stored;
+    }
+
+    /**
      * Puts what is actually stored in the override file back on top of the resolved labels.
      *
      * LanguageService answers what the frontend would show, and TYPO3 holds a label back whose
@@ -1031,7 +1082,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         }
 
         if (!empty($data)) {
-            return $this->redirect('save', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation, 'data' => $data, 'redirectToDetail' => true]);
+            // saveAction() writes the whole file from what it is handed, so an import that
+            // carries only the strings somebody worked on used to erase every other one. The
+            // empty-save guard does not catch that: a file with one unit left in it is not
+            // empty. The imported units are laid over what is stored instead, and the file is
+            // written here rather than handed to save - a whole file's worth of data as
+            // redirect arguments makes a location header the web server refuses.
+            $this->writeTranslationFile(
+                $keyTranslation,
+                $languageTranslation,
+                $this->overlayStoredTranslations($keyTranslation, $languageTranslation, $data)
+            );
+
+            return $this->redirect('detail', null, null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
         }
 
         return $this->redirect('detail', null, null, [
@@ -1103,9 +1166,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             return new \TYPO3\CMS\Core\Http\JsonResponse(['success' => 0, 'refused' => 'emptySave']);
         }
 
-        file_put_contents($path, $xlfFileExport);
-
-        GeneralUtility::makeInstance(\TYPO3\CMS\Core\Cache\CacheManager::class)->flushCachesInGroup('system');
+        $this->writeTranslationFile($keyTranslation, $languageTranslation, $data);
 
         if ($this->request->hasArgument('redirectToDetail') && $this->request->getArgument('redirectToDetail')) {
             return $this->redirect('detail', null,null, ['keyTranslation' => $keyTranslation, 'languageTranslation' => $languageTranslation]);
