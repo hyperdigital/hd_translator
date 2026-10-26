@@ -209,11 +209,11 @@
 }
 
 .hd-translator-stat-danger .hd-translator-stat-value {
-    color: var(--typo3-color-danger, #c83c3c);
+    color: var(--typo3-color-danger, light-dark(#c83c3c, #e86a6a));
 }
 
 .hd-translator-stat-warning .hd-translator-stat-value {
-    color: var(--typo3-color-warning, #b78a00);
+    color: var(--typo3-color-warning, light-dark(#806000, #b78a00));
 }
 
 /* --------------------------------------------------------------- dropdown */
@@ -449,8 +449,14 @@
 .hd-translator-sortable-header.is-sorted-asc::after { content: '\2191'; opacity: 1; }
 .hd-translator-sortable-header.is-sorted-desc::after { content: '\2193'; opacity: 1; }
 
-.hd-translator-trend.is-up { color: var(--typo3-color-success, #79a548); font-weight: 600; }
-.hd-translator-trend.is-down { color: var(--typo3-color-danger, #c83c3c); }
+/*
+ * One hex cannot serve both backend themes, and neither 13 nor 14 defines these tokens,
+ * so the fallback is what renders: the green read 2.64:1 on the light surface and the red
+ * 3.56:1 on the dark one. The coverage bar fills above keep a single hex - a fill answers
+ * to the non-text threshold and carries its own label.
+ */
+.hd-translator-trend.is-up { color: var(--typo3-color-success, light-dark(#4f6e2b, #79a548)); font-weight: 600; }
+.hd-translator-trend.is-down { color: var(--typo3-color-danger, light-dark(#c83c3c, #e86a6a)); }
 
 /* ------------------------------------------------- unsaved changes, busy ui */
 .hd-translator-has-changes .t3js-module-docheader [data-action="save"] {
