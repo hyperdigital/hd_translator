@@ -238,8 +238,12 @@ button.is-busy { opacity: .65; cursor: progress; }
 .hd-translator-sortable-header { cursor: pointer; user-select: none; white-space: nowrap; }
 .hd-translator-sortable-header.is-sorted-asc::after { content: '\2191'; }
 .hd-translator-sortable-header.is-sorted-desc::after { content: '\2193'; }
-.hd-translator-trend.is-up { color: #79a548; font-weight: 600; }
-.hd-translator-trend.is-down { color: #c83c3c; }
+/*
+ * One hex cannot serve both backend themes: the green read 2.64:1 on the light surface and
+ * the red 3.56:1 on the dark one. Each side gets the value that passes against it.
+ */
+.hd-translator-trend.is-up { color: light-dark(#4f6e2b, #79a548); font-weight: 600; }
+.hd-translator-trend.is-down { color: light-dark(#c83c3c, #e86a6a); }
 
 
 /* ------------------------------------------------------------------- chart */
