@@ -20,12 +20,17 @@
                 <f:else>
                     <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.noAvailableLanguages" /></h2>
                     <p><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.noAvailableLanguages.description" /></p>
-                    <p><f:link.action action="deeplSyncLanguages" class="btn btn-default"><f:translate key="deepl.syncLanguages" /></f:link.action></p>
+                    <p>
+                        <f:link.action action="deeplSyncLanguages" class="btn btn-default"><f:translate key="deepl.syncLanguages" /></f:link.action>
+                        <f:comment>reachable before anything is synchronised: that is when it answers what to synchronise</f:comment>
+                        <f:link.action action="deeplAnalytics" class="btn btn-default"><f:translate key="docHeader.deeplAnalytics" /></f:link.action>
+                    </p>
                 </f:else>
                 <f:then>
                     <p>
                         <f:link.action action="deeplSyncLanguages" class="btn btn-default"><f:translate key="deepl.syncLanguages" /></f:link.action>
                         <f:link.action action="deeplOriginalSources" class="btn btn-default">Search by original sources</f:link.action>
+                        <f:link.action action="deeplAnalytics" class="btn btn-default"><f:translate key="docHeader.deeplAnalytics" /></f:link.action>
                     </p>
 
                     <h2><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.index.availableLanguages" /></h2>
