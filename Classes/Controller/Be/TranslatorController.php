@@ -31,6 +31,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     protected $storage = '';
     protected $listOfPossibleLanguages = [];
     protected $conigurationFile = 'locallangConf.php';
+    /** allLocallangs is on but its generated file is not there yet; the index says so */
+    protected bool $locallangConfigurationMissing = false;
     protected $defaultFilename = 'locallang.xlf';
     protected $relativePathToLangFilesInExt = 'Resources/Private/Language';
     protected $relativePathToLangFilesInExtContentBlocks = 'ContentBlocks/ContentElements';
@@ -66,7 +68,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             if (file_exists($this->storage . $this->conigurationFile)) {
                 require $this->storage . $this->conigurationFile;
             } else {
-                $this->redirect('syncLocallangs');
+                // initializeAction() cannot redirect: processRequest() discards what it
+                // returns, and redirect() returns a response rather than throwing. the
+                // index screen says what is missing instead, and offers the sync.
+                $this->locallangConfigurationMissing = true;
             }
         }
 
@@ -633,6 +638,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $this->moduleTemplate->assign('pageData', $this->pageData);
             }
             $this->moduleTemplate->assign('categories', $data);
+            $this->moduleTemplate->assign('locallangConfigurationMissing', $this->locallangConfigurationMissing);
             $this->moduleTemplate->assign(
                 'enabledSync',
                 \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('hd_translator', 'allLocallangs')

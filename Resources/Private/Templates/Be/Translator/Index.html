@@ -63,30 +63,55 @@
 					</div>
 				</f:then>
 				<f:else>
-					<f:render partial="Module/Callout" arguments="{
-						state: 'info',
-						title: '{f:translate(key: \'index.noTranslations.headline\')}',
-						message: '{f:translate(key: \'index.noTranslations.description\')}'
-					}" />
+					<f:comment>
+						Two reasons for an empty list, and the advice for one is the wrong advice
+						for the other: the generated file is not there yet, or nothing was ever
+						registered. The ext_localconf example only helps the second one.
+					</f:comment>
+					<f:if condition="{locallangConfigurationMissing}">
+						<f:then>
+							<f:render partial="Module/Callout" arguments="{
+								state: 'info',
+								title: '{f:translate(key: \'index.locallangConfiguration.missing\')}',
+								message: '{f:translate(key: \'index.locallangConfiguration.missing.description\')}'
+							}" />
 
-					<f:if condition="{enabledSync}">
-						<p>
-							<f:link.action action="syncLocallangs" class="btn btn-primary">
-								<core:icon identifier="actions-synchronize" size="small" />
-								<f:translate key="index.synchronizeLocalizedFiles" />
-							</f:link.action>
-						</p>
-					</f:if>
+							<f:if condition="{enabledSync}">
+								<p>
+									<f:link.action action="syncLocallangs" class="btn btn-primary">
+										<core:icon identifier="actions-synchronize" size="small" />
+										<f:translate key="index.synchronizeLocalizedFiles" />
+									</f:link.action>
+								</p>
+							</f:if>
+						</f:then>
+						<f:else>
+							<f:render partial="Module/Callout" arguments="{
+								state: 'info',
+								title: '{f:translate(key: \'index.noTranslations.headline\')}',
+								message: '{f:translate(key: \'index.noTranslations.description\')}'
+							}" />
 
-					<div class="hd-translator-fieldset">
-						<div class="hd-translator-fieldset-legend">ext_localconf.php</div>
+							<f:if condition="{enabledSync}">
+								<p>
+									<f:link.action action="syncLocallangs" class="btn btn-primary">
+										<core:icon identifier="actions-synchronize" size="small" />
+										<f:translate key="index.synchronizeLocalizedFiles" />
+									</f:link.action>
+								</p>
+							</f:if>
+
+							<div class="hd-translator-fieldset">
+								<div class="hd-translator-fieldset-legend">ext_localconf.php</div>
 <pre><code>$GLOBALS['TYPO3_CONF_VARS']['translator']['news'] = [
     'label' =&gt; 'News',
     'path' =&gt; 'EXT:news/Resources/Private/Language/locallang.xlf',
     'category' =&gt; 'Category1',
     'languages' =&gt; ['de', 'default'],
 ];</code></pre>
-					</div>
+							</div>
+						</f:else>
+					</f:if>
 				</f:else>
 			</f:if>
 		</f:else>
