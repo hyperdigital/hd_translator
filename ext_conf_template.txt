@@ -10,3 +10,5 @@ deeplApiKey =
 aiRequestStatistics = 1
 # cat=Settings; type=int+; label=LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:aiRequestStatisticsRetention
 aiRequestStatisticsRetention = 365
+# cat=Settings; type=int+; label=LLL:EXT:hd_translator/Resources/Private/Language/locallang_be.xlf:requestsPerMinute
+requestsPerMinute = 60

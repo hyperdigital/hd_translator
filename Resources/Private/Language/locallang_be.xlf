@@ -42,6 +42,9 @@
             <trans-unit id="aiRequestStatisticsRetention">
                 <source>Keep those counts for how many days</source>
             </trans-unit>
+            <trans-unit id="requestsPerMinute">
+                <source>How many translation requests one visitor may send per minute (0 switches the limit off)</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

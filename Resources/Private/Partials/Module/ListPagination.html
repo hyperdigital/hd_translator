@@ -1,0 +1,58 @@
+<html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+      data-namespace-typo3-fluid="true">
+
+<f:comment>
+	A search box and a pager. Both screens used to render every row of the table into one page,
+	which is tens of thousands of them on a site that has been translating for a while.
+</f:comment>
+
+<div class="hd-translator-toolbar">
+	<div class="hd-translator-toolbar-search">
+		<f:form action="{action}" method="get" addQueryString="false">
+			<f:form.hidden name="language" value="{language}" />
+			<label class="visually-hidden" for="hd-translator-list-search"><f:translate key="list.search" /></label>
+			<div class="input-group">
+				<span class="input-group-text"><core:icon identifier="actions-search" size="small" /></span>
+				<f:form.textfield name="search" value="{search}" id="hd-translator-list-search"
+				                  class="form-control" placeholder="{f:translate(key: 'list.search')}" />
+				<button class="btn btn-default" type="submit"><f:translate key="list.search.submit" /></button>
+			</div>
+		</f:form>
+	</div>
+
+	<div class="hd-translator-toolbar-actions hd-translator-muted">
+		<f:translate key="list.total" arguments="{0: pagination.total}" />
+	</div>
+</div>
+
+<f:if condition="{pagination.pages} > 1">
+	<nav class="hd-translator-pagination" aria-label="{f:translate(key: 'list.pages')}">
+		<f:if condition="{pagination.previous}">
+			<f:link.action class="btn btn-default btn-sm" action="{action}"
+			               arguments="{language: language, search: search, page: pagination.previous}">
+				<core:icon identifier="actions-chevron-left" size="small" />
+			</f:link.action>
+		</f:if>
+
+		<f:for each="{pagination.numbers}" as="number">
+			<f:if condition="{number} == {pagination.page}">
+				<f:then><span class="btn btn-primary btn-sm">{number}</span></f:then>
+				<f:else>
+					<f:link.action class="btn btn-default btn-sm" action="{action}"
+					               arguments="{language: language, search: search, page: number}">{number}</f:link.action>
+				</f:else>
+			</f:if>
+		</f:for>
+
+		<f:if condition="{pagination.next}">
+			<f:link.action class="btn btn-default btn-sm" action="{action}"
+			               arguments="{language: language, search: search, page: pagination.next}">
+				<core:icon identifier="actions-chevron-right" size="small" />
+			</f:link.action>
+		</f:if>
+
+		<span class="hd-translator-muted"><f:translate key="list.pageOf" arguments="{0: pagination.page, 1: pagination.pages}" /></span>
+	</nav>
+</f:if>
+</html>
