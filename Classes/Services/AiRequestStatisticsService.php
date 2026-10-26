@@ -265,6 +265,9 @@ class AiRequestStatisticsService
      */
     protected function firstDayOf(int $days): int
     {
-        return (int)date('Ymd', strtotime('-' . max($days - 1, 0) . ' days', $GLOBALS['EXEC_TIME'] ?? time()));
+        $now = $GLOBALS['EXEC_TIME'] ?? time();
+        $first = strtotime('-' . max($days - 1, 0) . ' days', $now);
+
+        return (int)date('Ymd', $first !== false ? $first : $now);
     }
 }

@@ -110,6 +110,7 @@ class ExportItemProvider extends AbstractProvider
         if (isset($items['info'])) {
             //finds a position of the item after which 'hello' item should be added
             $position = array_search('info', array_keys($items), true);
+            $position = $position === false ? 0 : $position;
 
             //slices array into two parts
             $beginning = array_slice($items, 0, $position+1, true);

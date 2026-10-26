@@ -1,16 +1,16 @@
 <?php
 namespace Hyperdigital\HdTranslator\Services;
 
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
-use TYPO3\CMS\Core\Localization\Locales;
-use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-use TYPO3\CMS\Core\Service\FlexFormService;
 use Psr\Log\LoggerInterface;
 use TYPO3\CMS\Core\Log\LogManager;
 use Doctrine\DBAL\Types\Type;
@@ -26,11 +26,66 @@ class DatabaseEntriesService
      */
     public const SOURCE_UID_FIELD = '_hdTranslatorSourceUid';
 
-    public static $databaseEntriesOriginal = [];
-    public static $databaseEntriesTranslated = [];
-    public static $rowType = '';
-    public static $rowTypeCouldBe = '';
+    /**
+     * TCA types offered by an export that has no explicit "translator_export" list.
+     *
+     * Restricted to types that actually hold translatable text, plus the container types that
+     * carry translatable children. A field of any other type can still be exported by naming it
+     * in "translator_export".
+     *
+     * @var string[]
+     */
+    protected const DEFAULT_EXPORT_TYPES = [
+        'input',
+        'text',
+        'slug',
+        'email',
+        'flex',
+        'inline',
+        'file',
+    ];
+
+    /**
+     * Per import bookkeeping. These used to be static, which meant two imports in one request
+     * shared their state and the class could not be tested in isolation.
+     */
+    protected array $databaseEntriesOriginal = [];
+    protected array $databaseEntriesTranslated = [];
+    protected string $rowType = '';
+    protected string $rowTypeCouldBe = '';
     protected $updateMmRelations = [];
+
+    /**
+     * @return array{updates:int, inserts:int, fails:int, failsMessages:string[]}
+     */
+    public function getImportStats(): array
+    {
+        return $this->importStats;
+    }
+
+    /**
+     * Record type the last read row was exported as.
+     */
+    public function getRowType(): string
+    {
+        return $this->rowType;
+    }
+
+    /**
+     * Record type the last read row could have been exported as, when it differs.
+     */
+    public function getRowTypeCouldBe(): string
+    {
+        return $this->rowTypeCouldBe;
+    }
+
+    /**
+     * Disables every insert and update, for dry runs.
+     */
+    public function setOnlyDebug(bool $onlyDebug): void
+    {
+        $this->onlyDebug = $onlyDebug;
+    }
 
     // Ignore  $GLOBALS['TCA'][$table]['types'][1]['translator_export']
     protected $ignoreExportFields = false;
@@ -42,13 +97,13 @@ class DatabaseEntriesService
     /**
      * @var bool this will disable inserting or updating data
      */
-    public static $onlyDebug = false;
+    protected bool $onlyDebug = false;
 
 
-    public static $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessages' => []];
+    protected array $importStats = ['updates' => 0, 'inserts' => 0, 'fails' => 0, 'failsMessages' => []];
     protected $updateAfterImport = [];
 
-    protected $flexFormService;
+    protected $flexFormTools;
     /**
      * Logger instance. We use TYPO3 LogManager when available and
      * additionally write a fallback file log to var/log/hd_translator.log
@@ -61,10 +116,10 @@ class DatabaseEntriesService
     protected $tableSchemes = [];
 
     public function __construct(
-        FlexFormService $flexFormService
+        FlexFormTools $flexFormTools
     )
     {
-        $this->flexFormService = $flexFormService;
+        $this->flexFormTools = $flexFormTools;
     }
 
     /**
@@ -130,7 +185,7 @@ class DatabaseEntriesService
     public function getListOfTranslatableFields($tablename, $row, &$typeArrayReturn = [])
     {
         if (isset($GLOBALS['TCA'][$tablename]['ctrl']['type']) && !empty($row[$GLOBALS['TCA'][$tablename]['ctrl']['type']])) {
-            self::$rowTypeCouldBe = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
+            $this->rowTypeCouldBe = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
         }
         if (
             !empty($GLOBALS['TCA'][$tablename]['ctrl']['type']) // type field is defined
@@ -139,9 +194,9 @@ class DatabaseEntriesService
             && isset($GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]]['translator_export'])
         ) {
             $typeArray = $GLOBALS['TCA'][$tablename]['types'][$row[$GLOBALS['TCA'][$tablename]['ctrl']['type']]];
-            self::$rowType = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
+            $this->rowType = $row[$GLOBALS['TCA'][$tablename]['ctrl']['type']];
         } else {
-            self::$rowType = '1';
+            $this->rowType = '1';
             if (isset($GLOBALS['TCA'][$tablename]['types']['1']['translator_export'])) {
                 $typeArray = $GLOBALS['TCA'][$tablename]['types']['1'];
             }
@@ -271,14 +326,14 @@ class DatabaseEntriesService
         $slug = preg_replace('/[ \t\x{00A0}\-+_]+/u', '-', $slug);
 
         // Convert extended letters to ascii equivalents
-        // The specCharsToASCII() converts "€" to "EUR"
-        $slug = GeneralUtility::makeInstance(CharsetConverter::class)->specCharsToASCII('utf-8', $slug);
+        // v14 replaced specCharsToASCII('utf-8', ...) with utf8_char_mapping()
+        $slug = GeneralUtility::makeInstance(CharsetConverter::class)->utf8_char_mapping($slug);
 
         // Get rid of all invalid characters, but allow slashes
-        $slug = preg_replace('/[^\p{L}\p{M}0-9\/' . preg_quote('-') . ']/u', '', $slug);
+        $slug = preg_replace('/[^\p{L}\p{M}0-9\/' . preg_quote('-', '/') . ']/u', '', $slug);
 
         // Convert multiple fallback characters to a single one
-        $slug = preg_replace('/' . preg_quote('-') . '{2,}/', '-', $slug);
+        $slug = preg_replace('/' . preg_quote('-', '/') . '{2,}/', '-', $slug);
 
         // Ensure slug is lower cased after all replacement was done
         $slug = mb_strtolower($slug, 'utf-8');
@@ -307,7 +362,7 @@ class DatabaseEntriesService
             ->executeQuery();
 
         $row = $result->fetchAssociative();
-        
+
         return $row;
     }
 
@@ -315,7 +370,13 @@ class DatabaseEntriesService
      * @param string $tablename name of the table
      * @param int $rowUid UID of entry
      */
-    public function getCompleteRow(string $tablename, int $rowUid, int $sourceLanguage = 0)
+    /**
+     * The record with everything the export needs, or an empty array when there is none.
+     *
+     * Never false: every caller indexes into the result, and a record that was deleted meanwhile
+     * used to turn that into a row of warnings about an offset on a bool instead of saying so.
+     */
+    public function getCompleteRow(string $tablename, int $rowUid, int $sourceLanguage = 0): array
     {
         $parentUidField = 'l10n_parent';
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigPointerField'])) {
@@ -363,6 +424,10 @@ class DatabaseEntriesService
         //setup default language uid
         if (!empty($langaugeField) && isset($row[$langaugeField]) && $row[$langaugeField] == 0) {
             $parentUidField = 'uid';
+        }
+
+        if (!is_array($row)) {
+            return [];
         }
 
         if (!empty($parentUidField) && !empty($row[$parentUidField])) {
@@ -495,7 +560,6 @@ class DatabaseEntriesService
      * @param string $tablename
      * @param int $parentUid
      * @param string $foreignField
-     * @param string $foreignSortby
      * @param string $foreignTableField
      * @param array $foreignMatchFields
      * @return mixed
@@ -556,16 +620,10 @@ class DatabaseEntriesService
         }
 
         if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'])) {
-            $return[$specialFieldNameOutput]['fieldType'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'];
-
-            if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'])) {
-                $return[$specialFieldNameOutput]['fieldTypeMax'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'];
-            }
-            if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'])) {
-                $return[$specialFieldNameOutput]['translator_note'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'];
-            }
-
-            // Switch by TCA type of the field
+            // Switch by TCA type of the field.
+            // Only the types below register an entry. Types that carry no translatable text, a
+            // select or a checkbox for example, used to register a key without ever receiving a
+            // value, which ended up in the exported file as an empty trans-unit.
             switch ($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type']) {
                 case 'input':
                 case 'text':
@@ -577,6 +635,15 @@ class DatabaseEntriesService
                 case 'link':
                 case 'number':
                 case 'password':
+                    $return[$specialFieldNameOutput]['fieldType'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'];
+
+                    if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'])) {
+                        $return[$specialFieldNameOutput]['fieldTypeMax'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['max'];
+                    }
+                    if (!empty($GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'])) {
+                        $return[$specialFieldNameOutput]['translator_note'] = $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['translator_note'];
+                    }
+
                     $return[$specialFieldNameOutput]['value'] = $row[$field] ?? '';
                     $return[$specialFieldNameOutput]['label'] = $this->getFieldLabel($field, $row, $tablename);
                     $return[$specialFieldNameOutput]['html'] = $this->fieldCanContainHtml($field, $row, $tablename);
@@ -617,7 +684,7 @@ class DatabaseEntriesService
     protected function getFlexformKeysAndValues(string $tablename, string $field, array $row, array &$return, string $specialFieldNameOutput, array $limitedFields, $typeArray = [], $fieldnamePrefix = '')
     {
         $flexString = $row[$field];
-        $data = $this->flexFormService
+        $data = $this->flexFormTools
             ->convertFlexFormContentToArray(strval($flexString));
 
         foreach ($data as $key => $value) {
@@ -711,7 +778,7 @@ class DatabaseEntriesService
             ->select('*')
             ->from('sys_file_reference')
             ->where(
-                $queryBuilder->expr()->eq('uid_foreign', $uidForeign),
+                $queryBuilder->expr()->eq('uid_foreign', (int) $uidForeign),
                 $queryBuilder->expr()->eq('fieldname', $queryBuilder->createNamedParameter($field)),
                 $queryBuilder->expr()->eq('tablenames', $queryBuilder->createNamedParameter($tablename))
             )
@@ -923,7 +990,18 @@ class DatabaseEntriesService
         // internal bookkeeping, never a translatable field
         if (isset($row[self::SOURCE_UID_FIELD]))  unset($row[self::SOURCE_UID_FIELD]);
 
-        return array_keys($row);
+        // Without an explicit "translator_export" every column of the record is offered. Types that
+        // hold no translatable text are dropped here, so a default export does not ship colours,
+        // timestamps or numbers to a translator. Listing such a field in "translator_export"
+        // explicitly still exports it.
+        return array_values(array_filter(
+            array_keys($row),
+            fn(string $field): bool => in_array(
+                $GLOBALS['TCA'][$tablename]['columns'][$field]['config']['type'] ?? '',
+                self::DEFAULT_EXPORT_TYPES,
+                true
+            )
+        ));
     }
 
     /**
@@ -1116,6 +1194,7 @@ class DatabaseEntriesService
         }
         // uid of the page the values come from, differs from $realUid for a translated source language
         $pageSourceUid = (int)($row[self::SOURCE_UID_FIELD] ?? $realUid);
+        $output = [];
         if ($clean) {
             $pageRowForKeys = $row;
             $pageRowForKeys['uid'] = $realUid;
@@ -1191,7 +1270,7 @@ class DatabaseEntriesService
      * @param int|null $targetLanguageUid - sys_language_uid of an already existing translation whose
      *                                      values are offered as the target, null for new content
      */
-    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en', ?int $targetLanguageUid = null)
+    public function exportDatabaseRowToXlf($uid, $row, $targetLanguage, $tablename, $enableTranslatedData = true, $sourceLanguage = 'en', ?int $targetLanguageUid = null, string $format = TranslationFormatService::FORMAT_XLF_12)
     {
         if ($targetLanguage == 'default') {
             $targetLanguage = 'en';
@@ -1208,11 +1287,9 @@ class DatabaseEntriesService
 
         $data = $this->prepareDataFromRow($uid, $row, $targetLanguage, $tablename, $translatedData);
 
-        $xlfService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\XlfService::class);
+        $formatService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\TranslationFormatService::class);
 
-        $output = $xlfService->dataToXlf($data, $targetLanguage, $sourceLanguage);
-
-        return $output;
+        return $formatService->dump($data, $format, $targetLanguage, $sourceLanguage);
     }
 
     /**
@@ -1229,8 +1306,8 @@ class DatabaseEntriesService
                     try {
                         $this->importIntoTable($tablename, $l10nParent, $row, $targetLanguage);
                     } catch (\Throwable $th) {
-                        self::$importStats['fails']++;
-                        self::$importStats['failsMessages'][] = $th->getMessage();
+                        $this->importStats['fails']++;
+                        $this->importStats['failsMessages'][] = $th->getMessage();
                     }
                 }
             }
@@ -1347,7 +1424,7 @@ class DatabaseEntriesService
 
                             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
                             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                            if (!self::$onlyDebug) {
+                            if (!$this->onlyDebug) {
                                 try {
                                     $temp = $queryBuilder
                                         ->update($foreginTable)
@@ -1357,15 +1434,15 @@ class DatabaseEntriesService
                                         )
                                         ->executeStatement();
                                 } catch (\Exception $e) {
-                                    self::$importStats['fails']++;
-                                    self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
+                                    $this->importStats['fails']++;
+                                    $this->importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
                                 }
                             }
                         }
                         // update parent inline field => if INT then amount of children, if VARCHAR then list of uids
                         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($parentTableName)->createQueryBuilder();
                         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                        if (!self::$onlyDebug) {
+                        if (!$this->onlyDebug) {
                             try {
                             $temp = $queryBuilder
                                 ->update($parentTableName)
@@ -1375,13 +1452,13 @@ class DatabaseEntriesService
                                 )
                                 ->executeStatement();
                             } catch (\Exception $e) {
-                                self::$importStats['fails']++;
-                                self::$importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
+                                $this->importStats['fails']++;
+                                $this->importStats['failsMessages'][] = 'LINE: '.__LINE__.' - ' . $e->getMessage();
                             }
                         }
                         break;
                     case 'updateChildInlinedReferencesFlexform':
-                        $translatedRow = self::$databaseEntriesTranslated[$import['parentTable']][$import['parentUid']];
+                        $translatedRow = $this->databaseEntriesTranslated[$import['parentTable']][$import['parentUid']];
 
                         $foreginTable = $import['config']['foreign_table'] ?? '';
 
@@ -1493,15 +1570,13 @@ class DatabaseEntriesService
 
                                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
                                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                                    if (!self::$onlyDebug) {
+                                    if (!$this->onlyDebug) {
                                         $affectedRows = $queryBuilder
                                             ->insert($foreginTable)
                                             ->values($row)
                                             ->executeStatement();
-                                        self::$importStats['inserts']++;
+                                        $this->importStats['inserts']++;
                                     }
-                                } else {
-//                                    DebuggerUtility::var_dump($translatedRow);
                                 }
                             }
                         }
@@ -1514,11 +1589,11 @@ class DatabaseEntriesService
 
         if (!empty($this->updateMmRelations)) {
             foreach($this->updateMmRelations as $mmRelation) {
-                if (empty(self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
-                    self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']] = $this->getTranslatedCompleteRow($mmRelation['foreginTable'], $mmRelation['local_uid'], $targetLanguage);
+                if (empty($this->databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
+                    $this->databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']] = $this->getTranslatedCompleteRow($mmRelation['foreginTable'], $mmRelation['local_uid'], $targetLanguage);
                 }
 
-                if (!empty(self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
+                if (!empty($this->databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']])) {
                     // is the mm table is opposite?
                     $localFieldMm = 'uid_local';
                     $foreginFieldMm = 'uid_foreign';
@@ -1537,7 +1612,7 @@ class DatabaseEntriesService
                         )
                         ->executeQuery();
 
-                    $newUid = self::$databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']]['uid'];
+                    $newUid = $this->databaseEntriesTranslated[$mmRelation['foreginTable']][$mmRelation['local_uid']]['uid'];
                     while($newUid && $row = $result->fetchAssociative()) {
 
                         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
@@ -1551,7 +1626,7 @@ class DatabaseEntriesService
                             )
                             ->executeQuery();
                         if (!$result2->fetchAssociative()) {
-                            if (!self::$onlyDebug) {
+                            if (!$this->onlyDebug) {
                                 $row[$localFieldMm] = $newUid;
                                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($mmRelation['mm_table'])->createQueryBuilder();
                                 $queryBuilder->getRestrictions()->removeAll();
@@ -1576,7 +1651,7 @@ class DatabaseEntriesService
         }
 
 
-        foreach (self::$databaseEntriesOriginal as $tablename => $items) {
+        foreach ($this->databaseEntriesOriginal as $tablename => $items) {
             foreach ($items as $id => $data) {
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
                 $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -1592,20 +1667,15 @@ class DatabaseEntriesService
 
 
                 while($defaultLanguageRow = $result->fetchAssociative()) {
-                    if (!self::$databaseEntriesTranslated[$tablename][$id]['uid']) {
+                    if (!$this->databaseEntriesTranslated[$tablename][$id]['uid']) {
                         continue;
                     }
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('sys_file_reference')->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
 
                     $where = [
-                        $queryBuilder->expr()->eq('uid_foreign', self::$databaseEntriesTranslated[$tablename][$id]['uid']),
+                        $queryBuilder->expr()->eq('uid_foreign', $this->databaseEntriesTranslated[$tablename][$id]['uid']),
                     ];
-
-                    // If issue with languages for sys_file_references
-                    if (false) {
-                        $where[] = $queryBuilder->expr()->eq('sys_language_uid', $targetLanguage);
-                    }
 
                     $result2 = $queryBuilder
                         ->select('*')
@@ -1619,7 +1689,7 @@ class DatabaseEntriesService
                     if (!$output) {
                         $defaultLanguageRow['sys_language_uid'] = $targetLanguage;
                         $defaultLanguageRow['l10n_parent'] = $defaultLanguageRow['uid'];
-                        $defaultLanguageRow['uid_foreign'] = self::$databaseEntriesTranslated[$tablename][$id]['uid'];
+                        $defaultLanguageRow['uid_foreign'] = $this->databaseEntriesTranslated[$tablename][$id]['uid'];
                         $defaultLanguageRow['tstamp'] = $defaultLanguageRow['crdate'] = time();
 
                         unset($defaultLanguageRow['uid']);
@@ -1629,7 +1699,7 @@ class DatabaseEntriesService
                             ->insert('sys_file_reference')
                             ->values($defaultLanguageRow)
                             ->executeStatement();
-                        self::$importStats['inserts']++;
+                        $this->importStats['inserts']++;
                     }
                 }
             }
@@ -1637,33 +1707,63 @@ class DatabaseEntriesService
 
     }
 
-    public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
+    /**
+     * Returns the TCA config of a field, respecting a record type specific override.
+     */
+    protected function getEffectiveFieldConfig(string $tablename, string $field, array $row): array
     {
-        $fieldConfig = $GLOBALS['TCA'][$tablename]['columns'][$key]['config'];
-        if (!empty($fieldConfig['ds_pointerField'])) {
-            $pointers = GeneralUtility::trimExplode(',', $fieldConfig['ds_pointerField']);
-            $noneUsed = true;
-            foreach ($pointers as $pointer) {
-                if (!empty($fieldConfig['ds'][$originalRow[$pointer]])) {
-                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds'][$originalRow[$pointer]], $originalRow);
-                    $noneUsed = false;
-                    break;
-                } else if (!empty($fieldConfig['ds']['*,'.$originalRow[$pointer]])) {
-                    $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['*,'.$originalRow[$pointer]], $originalRow);
-                    $noneUsed = false;
-                    break;
-                }
-            }
+        $config = $GLOBALS['TCA'][$tablename]['columns'][$field]['config'] ?? [];
 
-            if ($noneUsed && !empty($fieldConfig['ds']['default'])) {
-                $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fieldConfig['ds']['default'], $originalRow);
-            }
+        $typeField = $GLOBALS['TCA'][$tablename]['ctrl']['type'] ?? '';
+        if (
+            !empty($typeField)
+            && isset($row[$typeField])
+            && !empty($GLOBALS['TCA'][$tablename]['types'][$row[$typeField]]['columnsOverrides'][$field]['config'])
+        ) {
+            $config = array_replace(
+                $config,
+                $GLOBALS['TCA'][$tablename]['types'][$row[$typeField]]['columnsOverrides'][$field]['config']
+            );
         }
+
+        return $config;
     }
 
-    public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $fleformDefinition, $originalRow)
+    public function checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $originalRow)
     {
-        $flexFormArray = GeneralUtility::xml2array($fleformDefinition);
+        // v14 removed "ds_pointerField" and the multi entry "ds" array. The data structure is
+        // therefore resolved through the FlexFormTools API, which picks the right structure for the
+        // record type and also resolves "FILE:" references the previous implementation could not.
+        $fieldTca = ['config' => $this->getEffectiveFieldConfig($tablename, $key, is_array($originalRow) ? $originalRow : [])];
+
+        if (empty($fieldTca['config']['ds'])) {
+            return;
+        }
+
+        try {
+            $identifier = $this->flexFormTools->getDataStructureIdentifier($fieldTca, $tablename, $key, $originalRow);
+            $dataStructure = $this->flexFormTools->parseDataStructureByIdentifier($identifier);
+        } catch (\Throwable $e) {
+            // no resolvable data structure, nothing to post process
+            $this->log('notice', 'Import: flexform data structure could not be resolved', [
+                'table' => $tablename,
+                'field' => $key,
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        $this->checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $dataStructure, $originalRow);
+    }
+
+    /**
+     * @param array $dataStructure already parsed data structure as returned by
+     *                             FlexFormTools::parseDataStructureByIdentifier()
+     */
+    public function checkFlexformInlinedFieldsParseFlexform($targetLanguage, $tablename, $key, $row, $dataStructure, $originalRow)
+    {
+        $flexFormArray = is_array($dataStructure) ? $dataStructure : GeneralUtility::xml2array((string)$dataStructure);
+
         if (!empty($row[$key]['data']) && !empty($flexFormArray)) {
             // Default settings doesn't have sheet, so setup default sheet
             if (!isset($flexFormArray['sheets'])) {
@@ -1700,22 +1800,80 @@ class DatabaseEntriesService
     }
 
     /**
+     * Backend user that is performing the import, null outside a backend context.
+     */
+    protected function getBackendUser(): ?BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'] ?? null;
+    }
+
+    /**
+     * Whether the current user may write the given record.
+     *
+     * The import writes with the query builder instead of the DataHandler, so none of the usual
+     * permission handling applies on its own. Without this check any user who can reach the module
+     * could write every translatable table on every page.
+     *
+     * @param string $tablename
+     * @param int $uid uid of the default language record
+     * @return bool true when there is no backend user at all, for example on the command line
+     */
+    public function mayEditRecord(string $tablename, int $uid): bool
+    {
+        $backendUser = $this->getBackendUser();
+        if (!$backendUser instanceof BackendUserAuthentication) {
+            return true;
+        }
+
+        if ($backendUser->isAdmin()) {
+            return true;
+        }
+
+        if (!$backendUser->check('tables_modify', $tablename)) {
+            return false;
+        }
+
+        $pid = $tablename === 'pages'
+            ? $uid
+            : (int)($this->databaseEntriesOriginal[$tablename][$uid]['pid'] ?? 0);
+
+        if ($pid <= 0) {
+            return false;
+        }
+
+        $page = BackendUtility::getRecord('pages', $pid);
+        if (!is_array($page)) {
+            return false;
+        }
+
+        // editing a page needs the page itself, everything else needs its content
+        $permission = $tablename === 'pages' ? Permission::PAGE_EDIT : Permission::CONTENT_EDIT;
+
+        return $backendUser->doesUserHaveAccess($page, $permission);
+    }
+
+    /**
      * @param $tablename
      * @param $l10nParent
      * @param $row
      */
     public function importIntoTable($tablename, $l10nParent, $row, $targetLanguage)
     {
-        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
-            self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
+        if (empty($this->databaseEntriesOriginal[$tablename][$l10nParent])) {
+            $this->databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
+        }
+
+        if (!$this->mayEditRecord((string)$tablename, (int)$l10nParent)) {
+            $this->importStats['fails']++;
+            $this->importStats['failsMessages'][] = 'No permission to write ' . $tablename . ':' . $l10nParent;
+            return;
         }
 
         // convert felxform array into string
         foreach($row as $key => $value) {
             if (is_array($value)) {
-                $flexFormTools = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools::class);
-                $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
-                $row[$key] = $flexFormTools->flexArray2Xml($row[$key], true);
+                $this->checkFlexformInlinedFields($targetLanguage, $tablename, $key, $row, $this->databaseEntriesOriginal[$tablename][$l10nParent]);
+                $row[$key] = $this->flexFormTools->flexArray2Xml($row[$key], true);
             }
         }
 
@@ -1723,7 +1881,7 @@ class DatabaseEntriesService
 
         // Enforce colPos inheritance for tt_content before update
         if ($tablename === 'tt_content') {
-            $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+            $origColPos = $this->databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
             if ($origColPos !== null) {
                 // Ensure row carries the original colPos (even if 0)
                 $row['colPos'] = (int)$origColPos;
@@ -1734,12 +1892,12 @@ class DatabaseEntriesService
         }
 
         if (!empty($translatedRow)) {
-            $disabledFieldsForUpdate = $this->getFieldsDisabledFromUpdate($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent]);
+            $disabledFieldsForUpdate = $this->getFieldsDisabledFromUpdate($tablename, $this->databaseEntriesOriginal[$tablename][$l10nParent]);
 
             // Only Update row
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
             $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-            if (!self::$onlyDebug) {
+            if (!$this->onlyDebug) {
                 try {
                     $temp = $queryBuilder
                         ->update($tablename)
@@ -1765,7 +1923,7 @@ class DatabaseEntriesService
 
                     // Explicitly set colPos for tt_content regardless of empty() check above
                     if ($tablename === 'tt_content') {
-                        $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+                        $origColPos = $this->databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
                         if ($origColPos !== null) {
                             $temp = $temp->set('colPos', (int)$origColPos);
                         }
@@ -1786,12 +1944,12 @@ class DatabaseEntriesService
                     $rowTemp = $resultTemp->fetchAssociative();
 
                     if ($rowTemp) {
-                        self::$databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
+                        $this->databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
                     }
 
                 } catch (\Exception $e) {
-                    self::$importStats['fails']++;
-                    self::$importStats['failsMessages'][] = $e->getMessage();
+                    $this->importStats['fails']++;
+                    $this->importStats['failsMessages'][] = $e->getMessage();
                     $this->log('error', 'Import: update failed', [
                         'table' => $tablename,
                         'l10nParent' => (int)$l10nParent,
@@ -1801,14 +1959,14 @@ class DatabaseEntriesService
                 }
             }
 
-            self::$importStats['updates']++;
+            $this->importStats['updates']++;
         } else {
             // Import whole data
             $return = $this->insertIntoTable($tablename, $l10nParent, $row, $targetLanguage);
             if ($return) {
-                self::$importStats['inserts']++;
+                $this->importStats['inserts']++;
             } else {
-                self::$importStats['fails']++;
+                $this->importStats['fails']++;
             }
         }
     }
@@ -1824,26 +1982,26 @@ class DatabaseEntriesService
 
         $this->tableSchemes[$tablename] = $columns;
     }
-    
+
     public function insertIntoTable($tablename, $l10nParent, $row, $targetLanguage)
     {
         if (empty($this->tableSchemes[$tablename])) {
             $this->initTableScheme($tablename);
         }
-        
-        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
-            self::$databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
+
+        if (empty($this->databaseEntriesOriginal[$tablename][$l10nParent])) {
+            $this->databaseEntriesOriginal[$tablename][$l10nParent] = $this->getCompleteRow($tablename, $l10nParent);
         }
 
-        if (empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])) {
-            self::$importStats['failsMessages'][] = 'Default language translation doesn\' exists : '.$tablename .':'.$l10nParent;
+        if (empty($this->databaseEntriesOriginal[$tablename][$l10nParent])) {
+            $this->importStats['failsMessages'][] = 'Default language translation doesn\' exists : '.$tablename .':'.$l10nParent;
             return false;
         }
 
         $typeArray = [];
-        $listOfFields = $this->getListOfTranslatableFields($tablename, self::$databaseEntriesOriginal[$tablename][$l10nParent], $typeArray);
+        $listOfFields = $this->getListOfTranslatableFields($tablename, $this->databaseEntriesOriginal[$tablename][$l10nParent], $typeArray);
 
-        foreach (self::$databaseEntriesOriginal[$tablename][$l10nParent] as $key => $parentValue) {
+        foreach ($this->databaseEntriesOriginal[$tablename][$l10nParent] as $key => $parentValue) {
             // internal bookkeeping of getCompleteRow(), not a database column
             if ($key === self::SOURCE_UID_FIELD) {
                 continue;
@@ -1865,7 +2023,7 @@ class DatabaseEntriesService
                         $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'] == 'inline'
                     )
                 ) {
-                    $this->duplicateInlineData($tablename, $l10nParent, $key, self::$databaseEntriesOriginal[$tablename][$l10nParent], $targetLanguage);
+                    $this->duplicateInlineData($tablename, $l10nParent, $key, $this->databaseEntriesOriginal[$tablename][$l10nParent], $targetLanguage);
                 } else {
                     if (
                         $GLOBALS['TCA'][$tablename]['columns'][$key]['config']['type'] == 'select'
@@ -1914,13 +2072,13 @@ class DatabaseEntriesService
             $row[$GLOBALS['TCA'][$tablename]['ctrl']['tstamp']] = time();
         }
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['sortby'])) {
-            $row[$GLOBALS['TCA'][$tablename]['ctrl']['sortby']] = self::$databaseEntriesOriginal[$tablename][$l10nParent][$GLOBALS['TCA'][$tablename]['ctrl']['sortby']];
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['sortby']] = $this->databaseEntriesOriginal[$tablename][$l10nParent][$GLOBALS['TCA'][$tablename]['ctrl']['sortby']];
         }
         if (
             !empty($GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField'])
-            && !empty(self::$databaseEntriesOriginal[$tablename][$l10nParent])
+            && !empty($this->databaseEntriesOriginal[$tablename][$l10nParent])
         ) {
-            $row[$GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField']] = json_encode(self::$databaseEntriesOriginal[$tablename][$l10nParent]);
+            $row[$GLOBALS['TCA'][$tablename]['ctrl']['transOrigDiffSourceField']] = json_encode($this->databaseEntriesOriginal[$tablename][$l10nParent]);
         }
         // Remove edit lock
         if (!empty($GLOBALS['TCA'][$tablename]['ctrl']['editlock'])
@@ -1929,16 +2087,16 @@ class DatabaseEntriesService
             unset($row[$GLOBALS['TCA'][$tablename]['ctrl']['editlock']]);
         }
 
-        $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['pid'];
+        $row['pid'] = $this->databaseEntriesOriginal[$tablename][$l10nParent]['pid'];
 //        if ($tablename == 'pages') {
-//            $row['pid'] = self::$databaseEntriesOriginal[$tablename][$l10nParent]['uid'];
+//            $row['pid'] = $this->databaseEntriesOriginal[$tablename][$l10nParent]['uid'];
 //        }
         $row[$parentUidField] = $l10nParent;
         $row[$langaugeField] = $targetLanguage;
 
         // Enforce colPos inheritance for tt_content before insert
         if ($tablename === 'tt_content') {
-            $origColPos = self::$databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
+            $origColPos = $this->databaseEntriesOriginal[$tablename][$l10nParent]['colPos'] ?? null;
             if ($origColPos !== null) {
                 $row['colPos'] = (int)$origColPos;
             }
@@ -1962,7 +2120,7 @@ class DatabaseEntriesService
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tablename)->createQueryBuilder();
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-        if (!self::$onlyDebug) {
+        if (!$this->onlyDebug) {
             $temp = $queryBuilder
                 ->insert($tablename)
                 ->values(
@@ -1984,7 +2142,7 @@ class DatabaseEntriesService
             $rowTemp = $resultTemp->fetchAssociative();
 
             if ($rowTemp) {
-                self::$databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
+                $this->databaseEntriesTranslated[$tablename][$l10nParent] = $rowTemp;
             }
         }
 
@@ -2078,9 +2236,9 @@ class DatabaseEntriesService
 
                     if (
                         !empty($GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigDiffSourceField'])
-                        && !empty(self::$databaseEntriesOriginal[$foreginTable][$row['uid']])
+                        && !empty($this->databaseEntriesOriginal[$foreginTable][$row['uid']])
                     ) {
-                        $row[$GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigDiffSourceField']] = json_encode(self::$databaseEntriesOriginal[$foreginTable][$row['uid']]);
+                        $row[$GLOBALS['TCA'][$foreginTable]['ctrl']['transOrigDiffSourceField']] = json_encode($this->databaseEntriesOriginal[$foreginTable][$row['uid']]);
                     }
 
                     if ($row['uid']) {
@@ -2090,7 +2248,7 @@ class DatabaseEntriesService
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($foreginTable)->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
 
-                    if (!self::$onlyDebug) {
+                    if (!$this->onlyDebug) {
                         $temp = $queryBuilder
                             ->insert($foreginTable)
                             ->values(
@@ -2176,20 +2334,20 @@ class DatabaseEntriesService
             $rowUid = $tempKeys[1];
             $field = $tempKeys[2];
 
-            if (empty(self::$databaseEntriesOriginal[$parentTableName][$rowUid])) {
-                self::$databaseEntriesOriginal[$parentTableName][$rowUid] = $this->getCompleteRow($parentTableName, $rowUid);
+            if (empty($this->databaseEntriesOriginal[$parentTableName][$rowUid])) {
+                $this->databaseEntriesOriginal[$parentTableName][$rowUid] = $this->getCompleteRow($parentTableName, (int)$rowUid);
             }
 
             // if $tempKeys[3] is numeric, then the items are subitems, otherwise it seems like flexform
             if ((int) $tempKeys[3] == 0) {
                 if (empty($return[$parentTableName][$rowUid][$field])) {
-                    $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesOriginal[$parentTableName][$rowUid][$field]));
+                    $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval($this->databaseEntriesOriginal[$parentTableName][$rowUid][$field]));
 
-                    if (empty(self::$databaseEntriesTranslated[$parentTableName][$rowUid])) {
-                        self::$databaseEntriesTranslated[$parentTableName][$rowUid] = $this->getTranslatedCompleteRow($parentTableName, $rowUid, $targetLanguage);
+                    if (empty($this->databaseEntriesTranslated[$parentTableName][$rowUid])) {
+                        $this->databaseEntriesTranslated[$parentTableName][$rowUid] = $this->getTranslatedCompleteRow($parentTableName, $rowUid, $targetLanguage);
 
-                        if (!empty(self::$databaseEntriesTranslated[$parentTableName][$rowUid])){
-                            $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval(self::$databaseEntriesTranslated[$parentTableName][$rowUid][$field]));
+                        if (!empty($this->databaseEntriesTranslated[$parentTableName][$rowUid])){
+                            $return[$parentTableName][$rowUid][$field] = GeneralUtility::xml2array(strval($this->databaseEntriesTranslated[$parentTableName][$rowUid][$field]));
                         }
                     }
                 }
@@ -2220,7 +2378,7 @@ class DatabaseEntriesService
 
                 $uidOfChild = $tempKeys[3];
 
-                $row = self::$databaseEntriesOriginal[$parentTableName][$rowUid];
+                $row = $this->databaseEntriesOriginal[$parentTableName][$rowUid];
                 if ($row) {
                     switch ($GLOBALS['TCA'][$parentTableName]['columns'][$field]['config']['type']) {
                         case 'file':
