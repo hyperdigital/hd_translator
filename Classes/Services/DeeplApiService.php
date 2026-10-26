@@ -490,22 +490,147 @@ class DeeplApiService
         return $return;
     }
 
-    public function getAllTranslationsForLanguage($language)
+    /**
+     * Number of strings a page of the list holds. Thousands of rows in one html table is what
+     * these screens used to render.
+     */
+    public const PAGE_SIZE = 100;
+
+    /**
+     * One page of the translations of a language, newest first.
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
+     */
+    public function getTranslationsForLanguage(string $language, int $page = 1, string $search = ''): array
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_translation')->createQueryBuilder();
+        return $this->page(
+            static function ($queryBuilder) use ($language, $search) {
+                $queryBuilder->where(
+                    $queryBuilder->expr()->eq('target_language', $queryBuilder->createNamedParameter($language))
+                );
+                if ($search !== '') {
+                    $like = $queryBuilder->createNamedParameter('%' . $queryBuilder->escapeLikeWildcards($search) . '%');
+                    $queryBuilder->andWhere(
+                        $queryBuilder->expr()->or(
+                            $queryBuilder->expr()->like('original_source', $like),
+                            $queryBuilder->expr()->like('translation', $like)
+                        )
+                    );
+                }
+            },
+            $page
+        );
+    }
 
-        $existingTranslations = $queryBuilder
-            ->select('*')
+    /**
+     * One page of the distinct source texts.
+     *
+     * This used to be "SELECT DISTINCT *", which with the uid in the row is distinct by
+     * definition: every row came back, so the same source appeared once per language.
+     *
+     * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
+     */
+    public function getUniqueOriginals(int $page = 1, string $search = ''): array
+    {
+        $apply = static function ($queryBuilder) use ($search) {
+            if ($search !== '') {
+                $queryBuilder->where(
+                    $queryBuilder->expr()->like(
+                        'original_source',
+                        $queryBuilder->createNamedParameter('%' . $queryBuilder->escapeLikeWildcards($search) . '%')
+                    )
+                );
+            }
+        };
+
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_translation');
+
+        $count = $connection->createQueryBuilder();
+        $apply($count);
+        $total = (int)$count
+            ->selectLiteral('COUNT(DISTINCT ' . $count->quoteIdentifier('original_source') . ')')
             ->from('tx_hdtranslator_ai_translation')
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'target_language',
-                    $queryBuilder->createNamedParameter($language)
-                )
-            )
-            ->executeQuery()->fetchAllAssociative();
+            ->executeQuery()
+            ->fetchOne();
 
-        return $existingTranslations;
+        $queryBuilder = $connection->createQueryBuilder();
+        $apply($queryBuilder);
+        $rows = $queryBuilder
+            ->selectLiteral(
+                'MIN(' . $queryBuilder->quoteIdentifier('uid') . ') AS uid',
+                $queryBuilder->quoteIdentifier('original_source'),
+                'COUNT(*) AS languages'
+            )
+            ->from('tx_hdtranslator_ai_translation')
+            ->groupBy('original_source')
+            ->orderBy('original_source')
+            ->setFirstResult($this->offsetOf($page, $total))
+            ->setMaxResults(self::PAGE_SIZE)
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        return $this->pageResult($rows, $total, $page);
+    }
+
+    /**
+     * @param callable $apply adds the conditions to a query builder
+     * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
+     */
+    protected function page(callable $apply, int $page): array
+    {
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_translation');
+
+        $count = $connection->createQueryBuilder();
+        $count->count('uid')->from('tx_hdtranslator_ai_translation');
+        $apply($count);
+        $total = (int)$count->executeQuery()->fetchOne();
+
+        $queryBuilder = $connection->createQueryBuilder();
+        $queryBuilder->select('*')->from('tx_hdtranslator_ai_translation');
+        $apply($queryBuilder);
+
+        $rows = $queryBuilder
+            ->orderBy('uid', 'DESC')
+            ->setFirstResult($this->offsetOf($page, $total))
+            ->setMaxResults(self::PAGE_SIZE)
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        return $this->pageResult($rows, $total, $page);
+    }
+
+    protected function offsetOf(int $page, int $total): int
+    {
+        $pages = max((int)ceil($total / self::PAGE_SIZE), 1);
+
+        return (min(max($page, 1), $pages) - 1) * self::PAGE_SIZE;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
+     */
+    protected function pageResult(array $rows, int $total, int $page): array
+    {
+        $pages = max((int)ceil($total / self::PAGE_SIZE), 1);
+
+        $current = min(max($page, 1), $pages);
+
+        // a window around the current page, so a list of hundreds of pages stays a pager
+        $numbers = [];
+        foreach (range(max($current - 3, 1), min($current + 3, $pages)) as $number) {
+            $numbers[] = $number;
+        }
+
+        return [
+            'rows' => $rows,
+            'total' => $total,
+            'page' => $current,
+            'pages' => $pages,
+            'numbers' => $numbers,
+            'previous' => $current > 1 ? $current - 1 : 0,
+            'next' => $current < $pages ? $current + 1 : 0,
+        ];
     }
 
     public function getTranslationByUid($uid)
@@ -544,18 +669,6 @@ class DeeplApiService
         return $existingTranslations;
     }
 
-    public function getUniqueOriginals()
-    {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('tx_hdtranslator_ai_translation')->createQueryBuilder();
-
-        $existingTranslations = $queryBuilder
-            ->select('*')
-            ->distinct()
-            ->from('tx_hdtranslator_ai_translation')
-            ->executeQuery()->fetchAllAssociative();
-
-        return $existingTranslations;
-    }
 
     public function removeAllTranslations($language)
     {

@@ -207,3 +207,12 @@
 .form-select.hd-form-select{
 	background-color: var(--bs-btn-bg);
 }
+
+/* ------------------------------------------------------------- pagination */
+.hd-translator-pagination {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    flex-wrap: wrap;
+    margin-block: .75rem;
+}

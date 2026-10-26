@@ -207,6 +207,27 @@
             <trans-unit id="deepl.index.statistics.disabled">
                 <source>Counting how many people ask for a translation is switched off in the extension configuration.</source>
             </trans-unit>
+            <trans-unit id="list.search">
+                <source>Search</source>
+            </trans-unit>
+            <trans-unit id="list.search.submit">
+                <source>Search</source>
+            </trans-unit>
+            <trans-unit id="list.total">
+                <source>%s entries</source>
+            </trans-unit>
+            <trans-unit id="list.pages">
+                <source>Pages</source>
+            </trans-unit>
+            <trans-unit id="list.pageOf">
+                <source>Page %s of %s</source>
+            </trans-unit>
+            <trans-unit id="export.nothing">
+                <source>Nothing was exported</source>
+            </trans-unit>
+            <trans-unit id="export.nothing.description">
+                <source>No record of the selected tables was found on the selected pages.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

@@ -14,6 +14,8 @@
         </f:else>
         <f:then>
             <h1><f:translate key="LLL:EXT:hd_translator/Resources/Private/Language/locallang.xlf:deepl.originalSources.headline" /></h1>
+            <f:render partial="Module/ListPagination" arguments="{action: 'deeplOriginalSources', language: '', search: search, pagination: pagination}" />
+
             <table class="table table-hover">
                 {f:variable(name: 'currentUri', value: '')}
                 <tbody>
@@ -26,6 +28,8 @@
                 </f:for>
                 </tbody>
             </table>
+
+            <f:render partial="Module/ListPagination" arguments="{action: 'deeplOriginalSources', language: '', search: search, pagination: pagination}" />
         </f:then>
     </f:if>
 </f:section>
