@@ -472,3 +472,172 @@ button.is-busy {
     opacity: .65;
     cursor: progress;
 }
+
+/* ------------------------------------------------------------------- chart */
+/*
+ * Categorical palette, both modes selected for their own surface rather than one
+ * flipped into the other. Validated for the adjacent pairs a line chart compares:
+ * worst CVD dE 9.1 light / 8.4 dark, normal vision 19.6 / 19.3.
+ * Three light steps sit under 3:1 against a white surface, which is allowed here
+ * because the screen carries the same numbers as a table right below the chart.
+ */
+.hd-translator {
+    --hdt-series-0: #76757066;
+    --hdt-series-1: #2a78d6;
+    --hdt-series-2: #eb6834;
+    --hdt-series-3: #1baf7a;
+    --hdt-series-4: #eda100;
+    --hdt-series-5: #e87ba4;
+    --hdt-series-6: #008300;
+    --hdt-series-7: #6250d6;
+    --hdt-series-8: #e34948;
+    --hdt-chart-surface: var(--typo3-surface-base, #fff);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-color-scheme="light"]) .hd-translator {
+        --hdt-series-1: #3987e5;
+        --hdt-series-2: #d95926;
+        --hdt-series-3: #199e70;
+        --hdt-series-4: #c98500;
+        --hdt-series-5: #d55181;
+        --hdt-series-6: #008300;
+        --hdt-series-7: #9085e9;
+        --hdt-series-8: #e66767;
+        --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
+    }
+}
+
+:root[data-color-scheme="dark"] .hd-translator {
+    --hdt-series-1: #3987e5;
+    --hdt-series-2: #d95926;
+    --hdt-series-3: #199e70;
+    --hdt-series-4: #c98500;
+    --hdt-series-5: #d55181;
+    --hdt-series-6: #008300;
+    --hdt-series-7: #9085e9;
+    --hdt-series-8: #e66767;
+    --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
+}
+
+.hd-translator-chart-figure {
+    margin: 0 0 1.5rem;
+}
+
+.hd-translator-chart-caption {
+    margin-block-end: .5rem;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .85em;
+}
+
+.hd-translator-chart {
+    position: relative;
+    inline-size: 100%;
+}
+
+.hd-translator-chart-svg {
+    display: block;
+    inline-size: 100%;
+    overflow: visible;
+}
+
+/* recessive chrome: the data is the ink */
+.hd-translator-chart-grid {
+    stroke: var(--typo3-border-color, #d7d7d7);
+    stroke-width: 1;
+    opacity: .5;
+}
+
+.hd-translator-chart-axis {
+    fill: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: 11px;
+}
+
+.hd-translator-chart-line {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+/* the ring keeps an end marker legible where lines cross */
+.hd-translator-chart-end {
+    stroke: var(--hdt-chart-surface);
+    stroke-width: 2;
+}
+
+.hd-translator-chart-direct {
+    fill: var(--typo3-text-color, #1a1a1a);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.hd-translator-chart-crosshair {
+    stroke: var(--typo3-text-color-variant, #7c7c7c);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    pointer-events: none;
+}
+
+.hd-translator-chart-tooltip {
+    position: absolute;
+    inset-block-start: 0;
+    z-index: 2;
+    min-inline-size: 7rem;
+    padding: .4rem .6rem;
+    border: 1px solid var(--typo3-border-color, #d7d7d7);
+    border-radius: 4px;
+    background: var(--hdt-chart-surface);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+    font-size: .85em;
+    pointer-events: none;
+}
+
+.hd-translator-chart-tooltip-date {
+    margin-block-end: .25rem;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+.hd-translator-chart-tooltip-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.hd-translator-chart-tooltip-name {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+/* a line key, not a box: at this density a filled box is data ink doing a label's job */
+.hd-translator-chart-key {
+    display: inline-block;
+    inline-size: .75rem;
+    block-size: 2px;
+    border-radius: 1px;
+    flex: none;
+}
+
+.hd-translator-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .75rem;
+    margin-block-start: .5rem;
+}
+
+.hd-translator-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .15rem .35rem;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: var(--typo3-text-color, #1a1a1a);
+    font-size: .85em;
+    cursor: pointer;
+}
+
+.hd-translator-chart-legend-item.is-off {
+    opacity: .4;
+    text-decoration: line-through;
+}

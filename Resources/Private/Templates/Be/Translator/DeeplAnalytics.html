@@ -15,6 +15,39 @@
 			<f:then>
 				<f:if condition="{rows}">
 					<f:then>
+						<f:comment>
+							Date range first, in one row above the chart: it is the filter every
+							reader reaches for.
+						</f:comment>
+						<div class="hd-translator-toolbar">
+							<div class="hd-translator-toolbar-actions" role="group"
+							     aria-label="{f:translate(key: 'deepl.analytics.range')}">
+								<f:for each="{ranges}" as="option">
+									<f:if condition="{option} == {range}">
+										<f:then>
+											<span class="btn btn-primary btn-sm"><f:translate key="deepl.analytics.range.days" arguments="{0: option}" /></span>
+										</f:then>
+										<f:else>
+											<f:link.action class="btn btn-default btn-sm" action="deeplAnalytics" arguments="{range: option}">
+												<f:translate key="deepl.analytics.range.days" arguments="{0: option}" />
+											</f:link.action>
+										</f:else>
+									</f:if>
+								</f:for>
+							</div>
+						</div>
+
+						<figure class="hd-translator-chart-figure">
+							<figcaption class="hd-translator-chart-caption">
+								<f:translate key="deepl.analytics.chart.caption" arguments="{0: range}" />
+							</figcaption>
+							<div id="hd-translator-chart" class="hd-translator-chart"></div>
+							<div id="hd-translator-chart-legend" class="hd-translator-chart-legend"></div>
+						</figure>
+
+						<script type="application/json" id="hd-translator-chart-data">{chart -> f:format.raw()}</script>
+						<f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
+
 						<div class="table-fit">
 							<f:comment>Sorted by the last thirty days; every header sorts.</f:comment>
 							<table class="table table-striped table-hover hd-translator-sortable">

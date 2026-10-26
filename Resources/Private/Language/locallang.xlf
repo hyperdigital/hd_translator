@@ -561,6 +561,15 @@
             <trans-unit id="form.export.busy">
                 <source>Preparing the export…</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.range">
+                <source>Time range</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.range.days">
+                <source>%s days</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.chart.caption">
+                <source>Unique visitors per day over the last %s days. Click a language to hide it.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
