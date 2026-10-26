@@ -36,6 +36,12 @@
             <trans-unit id="deeplApiKey">
                 <source>Deepl api key for AI translations</source>
             </trans-unit>
+            <trans-unit id="aiRequestStatistics">
+                <source>Count how many people ask for an AI translation (anonymous, per language and day)</source>
+            </trans-unit>
+            <trans-unit id="aiRequestStatisticsRetention">
+                <source>Keep those counts for how many days</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
