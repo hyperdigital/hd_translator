@@ -67,13 +67,13 @@
                                 <td data-value="{row.week}">{row.week}</td>
                                 <td data-value="{row.month}"><strong>{row.month}</strong></td>
                                 <td data-value="{row.trend}">
-                                    <f:if condition="{row.trend} === NULL">
-                                        <f:then><f:translate key="deepl.analytics.trend.new" /></f:then>
-                                        <f:else>
+                                    <f:if condition="{row.trendKnown}">
+                                        <f:then>
                                             <span class="hd-translator-trend{f:if(condition: '{row.trend} > 0', then: ' is-up')}{f:if(condition: '{row.trend} < 0', then: ' is-down')}">
                                                 <f:if condition="{row.trend} > 0">+</f:if>{row.trend}&nbsp;%
                                             </span>
-                                        </f:else>
+                                        </f:then>
+                                        <f:else><f:translate key="deepl.analytics.trend.new" /></f:else>
                                     </f:if>
                                 </td>
                                 <td data-value="{row.total}">{row.total}</td>
