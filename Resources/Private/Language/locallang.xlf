@@ -483,6 +483,30 @@
             <trans-unit id="detail.live">
                 <source>Shown instead</source>
             </trans-unit>
+            <trans-unit id="deepl.index.table.visitors">
+                <source>People asking for it</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.table.visitors.today">
+                <source>Today</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.table.visitors.week">
+                <source>7 days</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.table.visitors.month">
+                <source>30 days</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.table.visitors.total">
+                <source>Total</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.table.requests">
+                <source>Requests (30 days)</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.statistics.hint">
+                <source>Counted per language and day from an anonymous hash that changes every day. No address is stored. Kept for %s days.</source>
+            </trans-unit>
+            <trans-unit id="deepl.index.statistics.disabled">
+                <source>Counting how many people ask for a translation is switched off in the extension configuration.</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>
