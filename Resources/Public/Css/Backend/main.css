@@ -209,7 +209,7 @@
 }
 
 .hd-translator-stat-danger .hd-translator-stat-value {
-    color: var(--typo3-color-danger, light-dark(#c83c3c, #e86a6a));
+    color: var(--typo3-color-danger, light-dark(#c03636, #ec7777));
 }
 
 .hd-translator-stat-warning .hd-translator-stat-value {
@@ -450,13 +450,16 @@
 .hd-translator-sortable-header.is-sorted-desc::after { content: '\2193'; opacity: 1; }
 
 /*
- * One hex cannot serve both backend themes, and neither 13 nor 14 defines these tokens,
- * so the fallback is what renders: the green read 2.64:1 on the light surface and the red
- * 3.56:1 on the dark one. The coverage bar fills above keep a single hex - a fill answers
- * to the non-text threshold and carries its own label.
+ * One hex cannot serve both backend themes, and neither 13 nor 14 defines these tokens, so
+ * the fallback is what renders. The surfaces differ between majors too - typo3 14 is darker
+ * in light mode (#ececee against #f5f5f5) and lighter in dark mode (#272630 against
+ * #171717) - so a value measured on 13 alone is not safe: the falling red read 4.62:1 there
+ * and 4.27:1 on a 14 backend. These four clear 4.5:1 on all four surfaces, the tightest
+ * being 4.66:1. The coverage bar fills above keep a single hex - a fill answers to the
+ * non-text threshold and carries its own label.
  */
-.hd-translator-trend.is-up { color: var(--typo3-color-success, light-dark(#4f6e2b, #79a548)); font-weight: 600; }
-.hd-translator-trend.is-down { color: var(--typo3-color-danger, light-dark(#c83c3c, #e86a6a)); }
+.hd-translator-trend.is-up { color: var(--typo3-color-success, light-dark(#4f6e2b, #84b350)); font-weight: 600; }
+.hd-translator-trend.is-down { color: var(--typo3-color-danger, light-dark(#c03636, #ec7777)); }
 
 /* ------------------------------------------------- unsaved changes, busy ui */
 .hd-translator-has-changes .t3js-module-docheader [data-action="save"] {
