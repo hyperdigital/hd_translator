@@ -576,6 +576,42 @@
             <trans-unit id="deepl.analytics.chart.caption">
                 <source>Unique visitors per day over the last %s days. Click a language to hide it.</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.concentration">
+                <source>of the demand of %s languages sits on the busiest three</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekdays">
+                <source>Which days the asking happens on</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.1">
+                <source>Mon</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.2">
+                <source>Tue</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.3">
+                <source>Wed</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.4">
+                <source>Thu</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.5">
+                <source>Fri</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.6">
+                <source>Sat</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.weekday.7">
+                <source>Sun</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.pages">
+                <source>Where the asking happens</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.pages.description">
+                <source>The pages a translation was requested on, busiest first. Counted per request, not per visitor, and only the path is kept - never a query.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.characters">
+                <source>Characters translated</source>
+            </trans-unit>
         </body>
     </file>
 </xliff>

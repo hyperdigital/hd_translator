@@ -647,3 +647,81 @@ button.is-busy {
     opacity: .4;
     text-decoration: line-through;
 }
+
+/* ----------------------------------------------------------------- insights */
+.hd-translator-insights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end;
+    margin-block-end: 1.5rem;
+}
+
+.hd-translator-insight-value {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: light-dark(#1a1a1a, #d9d9d9);
+}
+
+.hd-translator-insight-label {
+    margin-block-start: .25rem;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .85em;
+}
+
+/* the bars carry the shape; the number is in the title, the axis would be noise */
+.hd-translator-weekdays {
+    display: flex;
+    align-items: flex-end;
+    gap: .35rem;
+    block-size: 3rem;
+}
+
+.hd-translator-weekday {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    inline-size: 2.25rem;
+    block-size: 100%;
+}
+
+.hd-translator-weekday-bar {
+    /* without this the column flex stretches every bar to the same height and the
+       percentage the template sets counts for nothing */
+    flex: none;
+    inline-size: 100%;
+    min-block-size: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--hdt-series-1, #2a78d6);
+}
+
+.hd-translator-weekday-name {
+    margin-block-start: .25rem;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .75em;
+}
+
+.hd-translator-pages {
+    margin-block-end: 1.5rem;
+}
+
+.hd-translator-pagegroup {
+    display: inline-block;
+    vertical-align: top;
+    min-inline-size: 16rem;
+    margin-inline-end: 2rem;
+    margin-block-end: .75rem;
+}
+
+.hd-translator-pagegroup ul {
+    margin: .25rem 0 0;
+    padding-inline-start: 0;
+    list-style: none;
+    font-size: .9em;
+}
+
+.hd-translator-pagegroup li {
+    padding-block: .1rem;
+}

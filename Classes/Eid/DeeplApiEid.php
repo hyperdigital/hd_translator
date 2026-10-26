@@ -103,8 +103,9 @@ class DeeplApiEid
 
         // Counted here rather than in the service: this is the entry point a frontend goes
         // through, and it stays counted even where a project replaces the service with its own.
-        GeneralUtility::makeInstance(AiRequestStatisticsService::class)
-            ->record($request, $targetLanguage);
+        $statistics = GeneralUtility::makeInstance(AiRequestStatisticsService::class);
+        $statistics->record($request, $targetLanguage);
+        $statistics->recordPage($request, $targetLanguage);
 
         try {
             $translations = $deeplApiService->translateTexts($texts, $targetLanguage);

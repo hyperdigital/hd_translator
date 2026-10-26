@@ -2099,6 +2099,8 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
         $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
         $statistics = $statisticsService->getStatisticsByLanguage();
+        // what each language has cost in characters, which is what DeepL charges by
+        $volume = $statisticsService->getVolumeByLanguage();
 
         // languages that already exist as a real language of a site need no deciding about
         $configured = [];
@@ -2132,6 +2134,7 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 // fluid has no identity operator, so whether a trend exists is decided here
                 'trendKnown' => $row['trend'] !== null,
                 'translations' => $cached[$code]['translations'] ?? 0,
+                'characters' => $volume[$code]['characters'] ?? 0,
                 'configured' => isset($configured[strtoupper(substr($code, 0, 2))]),
             ];
         }
@@ -2158,6 +2161,10 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 $statisticsService->getDailySeries($range) + ['order' => $palette],
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             ),
+            'weekdays' => $statisticsService->getWeekdayProfile($range),
+            'concentration' => $statisticsService->getConcentration($statistics),
+            'topPages' => $statisticsService->getTopPages($range),
+            'history' => $statisticsService->getMonthlyHistory(),
         ]);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplAnalytics');
