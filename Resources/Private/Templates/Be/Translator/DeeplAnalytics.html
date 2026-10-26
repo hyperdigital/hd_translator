@@ -1,0 +1,72 @@
+<html
+        xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+        xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+        data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
+    <f:asset.script identifier="hd_translator_sortable" src="EXT:hd_translator/Resources/Public/JavaScript/SortableTable.js" />
+
+    <h1><f:translate key="deepl.analytics.headline" /></h1>
+    <p><f:translate key="deepl.analytics.description" /></p>
+
+    <f:if condition="{statisticsEnabled}">
+        <f:then>
+            <f:if condition="{rows}">
+                <f:then>
+                    <table class="table table-hover hd-translator-sortable">
+                        <thead>
+                        <tr>
+                            <th data-sort="text"><f:translate key="deepl.index.table.languages" /></th>
+                            <th data-sort="number"><f:translate key="deepl.index.table.visitors.today" /></th>
+                            <th data-sort="number"><f:translate key="deepl.index.table.visitors.week" /></th>
+                            <th data-sort="number" data-sort-default="desc"><f:translate key="deepl.index.table.visitors.month" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.trend" /></th>
+                            <th data-sort="number"><f:translate key="deepl.index.table.visitors.total" /></th>
+                            <th data-sort="number"><f:translate key="deepl.index.table.translation_count" /></th>
+                            <th data-sort="text"><f:translate key="deepl.analytics.asPages" /></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <f:for each="{rows}" as="row">
+                            <tr>
+                                <td><strong>{row.name}</strong> [{row.language}]</td>
+                                <td data-value="{row.today}">{row.today}</td>
+                                <td data-value="{row.week}">{row.week}</td>
+                                <td data-value="{row.month}"><strong>{row.month}</strong></td>
+                                <td data-value="{row.trend}">
+                                    <f:if condition="{row.trend} === NULL">
+                                        <f:then><f:translate key="deepl.analytics.trend.new" /></f:then>
+                                        <f:else>
+                                            <span class="hd-translator-trend{f:if(condition: '{row.trend} > 0', then: ' is-up')}{f:if(condition: '{row.trend} < 0', then: ' is-down')}">
+                                                <f:if condition="{row.trend} > 0">+</f:if>{row.trend}&nbsp;%
+                                            </span>
+                                        </f:else>
+                                    </f:if>
+                                </td>
+                                <td data-value="{row.total}">{row.total}</td>
+                                <td data-value="{row.translations}">{row.translations}</td>
+                                <td data-value="{f:if(condition: row.configured, then: '1', else: '0')}">
+                                    <f:if condition="{row.configured}">
+                                        <f:then><f:translate key="deepl.analytics.asPages.yes" /></f:then>
+                                        <f:else><f:translate key="deepl.analytics.asPages.no" /></f:else>
+                                    </f:if>
+                                </td>
+                            </tr>
+                        </f:for>
+                        </tbody>
+                    </table>
+
+                    <p><f:translate key="deepl.index.statistics.hint" arguments="{0: retentionDays}" /></p>
+                </f:then>
+                <f:else>
+                    <p><f:translate key="deepl.analytics.empty" /></p>
+                </f:else>
+            </f:if>
+        </f:then>
+        <f:else>
+            <p><f:translate key="deepl.index.statistics.disabled" /></p>
+        </f:else>
+    </f:if>
+</f:section>
+</html>

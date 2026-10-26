@@ -35,6 +35,7 @@ return [
                 'databaseImportIndex',
                 'databaseImportAction',
                 'deeplTranslationsList',
+                'deeplAnalytics',
                 'deeplSyncLanguages',
                 'deeplTranslationLanguage',
                 'deeplShowTranslationsOfOriginal',

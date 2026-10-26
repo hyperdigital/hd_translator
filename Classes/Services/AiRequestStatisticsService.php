@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace Hyperdigital\HdTranslator\Services;
 
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -19,10 +19,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * italian speaking visitor who used the translation from one who did not. That number is what
  * decides whether a language is worth maintaining as real pages.
  *
- * What is stored is one row per language, per day, per visitor, and the visitor is a hash that
- * cannot be traced back to anybody: it is keyed with the installation's encryption key *and the
- * day*, so once the day is over the same person hashes differently and the old hash matches
- * nothing. No address and no user agent is written anywhere.
+ * One row is one visitor asking for one language on one day, and nothing else: no counters, no
+ * timestamps. The row *is* its primary key, so InnoDB stores it once instead of storing a row and
+ * a separate index pointing at it.
+ *
+ * The visitor is a hash that cannot be traced back to anybody: it is keyed with the installation's
+ * encryption key *and the day*, so once the day is over the same person hashes differently and the
+ * old hash matches nothing. No address and no user agent is written anywhere.
  */
 class AiRequestStatisticsService
 {
@@ -31,9 +34,22 @@ class AiRequestStatisticsService
     protected const DEFAULT_RETENTION_DAYS = 365;
 
     /**
-     * Windows the overview reports on, in days. 0 means everything that is still kept.
+     * Sixteen hex characters are 64 bits. Two visitors of the same language on the same day
+     * colliding is of the order of 10^-11 even at twenty thousand a day, and the whole point of
+     * the value is to be forgotten tomorrow.
+     */
+    protected const HASH_LENGTH = 16;
+
+    /**
+     * Windows the screens report on, in days. 0 means everything that is still kept.
      */
     public const WINDOWS = ['today' => 1, 'week' => 7, 'month' => 30, 'total' => 0];
+
+    /**
+     * Marks that the old rows were already dropped today, so it happens once a day rather than
+     * on every request or only when somebody opens the screen.
+     */
+    protected const PRUNE_MARKER = 'hdtranslator-pruned';
 
     public function isEnabled(): bool
     {
@@ -44,8 +60,6 @@ class AiRequestStatisticsService
             return true;
         }
 
-        // not configured yet means on: the counting is the point of the feature and what it
-        // writes is anonymous, switching it off is a deliberate choice
         return $configuration === null || $configuration === '' || (bool)$configuration;
     }
 
@@ -65,93 +79,70 @@ class AiRequestStatisticsService
      * Notes that somebody asked for this language today. Never throws: a translation must not
      * fail because a counter could not be written.
      */
-    public function record(ServerRequestInterface $request, string $targetLanguage, int $strings): void
+    public function record(ServerRequestInterface $request, string $targetLanguage): void
     {
         if (!$this->isEnabled() || $targetLanguage === '') {
             return;
         }
 
         try {
-            $this->countVisit($this->visitorHash($request), $targetLanguage, max($strings, 0));
+            GeneralUtility::makeInstance(ConnectionPool::class)
+                ->getConnectionForTable(self::TABLE)
+                ->insert(self::TABLE, [
+                    'target_language' => $targetLanguage,
+                    'day' => $this->today(),
+                    'visitor' => $this->visitorHash($request),
+                ]);
         } catch (\Throwable $e) {
-            GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)
-                ->getLogger(__CLASS__)
-                ->warning('Could not record the AI translation request: ' . $e->getMessage());
-        }
-    }
-
-    protected function countVisit(string $visitor, string $targetLanguage, int $strings): void
-    {
-        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable(self::TABLE);
-        $identity = ['target_language' => $targetLanguage, 'day' => $this->today(), 'visitor' => $visitor];
-
-        if ($this->increase($connection, $identity, $strings) > 0) {
-            return;
+            // The same visitor asking again the same day is the normal case and lands on the
+            // primary key; anything else is a counter that could not be written, which is not
+            // worth failing a translation over either.
         }
 
-        try {
-            $connection->insert(self::TABLE, $identity + [
-                'requests' => 1,
-                'strings' => $strings,
-                'crdate' => $GLOBALS['EXEC_TIME'] ?? time(),
-            ]);
-        } catch (UniqueConstraintViolationException $e) {
-            // another request of the same visitor got there first
-            $this->increase($connection, $identity, $strings);
-        }
-    }
-
-    protected function increase(Connection $connection, array $identity, int $strings): int
-    {
-        $table = $connection->quoteIdentifier(self::TABLE);
-        $where = [];
-        $parameters = [];
-        foreach ($identity as $column => $value) {
-            $where[] = $connection->quoteIdentifier($column) . ' = ?';
-            $parameters[] = $value;
-        }
-
-        return (int)$connection->executeStatement(
-            'UPDATE ' . $table . ' SET '
-            . $connection->quoteIdentifier('requests') . ' = ' . $connection->quoteIdentifier('requests') . ' + 1, '
-            . $connection->quoteIdentifier('strings') . ' = ' . $connection->quoteIdentifier('strings') . ' + ? '
-            . 'WHERE ' . implode(' AND ', $where),
-            array_merge([$strings], $parameters)
-        );
+        $this->pruneOncePerDay();
     }
 
     /**
-     * Unique visitors and request counts per language, for every window of WINDOWS.
+     * Unique visitors per language, for every window of WINDOWS, plus the window before the last
+     * thirty days so the screen can say whether a language is gaining or losing interest.
      *
-     * @return array<string, array{today: int, week: int, month: int, total: int, requests: int, strings: int}>
+     * @return array<string, array{today: int, week: int, month: int, total: int, previous: int, trend: int|null}>
      */
     public function getStatisticsByLanguage(): array
     {
         $return = [];
 
         foreach (self::WINDOWS as $window => $days) {
-            foreach ($this->countVisitors($days) as $language => $visitors) {
+            foreach ($this->countVisitors($this->firstDayOf($days), $days > 0 ? null : null) as $language => $visitors) {
                 $return[$language][$window] = $visitors;
             }
         }
 
-        foreach ($this->sumRequests(self::WINDOWS['month']) as $language => $sums) {
-            $return[$language]['requests'] = $sums['requests'];
-            $return[$language]['strings'] = $sums['strings'];
+        // the thirty days before the last thirty, for the trend
+        foreach ($this->countVisitors($this->firstDayOf(60), $this->firstDayOf(31)) as $language => $visitors) {
+            $return[$language]['previous'] = $visitors;
         }
 
-        // a language nobody asked for still has to appear with zeroes
         foreach ($return as $language => $row) {
-            $return[$language] = $row + array_fill_keys(array_keys(self::WINDOWS), 0) + ['requests' => 0, 'strings' => 0];
+            $row += array_fill_keys(array_keys(self::WINDOWS), 0) + ['previous' => 0];
+
+            // a language nobody asked for before cannot have a percentage, it is simply new
+            $row['trend'] = $row['previous'] > 0
+                ? (int)round(($row['month'] - $row['previous']) / $row['previous'] * 100)
+                : null;
+
+            $return[$language] = $row;
         }
 
         return $return;
     }
 
     /**
+     * @param int $from first day of the window, as a Ymd integer
+     * @param int|null $to last day of the window, null for "up to today"
      * @return array<string, int> language => unique visitors
      */
-    protected function countVisitors(int $days): array
+    protected function countVisitors(int $from, ?int $to = null): array
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
         $queryBuilder
@@ -160,11 +151,12 @@ class AiRequestStatisticsService
                 'COUNT(DISTINCT ' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
             )
             ->from(self::TABLE)
+            ->where($queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($from, Connection::PARAM_INT)))
             ->groupBy('target_language');
 
-        if ($days > 0) {
-            $queryBuilder->where(
-                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+        if ($to !== null) {
+            $queryBuilder->andWhere(
+                $queryBuilder->expr()->lte('day', $queryBuilder->createNamedParameter($to, Connection::PARAM_INT))
             );
         }
 
@@ -177,40 +169,26 @@ class AiRequestStatisticsService
     }
 
     /**
-     * @return array<string, array{requests: int, strings: int}>
+     * Drops what is older than the retention, at most once a day.
+     *
+     * It used to happen only when somebody opened the overview, so on an installation where
+     * nobody ever does the table grew without end.
      */
-    protected function sumRequests(int $days): array
+    public function pruneOncePerDay(): void
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
-        $rows = $queryBuilder
-            ->selectLiteral(
-                $queryBuilder->quoteIdentifier('target_language'),
-                'SUM(' . $queryBuilder->quoteIdentifier('requests') . ') AS requests',
-                'SUM(' . $queryBuilder->quoteIdentifier('strings') . ') AS strings'
-            )
-            ->from(self::TABLE)
-            ->where(
-                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
-            )
-            ->groupBy('target_language')
-            ->executeQuery()
-            ->fetchAllAssociative();
+        try {
+            $cache = GeneralUtility::makeInstance(CacheManager::class)->getCache(RequestThrottleService::CACHE);
+            if ((int)($cache->get(self::PRUNE_MARKER) ?: 0) === $this->today()) {
+                return;
+            }
 
-        $return = [];
-        foreach ($rows as $row) {
-            $return[(string)$row['target_language']] = [
-                'requests' => (int)$row['requests'],
-                'strings' => (int)$row['strings'],
-            ];
+            $this->prune();
+            $cache->set(self::PRUNE_MARKER, $this->today(), [], 172800);
+        } catch (\Throwable $e) {
+            // a cache that cannot be reached only means the next request tries again
         }
-
-        return $return;
     }
 
-    /**
-     * Drops what is older than the retention. There is no scheduler task for it, the overview
-     * calls this when it is opened, which is the only place the numbers are looked at anyway.
-     */
     public function prune(?int $retentionDays = null): int
     {
         $days = $retentionDays ?? $this->getRetentionDays();
@@ -233,11 +211,17 @@ class AiRequestStatisticsService
      */
     protected function visitorHash(ServerRequestInterface $request): string
     {
-        $address = $this->remoteAddress($request);
-        $agent = (string)($request->getHeaderLine('User-Agent') ?: '');
         $secret = (string)($GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] ?? '');
 
-        return hash_hmac('sha256', $address . '|' . $agent, $secret . '|' . $this->today());
+        return substr(
+            hash_hmac(
+                'sha256',
+                $this->remoteAddress($request) . '|' . $request->getHeaderLine('User-Agent'),
+                $secret . '|' . $this->today()
+            ),
+            0,
+            self::HASH_LENGTH
+        );
     }
 
     /**
@@ -261,12 +245,16 @@ class AiRequestStatisticsService
     }
 
     /**
-     * The oldest day still inside a window of $days, as a Ymd integer.
+     * The oldest day still inside a window of $days, as a Ymd integer. 0 days means everything.
      */
     protected function firstDayOf(int $days): int
     {
+        if ($days <= 0) {
+            return 0;
+        }
+
         $now = $GLOBALS['EXEC_TIME'] ?? time();
-        $first = strtotime('-' . max($days - 1, 0) . ' days', $now);
+        $first = strtotime('-' . ($days - 1) . ' days', $now);
 
         return (int)date('Ymd', $first !== false ? $first : $now);
     }
