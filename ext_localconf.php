@@ -27,4 +27,9 @@ defined('TYPO3') or die();
 
     $GLOBALS['TYPO3_CONF_VARS']['FE']['eID_include']['_hdtranslator_translate'] =
         \Hyperdigital\HdTranslator\Eid\DeeplApiEid::class . '::translate';
+
+    // Whether the banner was shown and whether the visitor agreed to use the translation. The
+    // banner is part of the site package, so it reports the two events itself.
+    $GLOBALS['TYPO3_CONF_VARS']['FE']['eID_include']['_hdtranslator_banner'] =
+        \Hyperdigital\HdTranslator\Eid\DeeplApiEid::class . '::banner';
 })();

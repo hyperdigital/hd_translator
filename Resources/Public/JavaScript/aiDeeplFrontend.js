@@ -45,6 +45,60 @@ async function hdtranslator_translateText(text, targetLang) {
     }
 }
 
+/* --------------------------------------------------------------- banner */
+
+// Whether the visitor was offered a translation and whether they took it. The banner belongs to
+// the site package, so the extension cannot see it - the banner reports the two events itself:
+//
+//     hdtranslator_recordBannerShown('de');      // every time the banner becomes visible
+//     hdtranslator_recordBannerAccepted('de');   // when the visitor agrees
+//
+// Call the first one on every display, not once per visit: the backend counts the displays and
+// the visitors behind them separately, and fifty displays can be fifty visitors or one visitor
+// on fifty pages.
+//
+// Without these, the only number there is are translate requests, and a banner that translates
+// its own text turns being shown into a request as well: "offered" and "accepted" then are the
+// same row and the backend cannot tell them apart.
+const HDTRANSLATOR_BANNER_SENT_PREFIX = 'hdtranslator.banner.';
+
+function hdtranslator_sendBannerEvent(targetLang, event, once) {
+    const language = String(targetLang || '').toUpperCase();
+    if (!language) return Promise.resolve(false);
+
+    // Every display is reported, because how often the banner was shown is one of the two
+    // numbers the backend keeps: it counts the displays, and deduplicates the visitor behind
+    // them by itself. Only the events that say nothing new when repeated are sent once per tab
+    // and day; the key carries the date, so a tab left open overnight reports again.
+    if (once) {
+        const key = HDTRANSLATOR_BANNER_SENT_PREFIX + language + '.' + event + '.' + new Date().toISOString().slice(0, 10);
+        try {
+            if (sessionStorage.getItem(key)) return Promise.resolve(false);
+            sessionStorage.setItem(key, '1');
+        } catch (e) {
+            // private mode or a full quota: send it anyway, the server deduplicates by itself
+        }
+    }
+
+    // keepalive, so a click that navigates away still delivers the event
+    return fetch('/?eID=_hdtranslator_banner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLang: language, event: event }),
+        keepalive: true,
+    })
+        .then((response) => response.ok)
+        .catch(() => false);
+}
+
+function hdtranslator_recordBannerShown(targetLang) {
+    return hdtranslator_sendBannerEvent(targetLang, 'shown');
+}
+
+function hdtranslator_recordBannerAccepted(targetLang) {
+    return hdtranslator_sendBannerEvent(targetLang, 'accepted');
+}
+
 // Server limits, see DeeplApiEid. A batch that breaks one of them is rejected as a whole,
 // which would leave every string in it untranslated.
 const HDTRANSLATOR_MAX_TEXTS_PER_REQUEST = 500;
@@ -312,7 +366,14 @@ async function hdtranslator_translateWholePage(targetLang, root) {
         hdtranslator_state.observer.observe(root, { childList: true, subtree: true, characterData: true });
     }
 
-    await hdtranslator_fetchMissing(hdtranslator_applyCached(hdtranslator_collectTextNodes(root)), language);
+    const missing = hdtranslator_applyCached(hdtranslator_collectTextNodes(root));
+
+    // A page the browser cache answers in full never reaches the translate endpoint, so the
+    // demand counter used to miss exactly the visitors who use the translation most. One short
+    // call says it happened; it writes the same row a translate request would have written.
+    if (!missing.size) hdtranslator_sendBannerEvent(language, 'used', true);
+
+    await hdtranslator_fetchMissing(missing, language);
 }
 
 function hdtranslator_collectTextNodes(root, target) {

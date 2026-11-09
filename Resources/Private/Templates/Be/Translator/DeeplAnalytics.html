@@ -59,6 +59,38 @@
 
                     <div class="hd-translator-insights">
                         <f:comment>
+                            Whether the people who are offered a translation want it. The banner
+                            lives in the site package and reports itself, so an installation that
+                            does not report shows nothing here rather than a misleading nought.
+                        </f:comment>
+                        <f:if condition="{bannerRateKnown}">
+                            <div class="hd-translator-insight">
+                                <div class="hd-translator-insight-value">{banner.rate}&nbsp;%</div>
+                                <div class="hd-translator-insight-label">
+                                    <f:translate key="deepl.analytics.banner" arguments="{0: banner.accepted, 1: banner.shown, 2: range}" />
+                                </div>
+                            </div>
+                        </f:if>
+
+                        <f:comment>
+                            How often it was shown, which is not how many people saw it: the
+                            quotient of the two says how insistent the banner is towards one
+                            visitor, a different question from whether they want it.
+                        </f:comment>
+                        <f:if condition="{bannerKnown}">
+                            <div class="hd-translator-insight">
+                                <div class="hd-translator-insight-value">
+                                    <f:format.number decimals="0" thousandsSeparator=" ">{banner.displays}</f:format.number>
+                                </div>
+                                <div class="hd-translator-insight-label">
+                                    <f:translate key="deepl.analytics.banner.displays.insight" arguments="{0: range}" />
+                                    <br />
+                                    <f:translate key="deepl.analytics.banner.perVisitor" arguments="{0: '{banner.perVisitor}'}" />
+                                </div>
+                            </div>
+                        </f:if>
+
+                        <f:comment>
                             Whether the demand sits on a few languages or spreads, which is the
                             question behind "should we build one mutation or several".
                         </f:comment>
@@ -113,6 +145,10 @@
                             <th data-sort="number" data-sort-default="desc"><f:translate key="deepl.index.table.visitors.month" /></th>
                             <th data-sort="number"><f:translate key="deepl.analytics.trend" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.visitors.total" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.banner.displays" arguments="{0: range}" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.banner.shown" arguments="{0: range}" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.banner.accepted" arguments="{0: range}" /></th>
+                            <th data-sort="number"><f:translate key="deepl.analytics.banner.rate" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.translation_count" /></th>
                             <th data-sort="number"><f:translate key="deepl.analytics.characters" /></th>
                             <th data-sort="text"><f:translate key="deepl.analytics.asPages" /></th>
@@ -136,6 +172,24 @@
                                     </f:if>
                                 </td>
                                 <td data-value="{row.total}">{row.total}</td>
+                                <f:comment>
+                                    Shown, offered and taken. The first counts displays, the
+                                    other two count visitors, so somebody who met the banner on
+                                    five pages is five displays and one visitor - which is what
+                                    makes the last column a rate rather than a quotient of
+                                    impressions. Hovering the displays gives them per visitor.
+                                </f:comment>
+                                <td data-value="{row.bannerDisplays}" title="{row.bannerPerVisitor}">
+                                    <f:format.number decimals="0" thousandsSeparator=" ">{row.bannerDisplays}</f:format.number>
+                                </td>
+                                <td data-value="{row.bannerShown}">{row.bannerShown}</td>
+                                <td data-value="{row.bannerAccepted}">{row.bannerAccepted}</td>
+                                <td data-value="{row.bannerRate}">
+                                    <f:if condition="{row.bannerRateKnown}">
+                                        <f:then><strong>{row.bannerRate}&nbsp;%</strong></f:then>
+                                        <f:else><span class="hd-translator-muted">&ndash;</span></f:else>
+                                    </f:if>
+                                </td>
                                 <td data-value="{row.translations}">{row.translations}</td>
                                 <f:comment>what DeepL charges by, so the closest thing to a bill this install can show</f:comment>
                                 <td data-value="{row.characters}"><f:format.number decimals="0" thousandsSeparator=" ">{row.characters}</f:format.number></td>
@@ -149,6 +203,15 @@
                         </f:for>
                         </tbody>
                     </table>
+
+                    <f:comment>
+                        Nothing has reported a banner yet, which on most installations means the
+                        two calls are simply not wired up. Saying so beats an empty column
+                        nobody can explain.
+                    </f:comment>
+                    <f:if condition="!{bannerKnown}">
+                        <p class="hd-translator-muted"><f:translate key="deepl.analytics.banner.missing" /></p>
+                    </f:if>
 
                     <p><f:translate key="deepl.index.statistics.hint" arguments="{0: retentionDays}" /></p>
                 </f:then>

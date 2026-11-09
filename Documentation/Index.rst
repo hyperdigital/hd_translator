@@ -238,6 +238,8 @@ Add your API key, open the :guilabel:`AI Translations` tab and click
     hdtranslator_translateWholePage('de');
     hdtranslator_translateText('Translate me this content', 'de');
     hdtranslator_fetchSupportedLanguages();
+    hdtranslator_recordBannerShown('de');
+    hdtranslator_recordBannerAccepted('de');
 
 Elements marked with :html:`class="notranslate"`, :html:`data-notranslate` or
 :html:`translate="no"` are skipped.
@@ -284,6 +286,62 @@ frontend or in a project using it - and only the path is kept, never the query, 
 visitor typed into a search never reaches the table. It counts requests, not people: a page
 is not a visitor, and pairing the two would multiply the rows by the size of the site.
 
+..  _banner:
+
+Who was offered a translation, and who agreed
+---------------------------------------------
+
+The number of translate requests says how many people used the translation, never how many
+were asked. Both are needed to answer whether the people who are offered a translation
+actually want it - and the banner that does the asking belongs to the site package, not to
+this extension, so it reports the two events itself:
+
+..  code-block:: javascript
+
+    hdtranslator_recordBannerShown('de');      // every time the banner becomes visible
+    hdtranslator_recordBannerAccepted('de');   // when the visitor agrees
+
+Both helpers come with the static TypoScript template, take the target language and return a
+promise nobody has to await. They send one short request each and use ``keepalive``, so a click
+that navigates away still delivers.
+
+:js:`hdtranslator_recordBannerShown()` belongs on **every** display, not once per visit. Two
+numbers are kept and they answer different questions: how often the banner was shown, and how
+many visitors that was. Fifty displays can be fifty visitors or one visitor on fifty pages, and
+only both together say which - the backend deduplicates the visitor behind a display by itself.
+
+The :guilabel:`Demand` screen then shows, per language and for the selected range,
+:guilabel:`Shown` (displays, hover for displays per visitor), :guilabel:`Offered` (visitors) and
+:guilabel:`Agreed` (visitors) with the rate between the last two, plus the total displays and the
+overall rate beside the other insights. A language the banner offered and nobody took appears in
+the table even though it has no requests at all, which is the case worth seeing. Until something
+reports, the screen says so rather than showing an empty column.
+
+..  important::
+    Without these two calls the only number there is are translate requests - and a banner that
+    translates its own text through :js:`hdtranslator_translateText()` turns being shown into a
+    request as well. Being offered and agreeing are then the same row, and nothing can tell them
+    apart afterwards.
+
+What is stored are two tables, both following :confval:`aiRequestStatisticsRetention` and
+neither folded into months - the question is about the banner as it stands, and a year-old rate
+is about a banner that has since been reworded:
+
+:sql:`tx_hdtranslator_ai_banner`
+    One row per language, day, visitor and event, with the same day-salted visitor hash as the
+    counting rows. Somebody who meets the banner on five pages is one row, which is what makes
+    the ratio of the two events a rate.
+
+:sql:`tx_hdtranslator_ai_banner_count`
+    One row per language, day and event, holding how often it happened. No visitor is involved,
+    so this counts displays rather than people, and the table is bounded by construction: a
+    language-day has one row per event whatever the traffic.
+
+A returning visitor whose page is translated entirely out of the browser cache never reaches
+the translate endpoint, so the demand counter used to miss exactly the people who use the
+translation most. :js:`hdtranslator_translateWholePage()` now reports that case through the same
+endpoint, which writes the row a translate request would have written.
+
 ..  _demand-history:
 
 History after the detail is gone
@@ -305,7 +363,9 @@ synchronized from DeepL, and they reject requests with more than 500 strings, si
 strings longer than 5000 characters, or a total payload above 50000 characters. 500 is
 not DeepL's own limit: the service splits what it has to forward by request size, so a
 page that is already cached is resolved in one request rather than one per fifty
-strings. Requests above :confval:`requestsPerMinute` are answered with HTTP 429.
+strings. Requests above :confval:`requestsPerMinute` are answered with HTTP 429. The banner endpoint
+accepts the same languages and shares the same limit; it writes a counting row and nothing
+else.
 
 Or call the service directly:
 
