@@ -250,10 +250,39 @@ Which languages people ask for
 The :guilabel:`Demand` button on the :guilabel:`AI Translations` screen opens a screen
 that answers which languages visitors actually request, so the one worth building as
 real pages can be picked out. A chart draws the unique visitors per day over the last
-7, 30, 90 or 365 days; hovering names every language at once and clicking a legend key
-hides one. The table below it carries the same numbers, sorted by any column, together
-with how many translations exist and whether the language is already a real language of
-a site.
+7, 30, 90 or 365 days. The table below it carries the same numbers, sorted by any
+column, together with a sparkline of the range, how many translations exist and whether
+the language is already a real language of a site.
+
+The chart answers three questions, one per mode:
+
+:guilabel:`Lines`
+    One line per language - which language is growing.
+
+:guilabel:`Total`
+    The languages stacked - whether the demand is growing at all. The lines alone never
+    said that, and it is the question behind "is this worth maintaining".
+
+:guilabel:`Share`
+    The same stack to a hundred percent - how the demand is divided, whatever the traffic
+    did.
+
+:guilabel:`7 day average` replaces each day by the mean of the week around it. Over ninety
+days and more the daily noise is louder than the trend the reader came for; the raw series
+is one click away.
+
+Dragging across the plot zooms into that range and :guilabel:`Reset zoom` appears; the
+range buttons reload the screen, everything else is immediate. Hovering reads every
+series at that day at once, marks each one with a dot and adds the total. Pointing at a
+language - in the legend or in a table row - lifts its line and dims the rest, which is
+the only way to follow one of six lines that cross. Clicking a legend key still hides a
+language.
+
+Without a mouse: the chart takes focus, the arrow keys move the readout, :kbd:`Home` and
+:kbd:`End` jump to the ends and :kbd:`Esc` clears it. Every value in the chart is in the
+table below it, which is what the chart's description points screen readers at, and
+:guilabel:`Copy the table as CSV` takes the table as it is read - sorting included,
+sparklines left out.
 
 What is stored is one row per language, per day, per visitor - no counters and no
 timestamps. The visitor is an HMAC of the address and the user agent, keyed with the
@@ -310,10 +339,10 @@ numbers are kept and they answer different questions: how often the banner was s
 many visitors that was. Fifty displays can be fifty visitors or one visitor on fifty pages, and
 only both together say which - the backend deduplicates the visitor behind a display by itself.
 
-The :guilabel:`Demand` screen then shows, per language and for the selected range,
-:guilabel:`Shown` (displays, hover for displays per visitor), :guilabel:`Offered` (visitors) and
-:guilabel:`Agreed` (visitors) with the rate between the last two, plus the total displays and the
-overall rate beside the other insights. A language the banner offered and nobody took appears in
+The :guilabel:`Demand` screen then shows the three of them as a funnel - how often the banner
+was shown, how many visitors that was, how many agreed - and repeats them per language in the
+table as :guilabel:`Shown` (displays), :guilabel:`Offered` (visitors) and :guilabel:`Agreed`
+(visitors) with the rate between the last two. A language the banner offered and nobody took appears in
 the table even though it has no requests at all, which is the case worth seeing. Until something
 reports, the screen says so rather than showing an empty column.
 
@@ -346,6 +375,11 @@ endpoint, which writes the row a translate request would have written.
 
 History after the detail is gone
 --------------------------------
+
+Below the demand chart, a second chart stacks the **visitor-days per month** of every
+language. It had been computed and handed to the screen since 2.6.0 without any template
+ever drawing it - one query per visit that nobody saw. Hovering or focusing a month names
+every language in it.
 
 When the retention drops the daily rows, the prune first folds them into
 :sql:`tx_hdtranslator_ai_request_month` - one row per language per month, so a decade of

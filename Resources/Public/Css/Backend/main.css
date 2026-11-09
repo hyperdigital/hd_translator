@@ -267,6 +267,9 @@ button.is-busy { opacity: .65; cursor: progress; }
     --hdt-series-7: #6250d6;
     --hdt-series-8: #e34948;
     --hdt-chart-surface: var(--typo3-surface-base, #fff);
+    /* the ground a bar is drawn on; a token rather than light-dark(), because the backend does
+       not always set color-scheme and a wrong ground there is invisible until somebody looks */
+    --hdt-track: #ececec;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -280,6 +283,7 @@ button.is-busy { opacity: .65; cursor: progress; }
         --hdt-series-7: #9085e9;
         --hdt-series-8: #e66767;
         --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
+        --hdt-track: #2b2b2b;
     }
 }
 
@@ -293,6 +297,7 @@ button.is-busy { opacity: .65; cursor: progress; }
     --hdt-series-7: #9085e9;
     --hdt-series-8: #e66767;
     --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
+    --hdt-track: #2b2b2b;
 }
 
 .hd-translator-chart-figure {
@@ -314,6 +319,9 @@ button.is-busy { opacity: .65; cursor: progress; }
     display: block;
     inline-size: 100%;
     overflow: visible;
+    /* dragging across the plot picks a range; without this it picks the axis labels instead */
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 /* recessive chrome: the data is the ink */
@@ -383,6 +391,12 @@ button.is-busy { opacity: .65; cursor: progress; }
     color: var(--typo3-text-color-variant, #7c7c7c);
 }
 
+/* an area and a bar are blocks, so their key is one too */
+.hd-translator-chart-key.is-block {
+    block-size: .6rem;
+    border-radius: 2px;
+}
+
 /* a line key, not a box: at this density a filled box is data ink doing a label's job */
 .hd-translator-chart-key {
     display: inline-block;
@@ -439,7 +453,7 @@ button.is-busy { opacity: .65; cursor: progress; }
     font-size: .85em;
 }
 
-/* the bars carry the shape; the number is in the title, the axis would be noise */
+/* the bars carry the shape, the number sits above its bar; see the override further down */
 .hd-translator-weekdays {
     display: flex;
     align-items: flex-end;
@@ -493,4 +507,195 @@ button.is-busy { opacity: .65; cursor: progress; }
 
 .hd-translator-pagegroup li {
     padding-block: .1rem;
+}
+
+/* ------------------------------------------------------- charts, added in 2.8.0 */
+
+/* The class the templates have been using since 2.6.0 without it ever being defined here:
+   the page descriptions and the "no rate" dash were plain body text. */
+.hd-translator-muted {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+/* The controls above the chart. The range links reload the screen, the rest is client side,
+   so they sit in one row and look the same. */
+.hd-translator-chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem .75rem;
+    align-items: center;
+    margin-block-end: .75rem;
+}
+
+.hd-translator-chart-toolbar .hd-translator-muted {
+    font-size: .85em;
+}
+
+/* Bootstrap gives .btn a display, which beats the hidden attribute's own rule: the reset
+   button would be there before anything was ever zoomed. */
+.hd-translator-chart-toolbar [hidden] {
+    display: none;
+}
+
+/* One series alone is read as a shape, so it gets a fill; the stacked modes are all fill. */
+.hd-translator-chart-area {
+    stroke: none;
+    transition: opacity .12s ease;
+}
+
+.hd-translator-chart-bar {
+    transition: opacity .12s ease;
+}
+
+.hd-translator-chart-line.is-dim,
+.hd-translator-chart-area.is-dim,
+.hd-translator-chart-end.is-dim,
+.hd-translator-chart-direct.is-dim {
+    opacity: .18;
+}
+
+.hd-translator-chart-line.is-lift {
+    stroke-width: 3;
+}
+
+/* the dot says where the crosshair is reading, which a dashed line alone does not */
+.hd-translator-chart-dot {
+    stroke: var(--hdt-chart-surface);
+    stroke-width: 1.5;
+    pointer-events: none;
+}
+
+.hd-translator-chart-brush {
+    fill: var(--hdt-series-1, #2a78d6);
+    fill-opacity: .14;
+    stroke: var(--hdt-series-1, #2a78d6);
+    stroke-width: 1;
+    pointer-events: none;
+}
+
+.hd-translator-chart-peak {
+    fill: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: 10.5px;
+}
+
+/* the total is a sum of the rows above it, so it is ruled off like one */
+.hd-translator-chart-tooltip-total {
+    margin-block-start: .25rem;
+    padding-block-start: .25rem;
+    border-block-start: 1px solid var(--typo3-component-border-color, light-dark(#d7d7d7, #333));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hd-translator-chart-area,
+    .hd-translator-chart-bar,
+    .hd-translator-chart-line {
+        transition: none;
+    }
+}
+
+/* --------------------------------------------------------------------- the funnel */
+
+/* Displays, the people behind them and the ones who agreed. Side by side, because where the
+   audience falls away is the whole question. */
+.hd-translator-funnel {
+    margin-block-end: 1.5rem;
+}
+
+.hd-translator-funnel-stage {
+    display: grid;
+    grid-template-columns: 12rem minmax(0, 1fr) 5rem;
+    gap: .1rem .75rem;
+    align-items: center;
+    margin-block-end: .5rem;
+}
+
+.hd-translator-funnel-label {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .9em;
+}
+
+.hd-translator-funnel-track {
+    position: relative;
+    block-size: 2rem;
+    border-radius: 3px;
+    background: var(--hdt-track, #ececec);
+}
+
+.hd-translator-funnel-bar {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    min-inline-size: 2px;
+    border-radius: 3px;
+    background: var(--hdt-series-1, #2a78d6);
+}
+
+/* a column of its own: on the bar the number would be dark text on a saturated fill, and
+   beside it the three of them line up to be compared */
+.hd-translator-funnel-value {
+    text-align: end;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.hd-translator-funnel-note {
+    grid-column: 2 / span 2;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .8em;
+}
+
+@media (max-width: 575px) {
+    .hd-translator-funnel-stage {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .hd-translator-funnel-value {
+        text-align: start;
+    }
+
+    .hd-translator-funnel-note {
+        grid-column: 1;
+    }
+}
+
+/* ------------------------------------------------------------------- the weekdays */
+
+/* The number is above its bar now. It used to live in a title attribute, which a touch
+   screen never shows and a keyboard never reaches. */
+.hd-translator-weekdays {
+    block-size: auto;
+    border-block-end: 1px solid var(--typo3-component-border-color, light-dark(#d7d7d7, #333));
+    padding-block-end: .15rem;
+}
+
+.hd-translator-weekday-track {
+    display: flex;
+    align-items: flex-end;
+    inline-size: 100%;
+    block-size: 3rem;
+}
+
+.hd-translator-weekday-value {
+    margin-block-end: .15rem;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .7em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+/* ----------------------------------------------------------------- the sparklines */
+
+.hd-translator-spark {
+    display: block;
+    inline-size: 92px;
+    block-size: 24px;
+}
+
+/* a textarea the copy falls back to when the clipboard is refused */
+.hd-translator-csv-fallback {
+    inline-size: 100%;
+    block-size: 6rem;
+    margin-block-end: .5rem;
+    font-family: monospace;
+    font-size: .8em;
 }

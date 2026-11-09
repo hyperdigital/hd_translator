@@ -27,69 +27,108 @@
             <f:if condition="{rows}">
                 <f:then>
                     <f:comment>
-                        Date range first, in one row above the chart: it is the filter
-                        every reader reaches for.
+                        The controls of the chart in one row: the range reloads the screen
+                        because it decides the query, everything after it is client side.
                     </f:comment>
-                    <div class="btn-group mb-3" role="group"
-                         aria-label="{f:translate(key: 'deepl.analytics.range')}">
-                        <f:for each="{ranges}" as="option">
-                            <f:if condition="{option} == {range}">
-                                <f:then>
-                                    <span class="btn btn-primary btn-sm"><f:translate key="deepl.analytics.range.days" arguments="{0: option}" /></span>
-                                </f:then>
-                                <f:else>
-                                    <f:link.action class="btn btn-default btn-sm" action="deeplAnalytics" arguments="{range: option}">
-                                        <f:translate key="deepl.analytics.range.days" arguments="{0: option}" />
-                                    </f:link.action>
-                                </f:else>
-                            </f:if>
-                        </f:for>
+                    <div class="hd-translator-chart-toolbar">
+                        <div class="btn-group" role="group"
+                             aria-label="{f:translate(key: 'deepl.analytics.range')}">
+                            <f:for each="{ranges}" as="option">
+                                <f:if condition="{option} == {range}">
+                                    <f:then>
+                                        <span class="btn btn-primary btn-sm"><f:translate key="deepl.analytics.range.days" arguments="{0: option}" /></span>
+                                    </f:then>
+                                    <f:else>
+                                        <f:link.action class="btn btn-default btn-sm" action="deeplAnalytics" arguments="{range: option}">
+                                            <f:translate key="deepl.analytics.range.days" arguments="{0: option}" />
+                                        </f:link.action>
+                                    </f:else>
+                                </f:if>
+                            </f:for>
+                        </div>
+
+                        <f:comment>
+                            Three questions, one chart: which language grows, whether the demand
+                            grows at all, and how it is divided whatever the traffic.
+                        </f:comment>
+                        <div class="btn-group" role="group"
+                             aria-label="{f:translate(key: 'deepl.analytics.mode')}">
+                            <button type="button" class="btn btn-primary btn-sm" data-chart-mode="lines" aria-pressed="true">
+                                <f:translate key="deepl.analytics.mode.lines" />
+                            </button>
+                            <button type="button" class="btn btn-default btn-sm" data-chart-mode="stacked" aria-pressed="false">
+                                <f:translate key="deepl.analytics.mode.stacked" />
+                            </button>
+                            <button type="button" class="btn btn-default btn-sm" data-chart-mode="share" aria-pressed="false">
+                                <f:translate key="deepl.analytics.mode.share" />
+                            </button>
+                        </div>
+
+                        <button type="button" class="btn btn-default btn-sm" data-chart-smooth aria-pressed="false">
+                            <f:translate key="deepl.analytics.smooth" />
+                        </button>
+
+                        <button type="button" class="btn btn-default btn-sm" data-chart-unzoom hidden="hidden">
+                            <f:translate key="deepl.analytics.unzoom" />
+                        </button>
+
+                        <span class="hd-translator-muted"><f:translate key="deepl.analytics.chart.help" /></span>
                     </div>
 
                     <figure class="hd-translator-chart-figure">
                         <figcaption class="hd-translator-chart-caption">
                             <f:translate key="deepl.analytics.chart.caption" arguments="{0: range}" />
                         </figcaption>
-                        <div id="hd-translator-chart" class="hd-translator-chart"></div>
+                        <f:comment>
+                            The strings the chart builds at runtime come along as data
+                            attributes: the script has no way to reach the label files.
+                        </f:comment>
+                        <div id="hd-translator-chart" class="hd-translator-chart"
+                             data-label-total="{f:translate(key: 'deepl.analytics.chart.total')}"
+                             data-label-peak="{f:translate(key: 'deepl.analytics.chart.peak')}"
+                             data-label-chart="{f:translate(key: 'deepl.analytics.chart.aria')}"></div>
                         <div id="hd-translator-chart-legend" class="hd-translator-chart-legend"></div>
                     </figure>
 
                     <script type="application/json" id="hd-translator-chart-data">{chart -> f:format.raw()}</script>
                     <f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
 
+                    <f:comment>
+                        Displays, the people behind them and the ones who agreed. Three numbers
+                        side by side answer where the audience falls away, which three tiles
+                        next to each other never did. The banner lives in the site package and
+                        reports itself, so an installation that does not report shows nothing
+                        here rather than a misleading nought.
+                    </f:comment>
+                    <f:if condition="{bannerFunnel}">
+                        <div class="hd-translator-funnel">
+                            <h2><f:translate key="deepl.analytics.banner.funnel" arguments="{0: range}" /></h2>
+                            <f:for each="{bannerFunnel}" as="stage">
+                                <div class="hd-translator-funnel-stage">
+                                    <div class="hd-translator-funnel-label">
+                                        <f:translate key="deepl.analytics.banner.funnel.{stage.key}" />
+                                    </div>
+                                    <div class="hd-translator-funnel-track">
+                                        <div class="hd-translator-funnel-bar"
+                                             style="inline-size: {stage.share}%; background: var(--hdt-series-{stage.slot})"></div>
+                                    </div>
+                                    <f:comment>
+                                        The number has a column of its own: on the bar it would
+                                        be dark text on a saturated fill, and beside it the
+                                        three of them line up to be compared.
+                                    </f:comment>
+                                    <div class="hd-translator-funnel-value">
+                                        <f:format.number decimals="0" thousandsSeparator=" ">{stage.value}</f:format.number>
+                                    </div>
+                                    <div class="hd-translator-funnel-note">
+                                        <f:translate key="deepl.analytics.banner.funnel.{stage.key}.note" arguments="{0: stage.note}" />
+                                    </div>
+                                </div>
+                            </f:for>
+                        </div>
+                    </f:if>
+
                     <div class="hd-translator-insights">
-                        <f:comment>
-                            Whether the people who are offered a translation want it. The banner
-                            lives in the site package and reports itself, so an installation that
-                            does not report shows nothing here rather than a misleading nought.
-                        </f:comment>
-                        <f:if condition="{bannerRateKnown}">
-                            <div class="hd-translator-insight">
-                                <div class="hd-translator-insight-value">{banner.rate}&nbsp;%</div>
-                                <div class="hd-translator-insight-label">
-                                    <f:translate key="deepl.analytics.banner" arguments="{0: banner.accepted, 1: banner.shown, 2: range}" />
-                                </div>
-                            </div>
-                        </f:if>
-
-                        <f:comment>
-                            How often it was shown, which is not how many people saw it: the
-                            quotient of the two says how insistent the banner is towards one
-                            visitor, a different question from whether they want it.
-                        </f:comment>
-                        <f:if condition="{bannerKnown}">
-                            <div class="hd-translator-insight">
-                                <div class="hd-translator-insight-value">
-                                    <f:format.number decimals="0" thousandsSeparator=" ">{banner.displays}</f:format.number>
-                                </div>
-                                <div class="hd-translator-insight-label">
-                                    <f:translate key="deepl.analytics.banner.displays.insight" arguments="{0: range}" />
-                                    <br />
-                                    <f:translate key="deepl.analytics.banner.perVisitor" arguments="{0: '{banner.perVisitor}'}" />
-                                </div>
-                            </div>
-                        </f:if>
-
                         <f:comment>
                             Whether the demand sits on a few languages or spreads, which is the
                             question behind "should we build one mutation or several".
@@ -109,8 +148,16 @@
                         <div class="hd-translator-insight hd-translator-insight-wide">
                             <div class="hd-translator-weekdays">
                                 <f:for each="{weekdays}" as="d">
-                                    <div class="hd-translator-weekday" title="{d.visitors}">
-                                        <div class="hd-translator-weekday-bar" style="height: {d.share}%"></div>
+                                    <f:comment>
+                                        The number is above its bar. It used to be in a title
+                                        attribute, which a touch screen never shows and a
+                                        keyboard never reaches.
+                                    </f:comment>
+                                    <div class="hd-translator-weekday">
+                                        <div class="hd-translator-weekday-value">{d.visitors}</div>
+                                        <div class="hd-translator-weekday-track">
+                                            <div class="hd-translator-weekday-bar" style="height: {d.share}%"></div>
+                                        </div>
                                         <div class="hd-translator-weekday-name"><f:translate key="deepl.analytics.weekday.{d.weekday}" /></div>
                                     </div>
                                 </f:for>
@@ -118,6 +165,23 @@
                             <div class="hd-translator-insight-label"><f:translate key="deepl.analytics.weekdays" /></div>
                         </div>
                     </div>
+
+                    <f:comment>
+                        The monthly history. The controller has been computing it since 2.6.0
+                        and no screen ever drew it - one query per visit that nobody saw.
+                        Visitor-days, not people: somebody who asked on three days counts three
+                        times, which is all that survives once the daily rows are pruned.
+                    </f:comment>
+                    <figure class="hd-translator-chart-figure">
+                        <figcaption class="hd-translator-chart-caption">
+                            <f:translate key="deepl.analytics.history.caption" />
+                        </figcaption>
+                        <div id="hd-translator-history" class="hd-translator-chart"
+                             data-label-total="{f:translate(key: 'deepl.analytics.chart.total')}"
+                             data-label-chart="{f:translate(key: 'deepl.analytics.history.aria')}"></div>
+                    </figure>
+
+                    <script type="application/json" id="hd-translator-history-data">{history -> f:format.raw()}</script>
 
                     <f:if condition="{topPages}">
                         <div class="hd-translator-pages">
@@ -136,10 +200,27 @@
                         </div>
                     </f:if>
 
+                    <f:comment>
+                        The numbers end up in somebody's slide deck either way, so they can be
+                        taken as they are read rather than retyped.
+                    </f:comment>
+                    <p>
+                        <button type="button" class="btn btn-default btn-sm" data-hdt-csv
+                                data-label-copied="{f:translate(key: 'deepl.analytics.csv.copied')}"
+                                data-label-copy-failed="{f:translate(key: 'deepl.analytics.csv.failed')}">
+                            <span data-hdt-csv-state><f:translate key="deepl.analytics.csv" /></span>
+                        </button>
+                    </p>
+
                     <table class="table table-hover hd-translator-sortable">
                         <thead>
                         <tr>
                             <th data-sort="text"><f:translate key="deepl.index.table.languages" /></th>
+                            <f:comment>
+                                The shape the numbers hide: 41 visitors after one spike reads
+                                nothing like 41 steady. Not sortable - a curve has no order.
+                            </f:comment>
+                            <th><f:translate key="deepl.analytics.spark" arguments="{0: range}" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.visitors.today" /></th>
                             <th data-sort="number"><f:translate key="deepl.index.table.visitors.week" /></th>
                             <th data-sort="number" data-sort-default="desc"><f:translate key="deepl.index.table.visitors.month" /></th>
@@ -156,8 +237,13 @@
                         </thead>
                         <tbody>
                         <f:for each="{rows}" as="row">
-                            <tr>
+                            <f:comment>
+                                The row carries its language, so the chart above can lift the
+                                matching line when the reader points at it.
+                            </f:comment>
+                            <tr data-hdt-language="{row.language}" tabindex="0">
                                 <td><strong>{row.name}</strong> [{row.language}]</td>
+                                <td data-hdt-spark="{row.language}"></td>
                                 <td data-value="{row.today}">{row.today}</td>
                                 <td data-value="{row.week}">{row.week}</td>
                                 <td data-value="{row.month}"><strong>{row.month}</strong></td>
