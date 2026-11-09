@@ -96,3 +96,22 @@ CREATE TABLE tx_hdtranslator_ai_banner_count (
 	PRIMARY KEY (target_language, day, event),
 	KEY day (day)
 );
+
+--
+-- Which language version the visitor was on when they asked for another one. One row per
+-- language pair per day, no visitor: this counts requests, not people, and is bounded by
+-- construction - a day can hold at most (languages x languages) rows whatever the traffic.
+--
+-- It answers the question the counting rows cannot: a translation into a language the site
+-- already has may be a visitor on the english page who wants german, or a banner offering
+-- german on a page that is already german. The first is demand, the second is a defect.
+--
+CREATE TABLE tx_hdtranslator_ai_request_source (
+	target_language varchar(16) DEFAULT '' NOT NULL,
+	day int(11) DEFAULT '0' NOT NULL,
+	source_language varchar(16) DEFAULT '' NOT NULL,
+	requests int(11) DEFAULT '0' NOT NULL,
+
+	PRIMARY KEY (target_language, day, source_language),
+	KEY day (day)
+);

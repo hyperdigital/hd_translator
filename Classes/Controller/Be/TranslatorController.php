@@ -2140,6 +2140,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ];
         }
 
+        // where the asking came from, which is what tells demand from a misfiring banner
+        $sourceBreakdown = $statisticsService->getSourceBreakdown($range);
+
         // languages that already exist as a real language of a site need no deciding about
         $configured = [];
         foreach (GeneralUtility::makeInstance(SiteFinder::class)->getAllSites() as $site) {
@@ -2206,6 +2209,56 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             static fn(array $a, array $b): int => [$b['month'], $b['bannerDisplays']] <=> [$a['month'], $a['bannerDisplays']]
         );
 
+        // Which language version the asking happened on. Two numbers are worth pulling out of
+        // it: a request into the language the page already is, which is a banner firing where it
+        // should not, and a request for a language that exists as real pages, which is somebody
+        // who should have been sent to the page instead of to a translation.
+        $sources = [];
+        $selfTotal = 0;
+        $existingTotal = 0;
+
+        foreach ($sourceBreakdown as $code => $bySource) {
+            $total = array_sum($bySource);
+            if ($total <= 0) {
+                continue;
+            }
+
+            $short = strtoupper(substr((string)$code, 0, 2));
+            $isConfigured = isset($configured[$short]);
+            $self = 0;
+            $lines = [];
+
+            foreach ($bySource as $source => $requests) {
+                $sameLanguage = $source === $short;
+                $self += $sameLanguage ? $requests : 0;
+
+                $lines[] = [
+                    'code' => $source,
+                    'name' => $cached[$source]['name'] ?? $source,
+                    'requests' => $requests,
+                    'share' => (int)round($requests / $total * 100),
+                    'isSelf' => $sameLanguage,
+                ];
+            }
+
+            $selfTotal += $self;
+            // only a language that exists as real pages can have been reached instead
+            $existing = $isConfigured ? $total - $self : 0;
+            $existingTotal += $existing;
+
+            $sources[] = [
+                'language' => $code,
+                'name' => $cached[$code]['name'] ?? $code,
+                'total' => $total,
+                'self' => $self,
+                'existing' => $existing,
+                'configured' => $isConfigured,
+                'rows' => $lines,
+            ];
+        }
+
+        usort($sources, static fn(array $a, array $b): int => $b['total'] <=> $a['total']);
+
         // Colour follows the language, not its rank, so changing the range or hiding a series
         // never repaints the ones that stay. A stable order decides the slot.
         $palette = array_keys($statistics);
@@ -2225,6 +2278,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             'weekdays' => $statisticsService->getWeekdayProfile($range),
             'concentration' => $statisticsService->getConcentration($statistics),
             'topPages' => $statisticsService->getTopPages($range),
+            'sources' => $sources,
+            'sourceSelf' => $selfTotal,
+            'sourceExisting' => $existingTotal,
             'banner' => $bannerTotals,
             'bannerFunnel' => $bannerFunnel,
             // fluid cannot tell "no banner yet" from "nobody agreed", so both are decided here:
