@@ -612,17 +612,8 @@
             <trans-unit id="deepl.analytics.characters">
                 <source>Characters translated</source>
             </trans-unit>
-            <trans-unit id="deepl.analytics.banner">
-                <source>of the visitors who were offered a translation took it - %s of %s in the last %s days</source>
-            </trans-unit>
             <trans-unit id="deepl.analytics.banner.displays">
                 <source>Shown (%s d)</source>
-            </trans-unit>
-            <trans-unit id="deepl.analytics.banner.displays.insight">
-                <source>times the banner was shown in the last %s days</source>
-            </trans-unit>
-            <trans-unit id="deepl.analytics.banner.perVisitor">
-                <source>%s per visitor who saw it</source>
             </trans-unit>
             <trans-unit id="deepl.analytics.banner.shown">
                 <source>Offered (%s d)</source>
@@ -632,6 +623,75 @@
             </trans-unit>
             <trans-unit id="deepl.analytics.banner.rate">
                 <source>Agreed of offered</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.mode">
+                <source>Chart mode</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.mode.lines">
+                <source>Lines</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.mode.stacked">
+                <source>Total</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.mode.share">
+                <source>Share</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.smooth">
+                <source>7 day average</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.unzoom">
+                <source>Reset zoom</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.chart.help">
+                <source>Drag across the chart to zoom in. Arrow keys move the readout, Esc clears it.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.chart.total">
+                <source>total</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.chart.peak">
+                <source>peak</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.chart.aria">
+                <source>Unique visitors who requested a translation, per day and language. Every value is in the table below the chart.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.history.caption">
+                <source>Visitor-days per month, stacked by language. This is what outlives the daily rows, so somebody who asked on three days counts three times.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.history.aria">
+                <source>Visitor-days per month, stacked by language.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.spark">
+                <source>Last %s days</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.csv">
+                <source>Copy the table as CSV</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.csv.copied">
+                <source>Copied</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.csv.failed">
+                <source>Selected, press ctrl+c</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel">
+                <source>From a banner to a translation, last %s days</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.displays">
+                <source>Banner shown</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.displays.note">
+                <source>%s displays per visitor who saw it</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.shown">
+                <source>Visitors who saw it</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.shown.note">
+                <source>unique visitors, deduplicated per day</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.agreed">
+                <source>Agreed</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.banner.funnel.agreed.note">
+                <source>%s %% of the visitors who were offered one</source>
             </trans-unit>
             <trans-unit id="deepl.analytics.banner.missing">
                 <source>Nothing reports the translation banner yet. The banner is part of the site package, so it has to say so itself: call hdtranslator_recordBannerShown('de') every time it becomes visible and hdtranslator_recordBannerAccepted('de') when the visitor agrees. Until then only the requests are counted, and a banner that translates its own text counts as one of those.</source>

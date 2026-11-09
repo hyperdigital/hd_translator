@@ -2109,6 +2109,37 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $banner = $statisticsService->getBannerStatisticsByLanguage($range);
         $bannerTotals = $statisticsService->getBannerTotals($range);
 
+        // The three banner numbers as a funnel: the bar lengths are arithmetic, which Fluid has
+        // no business doing, and the note of each stage is the one number that stage adds.
+        $bannerFunnel = [];
+        if ($bannerTotals['displays'] > 0 || $bannerTotals['shown'] > 0) {
+            $widest = max($bannerTotals['displays'], $bannerTotals['shown'], 1);
+            $bannerFunnel = [
+                [
+                    'key' => 'displays',
+                    'value' => $bannerTotals['displays'],
+                    'share' => (int)round($bannerTotals['displays'] / $widest * 100),
+                    'slot' => 1,
+                    'note' => number_format((float)($bannerTotals['perVisitor'] ?? 0), 1, ',', ' '),
+                ],
+                [
+                    'key' => 'shown',
+                    'value' => $bannerTotals['shown'],
+                    'share' => (int)round($bannerTotals['shown'] / $widest * 100),
+                    'slot' => 3,
+                    'note' => '',
+                ],
+                [
+                    // the label calls it "agreed", the statistics call it "accepted"
+                    'key' => 'agreed',
+                    'value' => $bannerTotals['accepted'],
+                    'share' => (int)round($bannerTotals['accepted'] / $widest * 100),
+                    'slot' => 4,
+                    'note' => (string)($bannerTotals['rate'] ?? 0),
+                ],
+            ];
+        }
+
         // languages that already exist as a real language of a site need no deciding about
         $configured = [];
         foreach (GeneralUtility::makeInstance(SiteFinder::class)->getAllSites() as $site) {
@@ -2195,11 +2226,17 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             'concentration' => $statisticsService->getConcentration($statistics),
             'topPages' => $statisticsService->getTopPages($range),
             'banner' => $bannerTotals,
+            'bannerFunnel' => $bannerFunnel,
             // fluid cannot tell "no banner yet" from "nobody agreed", so both are decided here:
             // whether anything was reported at all, and whether there is a rate to show
             'bannerKnown' => $bannerTotals['displays'] > 0 || $bannerTotals['shown'] > 0,
             'bannerRateKnown' => $bannerTotals['rate'] !== null,
-            'history' => $statisticsService->getMonthlyHistory(),
+            // The monthly history was computed and assigned since 2.6.0 but never drawn. It goes
+            // to the chart the same way the daily series does, with the same stable colour order.
+            'history' => json_encode(
+                $statisticsService->getMonthlyHistory() + ['order' => $palette],
+                JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
         ]);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplAnalytics');
