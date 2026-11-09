@@ -2096,11 +2096,18 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     {
         $this->indexMenu();
 
+        $range = $this->request->hasArgument('range') ? (int)$this->request->getArgument('range') : 30;
+        $range = in_array($range, [7, 30, 90, 365], true) ? $range : 30;
+
         $deeplApiService = GeneralUtility::makeInstance(DeeplApiService::class, $this->deeplApiKey);
         $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
         $statistics = $statisticsService->getStatisticsByLanguage();
         // what each language has cost in characters, which is what DeepL charges by
         $volume = $statisticsService->getVolumeByLanguage();
+        // how many visitors were offered a translation and how many took it, over the selected
+        // range rather than the fixed windows of the visitor columns
+        $banner = $statisticsService->getBannerStatisticsByLanguage($range);
+        $bannerTotals = $statisticsService->getBannerTotals($range);
 
         // languages that already exist as a real language of a site need no deciding about
         $configured = [];
@@ -2119,9 +2126,22 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             ];
         }
 
-        // a language appears when somebody asked for it, even if it was never synchronised
+        // A language appears when somebody asked for it, even if it was never synchronised - and
+        // also when the banner offered it and nobody took it, which is the one case where there
+        // is no request to go by and the most interesting one to see.
+        $codes = array_keys($statistics);
+        foreach (array_keys($banner) as $code) {
+            if (!in_array($code, $codes, true)) {
+                $codes[] = $code;
+            }
+        }
+
+        $empty = array_fill_keys(array_keys(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::WINDOWS), 0)
+            + ['previous' => 0, 'trend' => null];
+
         $rows = [];
-        foreach ($statistics as $code => $row) {
+        foreach ($codes as $code) {
+            $row = $statistics[$code] ?? $empty;
             $rows[] = [
                 'language' => $code,
                 'name' => $cached[$code]['name'] ?? $code,
@@ -2136,19 +2156,29 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 'translations' => $cached[$code]['translations'] ?? 0,
                 'characters' => $volume[$code]['characters'] ?? 0,
                 'configured' => isset($configured[strtoupper(substr($code, 0, 2))]),
+                // how often it was shown, next to how many people that was: fifty displays can
+                // be fifty visitors or one visitor on fifty pages
+                'bannerDisplays' => $banner[$code]['displays'] ?? 0,
+                'bannerPerVisitor' => $banner[$code]['perVisitor'] ?? 0,
+                'bannerShown' => $banner[$code]['shown'] ?? 0,
+                'bannerAccepted' => $banner[$code]['accepted'] ?? 0,
+                'bannerRate' => $banner[$code]['rate'] ?? 0,
+                // a banner that was never shown has no rate, which is not a rate of nought
+                'bannerRateKnown' => ($banner[$code]['rate'] ?? null) !== null,
             ];
         }
 
-        // most asked for first, which is the question the screen exists to answer
-        usort($rows, static fn(array $a, array $b): int => $b['month'] <=> $a['month']);
+        // most asked for first, which is the question the screen exists to answer; a language
+        // that was only ever offered falls back on how often that happened
+        usort(
+            $rows,
+            static fn(array $a, array $b): int => [$b['month'], $b['bannerDisplays']] <=> [$a['month'], $a['bannerDisplays']]
+        );
 
         // Colour follows the language, not its rank, so changing the range or hiding a series
         // never repaints the ones that stay. A stable order decides the slot.
         $palette = array_keys($statistics);
         sort($palette);
-
-        $range = $this->request->hasArgument('range') ? (int)$this->request->getArgument('range') : 30;
-        $range = in_array($range, [7, 30, 90, 365], true) ? $range : 30;
 
         $this->moduleTemplate->assignMultiple([
             'rows' => $rows,
@@ -2164,6 +2194,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             'weekdays' => $statisticsService->getWeekdayProfile($range),
             'concentration' => $statisticsService->getConcentration($statistics),
             'topPages' => $statisticsService->getTopPages($range),
+            'banner' => $bannerTotals,
+            // fluid cannot tell "no banner yet" from "nobody agreed", so both are decided here:
+            // whether anything was reported at all, and whether there is a rate to show
+            'bannerKnown' => $bannerTotals['displays'] > 0 || $bannerTotals['shown'] > 0,
+            'bannerRateKnown' => $bannerTotals['rate'] !== null,
             'history' => $statisticsService->getMonthlyHistory(),
         ]);
 

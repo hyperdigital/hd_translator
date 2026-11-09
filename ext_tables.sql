@@ -60,3 +60,39 @@ CREATE TABLE tx_hdtranslator_ai_request_page (
 	PRIMARY KEY (target_language, day, page),
 	KEY day (day)
 );
+
+--
+-- Whether the visitor was offered a translation and whether they took it. The banner itself
+-- lives in the site package, not here, so it says so through the banner endpoint; see
+-- DeeplApiEid::banner() and AiRequestStatisticsService::recordBannerEvent().
+--
+-- Same shape as tx_hdtranslator_ai_request: one row is one visitor, one language, one day and
+-- one event, the row is its own primary key, and "visitor" is the same day-salted hash that
+-- cannot be traced back to anybody. So a visitor who is shown the banner on five pages counts
+-- once, which is what makes the ratio of the two events mean something.
+--
+CREATE TABLE tx_hdtranslator_ai_banner (
+	target_language varchar(16) DEFAULT '' NOT NULL,
+	day int(11) DEFAULT '0' NOT NULL,
+	visitor varchar(16) DEFAULT '' NOT NULL,
+	event varchar(16) DEFAULT '' NOT NULL,
+
+	PRIMARY KEY (target_language, day, visitor, event),
+	KEY day (day)
+);
+
+--
+-- How often the banner was shown, as a count rather than as people. One row per language, day
+-- and event, so it is bounded by construction and no visitor is involved: this is the number of
+-- displays, where tx_hdtranslator_ai_banner is the number of visitors who saw one. Both are
+-- needed - fifty displays can be fifty visitors or one visitor on fifty pages.
+--
+CREATE TABLE tx_hdtranslator_ai_banner_count (
+	target_language varchar(16) DEFAULT '' NOT NULL,
+	day int(11) DEFAULT '0' NOT NULL,
+	event varchar(16) DEFAULT '' NOT NULL,
+	requests int(11) DEFAULT '0' NOT NULL,
+
+	PRIMARY KEY (target_language, day, event),
+	KEY day (day)
+);

@@ -68,6 +68,35 @@ class AiRequestStatisticsService
     protected const PAGE_KEEP = 10;
     protected const PAGE_RETENTION_DAYS = 90;
 
+    /**
+     * Whether a visitor was offered a translation and whether they took it.
+     *
+     * The number of translate requests says how many people used the translation, never how many
+     * were asked. Both are needed to answer "do the people who are offered it want it", and the
+     * banner that does the asking lives in the site package, not here, so it reports the two
+     * events itself through DeeplApiEid::banner().
+     */
+    public const TABLE_BANNER = 'tx_hdtranslator_ai_banner';
+
+    /**
+     * BANNER_SHOWN is written when the banner is displayed, BANNER_ACCEPTED when the visitor
+     * agrees to use the translation. Nothing else is accepted, so the column cannot be filled
+     * with invented event names from outside.
+     */
+    public const BANNER_SHOWN = 'shown';
+    public const BANNER_ACCEPTED = 'accepted';
+    public const BANNER_EVENTS = [self::BANNER_SHOWN, self::BANNER_ACCEPTED];
+
+    /**
+     * How often it happened, next to how many people it happened to.
+     *
+     * TABLE_BANNER answers "how many visitors saw the banner", this one answers "how often was it
+     * shown" - fifty displays can be fifty visitors or one visitor on fifty pages, and only both
+     * numbers together say which. One row per language, day and event, no visitor involved, so it
+     * is bounded by construction and counts events rather than people.
+     */
+    public const TABLE_BANNER_COUNT = 'tx_hdtranslator_ai_banner_count';
+
     public function isEnabled(): bool
     {
         try {
@@ -117,6 +146,219 @@ class AiRequestStatisticsService
         }
 
         $this->pruneOncePerDay();
+    }
+
+    /**
+     * Notes that this visitor was shown the banner, or agreed to use the translation.
+     *
+     * One row per visitor, language, day and event, exactly like record(): the same person seeing
+     * the banner on five pages is one row, so the two events can be put next to each other and
+     * the ratio means something. Never throws, for the same reason record() does not - an
+     * unwritten counter must not break the page.
+     */
+    public function recordBannerEvent(ServerRequestInterface $request, string $targetLanguage, string $event): void
+    {
+        if (!$this->isEnabled() || $targetLanguage === '' || !in_array($event, self::BANNER_EVENTS, true)) {
+            return;
+        }
+
+        try {
+            GeneralUtility::makeInstance(ConnectionPool::class)
+                ->getConnectionForTable(self::TABLE_BANNER)
+                ->insert(self::TABLE_BANNER, [
+                    'target_language' => $targetLanguage,
+                    'day' => $this->today(),
+                    'visitor' => $this->visitorHash($request),
+                    'event' => $event,
+                ]);
+        } catch (\Throwable $e) {
+            // the same visitor reporting the same event again today is the normal case and
+            // lands on the primary key
+        }
+
+        // the visitor row is written at most once a day per person, so it cannot answer how
+        // often the banner was shown - that is counted separately, without a visitor
+        $this->countBannerEvent($targetLanguage, $event);
+
+        $this->pruneOncePerDay();
+    }
+
+    /**
+     * Adds one to the number of times this event happened today.
+     *
+     * Update first, insert second: the row of the day exists for all but the first event of it,
+     * so the common case costs one statement. A race on that first event lands on the primary
+     * key, and the update is then retried rather than losing the count.
+     */
+    protected function countBannerEvent(string $targetLanguage, string $event): void
+    {
+        try {
+            $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable(self::TABLE_BANNER_COUNT);
+            $day = $this->today();
+
+            $increment = 'UPDATE ' . $connection->quoteIdentifier(self::TABLE_BANNER_COUNT)
+                . ' SET ' . $connection->quoteIdentifier('requests') . ' = ' . $connection->quoteIdentifier('requests') . ' + 1'
+                . ' WHERE ' . $connection->quoteIdentifier('target_language') . ' = ?'
+                . ' AND ' . $connection->quoteIdentifier('day') . ' = ?'
+                . ' AND ' . $connection->quoteIdentifier('event') . ' = ?';
+
+            if ((int)$connection->executeStatement($increment, [$targetLanguage, $day, $event]) > 0) {
+                return;
+            }
+
+            try {
+                $connection->insert(self::TABLE_BANNER_COUNT, [
+                    'target_language' => $targetLanguage,
+                    'day' => $day,
+                    'event' => $event,
+                    'requests' => 1,
+                ]);
+            } catch (\Throwable $e) {
+                $connection->executeStatement($increment, [$targetLanguage, $day, $event]);
+            }
+        } catch (\Throwable $e) {
+            // a display that could not be counted is not worth failing a page over
+        }
+    }
+
+    /**
+     * How often each event happened per language, as opposed to how many people it happened to.
+     *
+     * @return array<string, array<string, int>> language => event => count
+     */
+    protected function countBannerEvents(int $days): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_BANNER_COUNT);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('event'),
+                'SUM(' . $queryBuilder->quoteIdentifier('requests') . ') AS requests'
+            )
+            ->from(self::TABLE_BANNER_COUNT)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'event')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']][(string)$row['event']] = (int)$row['requests'];
+        }
+
+        return $return;
+    }
+
+    /**
+     * Per language: how often the banner was shown, how many visitors that was, and how many of
+     * them took it.
+     *
+     * "displays" and "shown" are deliberately two numbers. The first is how often it happened,
+     * the second how many people it happened to, and the quotient is how insistent the banner is
+     * towards one visitor - which is a different question from whether they want it.
+     *
+     * @return array<string, array{displays: int, shown: int, accepted: int, rate: int|null,
+     *         perVisitor: float|null}> rate is null where the banner was never shown, which is
+     *         not the same as a rate of nought
+     */
+    public function getBannerStatisticsByLanguage(int $days = 30): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_BANNER);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('event'),
+                'COUNT(DISTINCT ' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
+            )
+            ->from(self::TABLE_BANNER)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'event')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']][(string)$row['event']] = (int)$row['visitors'];
+        }
+
+        $counted = $this->countBannerEvents($days);
+
+        // a language is listed when either table knows it, so a missing row in one of them
+        // cannot hide the other
+        foreach ($counted as $language => $events) {
+            $return[$language] = $return[$language] ?? [];
+        }
+
+        foreach ($return as $language => $events) {
+            $shown = (int)($events[self::BANNER_SHOWN] ?? 0);
+            $accepted = (int)($events[self::BANNER_ACCEPTED] ?? 0);
+            $displays = (int)($counted[$language][self::BANNER_SHOWN] ?? 0);
+
+            $return[$language] = [
+                'displays' => $displays,
+                'shown' => $shown,
+                'accepted' => $accepted,
+                'rate' => $shown > 0 ? (int)round($accepted / $shown * 100) : null,
+                'perVisitor' => $shown > 0 ? round($displays / $shown, 1) : null,
+            ];
+        }
+
+        return $return;
+    }
+
+    /**
+     * The same numbers over all languages at once.
+     *
+     * The visitors are asked of the database rather than summed from
+     * getBannerStatisticsByLanguage(), because a visitor offered two languages on one day is one
+     * visitor, not two. Displays are events and do add up.
+     *
+     * @return array{displays: int, shown: int, accepted: int, rate: int|null,
+     *         perVisitor: float|null}
+     */
+    public function getBannerTotals(int $days = 30): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_BANNER);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('event'),
+                'COUNT(DISTINCT ' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
+            )
+            ->from(self::TABLE_BANNER)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('event')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $counted = [];
+        foreach ($rows as $row) {
+            $counted[(string)$row['event']] = (int)$row['visitors'];
+        }
+
+        $shown = (int)($counted[self::BANNER_SHOWN] ?? 0);
+        $accepted = (int)($counted[self::BANNER_ACCEPTED] ?? 0);
+
+        $displays = 0;
+        foreach ($this->countBannerEvents($days) as $events) {
+            $displays += (int)($events[self::BANNER_SHOWN] ?? 0);
+        }
+
+        return [
+            'displays' => $displays,
+            'shown' => $shown,
+            'accepted' => $accepted,
+            'rate' => $shown > 0 ? (int)round($accepted / $shown * 100) : null,
+            'perVisitor' => $shown > 0 ? round($displays / $shown, 1) : null,
+        ];
     }
 
     /**
@@ -281,8 +523,29 @@ class AiRequestStatisticsService
             ->executeStatement();
 
         $this->prunePages($days);
+        $this->pruneBanner($firstDayKept);
 
         return $dropped;
+    }
+
+    /**
+     * Banner rows follow the retention of the counting rows and are not rolled up into months.
+     *
+     * The question they answer - do the people who are offered a translation want it - is about
+     * the banner as it stands today. A year-old ratio would be about a banner that has since
+     * been reworded.
+     */
+    protected function pruneBanner(int $firstDayKept): void
+    {
+        foreach ([self::TABLE_BANNER, self::TABLE_BANNER_COUNT] as $table) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
+            $queryBuilder
+                ->delete($table)
+                ->where(
+                    $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($firstDayKept, Connection::PARAM_INT))
+                )
+                ->executeStatement();
+        }
     }
 
     /**
