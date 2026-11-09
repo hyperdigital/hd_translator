@@ -9,6 +9,7 @@ use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Http\NormalizedParams;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -96,6 +97,17 @@ class AiRequestStatisticsService
      * is bounded by construction and counts events rather than people.
      */
     public const TABLE_BANNER_COUNT = 'tx_hdtranslator_ai_banner_count';
+
+    /**
+     * Which language version the asking happened on.
+     *
+     * The counting rows know what was asked for and never where from, so a language the site
+     * already has cannot be told apart: a visitor on the english page who wants german is
+     * demand, a banner offering german on a page that is already german is a defect. One row
+     * per language pair per day, no visitor, so it counts requests and stays bounded by the
+     * number of languages.
+     */
+    public const TABLE_SOURCE = 'tx_hdtranslator_ai_request_source';
 
     public function isEnabled(): bool
     {
@@ -524,8 +536,23 @@ class AiRequestStatisticsService
 
         $this->prunePages($days);
         $this->pruneBanner($firstDayKept);
+        $this->pruneSource($firstDayKept);
 
         return $dropped;
+    }
+
+    /**
+     * The source rows follow the retention of the counting rows they belong to.
+     */
+    protected function pruneSource(int $firstDayKept): void
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_SOURCE);
+        $queryBuilder
+            ->delete(self::TABLE_SOURCE)
+            ->where(
+                $queryBuilder->expr()->lt('day', $queryBuilder->createNamedParameter($firstDayKept, Connection::PARAM_INT))
+            )
+            ->executeStatement();
     }
 
     /**
@@ -672,6 +699,146 @@ class AiRequestStatisticsService
         } catch (\Throwable $e) {
             // a page that could not be counted is not worth failing a translation over
         }
+    }
+
+    /**
+     * Notes which language version the request came from.
+     *
+     * Taken from the same referer recordPage() already reads - nothing changes in the frontend
+     * and nothing in a project using it. Only the language is kept, never the url.
+     */
+    public function recordSource(ServerRequestInterface $request, string $targetLanguage): void
+    {
+        if (!$this->isEnabled() || $targetLanguage === '') {
+            return;
+        }
+
+        $source = $this->sourceLanguageOf($request);
+        if ($source === '') {
+            return;
+        }
+
+        try {
+            $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable(self::TABLE_SOURCE);
+            $day = $this->today();
+
+            $increment = 'UPDATE ' . $connection->quoteIdentifier(self::TABLE_SOURCE)
+                . ' SET ' . $connection->quoteIdentifier('requests') . ' = ' . $connection->quoteIdentifier('requests') . ' + 1'
+                . ' WHERE ' . $connection->quoteIdentifier('target_language') . ' = ?'
+                . ' AND ' . $connection->quoteIdentifier('day') . ' = ?'
+                . ' AND ' . $connection->quoteIdentifier('source_language') . ' = ?';
+
+            if ((int)$connection->executeStatement($increment, [$targetLanguage, $day, $source]) > 0) {
+                return;
+            }
+
+            try {
+                $connection->insert(self::TABLE_SOURCE, [
+                    'target_language' => $targetLanguage,
+                    'day' => $day,
+                    'source_language' => $source,
+                    'requests' => 1,
+                ]);
+            } catch (\Throwable $e) {
+                // two first requests of the day at once: one of them lands on the primary key
+                $connection->executeStatement($increment, [$targetLanguage, $day, $source]);
+            }
+        } catch (\Throwable $e) {
+            // a request that could not be attributed is not worth failing a translation over
+        }
+    }
+
+    /**
+     * The language version the referer belongs to, as a two letter upper case code.
+     *
+     * Resolved against the site configuration rather than guessed from the path: a language may
+     * live under /de-de/, under a host of its own, or at the root. The longest matching base
+     * wins, so /de-de/ beats the root language of the same site.
+     *
+     * The host is matched first and dropped on a second pass. A staging or ddev copy answers on
+     * a host the site configuration does not name - its baseVariants are resolved per request by
+     * TYPO3 and are not visible here - and without the second pass every such installation would
+     * attribute nothing at all.
+     */
+    protected function sourceLanguageOf(ServerRequestInterface $request): string
+    {
+        $referer = trim($request->getHeaderLine('Referer'));
+        if ($referer === '') {
+            return '';
+        }
+
+        $host = (string)(parse_url($referer, PHP_URL_HOST) ?: '');
+        $path = (string)(parse_url($referer, PHP_URL_PATH) ?: '/');
+
+        foreach ([true, false] as $matchHost) {
+            $best = -1;
+            $found = '';
+
+            try {
+                $sites = GeneralUtility::makeInstance(SiteFinder::class)->getAllSites();
+            } catch (\Throwable $e) {
+                return '';
+            }
+
+            foreach ($sites as $site) {
+                foreach ($site->getAllLanguages() as $language) {
+                    $base = $language->getBase();
+                    $baseHost = $base->getHost();
+
+                    if ($matchHost && $baseHost !== '' && $host !== '' && strtolower($baseHost) !== strtolower($host)) {
+                        continue;
+                    }
+
+                    $basePath = rtrim($base->getPath(), '/');
+                    if ($basePath !== '' && $path !== $basePath && !str_starts_with($path, $basePath . '/')) {
+                        continue;
+                    }
+
+                    if (strlen($basePath) > $best) {
+                        $best = strlen($basePath);
+                        $found = strtoupper(substr((string)$language->getLocale()->getLanguageCode(), 0, 2));
+                    }
+                }
+            }
+
+            if ($found !== '') {
+                return $found;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Where the asking came from, per language it was asked for.
+     *
+     * @return array<string, array<string, int>> target language => source language => requests
+     */
+    public function getSourceBreakdown(int $days = 30): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_SOURCE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('source_language'),
+                'SUM(' . $queryBuilder->quoteIdentifier('requests') . ') AS requests'
+            )
+            ->from(self::TABLE_SOURCE)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('target_language', 'source_language')
+            ->orderBy('requests', 'DESC')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']][(string)$row['source_language']] = (int)$row['requests'];
+        }
+
+        return $return;
     }
 
     /**

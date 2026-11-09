@@ -270,6 +270,8 @@ button.is-busy { opacity: .65; cursor: progress; }
     /* the ground a bar is drawn on; a token rather than light-dark(), because the backend does
        not always set color-scheme and a wrong ground there is invisible until somebody looks */
     --hdt-track: #ececec;
+    /* measured on both surfaces: 6.4:1 on the light one, 8.1:1 on the dark one */
+    --hdt-warning: #8a5300;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -284,6 +286,7 @@ button.is-busy { opacity: .65; cursor: progress; }
         --hdt-series-8: #e66767;
         --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
         --hdt-track: #2b2b2b;
+        --hdt-warning: #d9a13a;
     }
 }
 
@@ -298,6 +301,7 @@ button.is-busy { opacity: .65; cursor: progress; }
     --hdt-series-8: #e66767;
     --hdt-chart-surface: var(--typo3-surface-base, #1c1c1c);
     --hdt-track: #2b2b2b;
+    --hdt-warning: #d9a13a;
 }
 
 .hd-translator-chart-figure {
@@ -438,6 +442,15 @@ button.is-busy { opacity: .65; cursor: progress; }
     gap: 1.5rem;
     align-items: flex-end;
     margin-block-end: 1.5rem;
+}
+
+/* a long label must not stretch the row and push the tiles beside it off to the right */
+.hd-translator-insight {
+    max-inline-size: 20rem;
+}
+
+.hd-translator-insight-wide {
+    max-inline-size: none;
 }
 
 .hd-translator-insight-value {
@@ -681,6 +694,12 @@ button.is-busy { opacity: .65; cursor: progress; }
     font-size: .7em;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+}
+
+/* A number that reports a defect rather than measuring demand: a translation into the
+   language the page already is. */
+.hd-translator-warning {
+    color: var(--hdt-warning, #8a5300);
 }
 
 /* ----------------------------------------------------------------- the sparklines */

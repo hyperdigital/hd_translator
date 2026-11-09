@@ -384,6 +384,21 @@
             <trans-unit id="deepl.analytics.banner.funnel.agreed.note">
                 <source>%s %% of the visitors who were offered one</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.sources">
+                <source>Where the asking comes from</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.sources.description">
+                <source>The language version the visitor was on when they asked for another one, resolved from the referer against the site configuration. Counted per request, not per visitor, and only the language is kept - never the url.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.sources.self">
+                <source>the page was already in this language</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.sources.self.insight">
+                <source>requests in the last %s days asked for the language the page already was. Nobody asks for that on purpose - the banner is offering a translation where there is nothing to translate.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.sources.existing">
+                <source>%s of these asked for a language that exists as real pages. Those visitors could have been sent to the page instead of to a translation.</source>
+            </trans-unit>
             <trans-unit id="deepl.analytics.banner.missing">
                 <source>Nothing reports the translation banner yet. The banner is part of the site package, so it has to say so itself: call hdtranslator_recordBannerShown('de') every time it becomes visible and hdtranslator_recordBannerAccepted('de') when the visitor agrees. Until then only the requests are counted, and a banner that translates its own text counts as one of those.</source>
             </trans-unit>

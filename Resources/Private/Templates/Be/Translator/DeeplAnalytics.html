@@ -130,6 +130,22 @@
 
                     <div class="hd-translator-insights">
                         <f:comment>
+                            A translation into the language the page already is. Nobody asks for
+                            that on purpose, so the number is a defect report about the banner,
+                            not a measurement of demand.
+                        </f:comment>
+                        <f:if condition="{sourceSelf}">
+                            <div class="hd-translator-insight">
+                                <div class="hd-translator-insight-value hd-translator-warning">
+                                    <f:format.number decimals="0" thousandsSeparator=" ">{sourceSelf}</f:format.number>
+                                </div>
+                                <div class="hd-translator-insight-label">
+                                    <f:translate key="deepl.analytics.sources.self.insight" arguments="{0: range}" />
+                                </div>
+                            </div>
+                        </f:if>
+
+                        <f:comment>
                             Whether the demand sits on a few languages or spreads, which is the
                             question behind "should we build one mutation or several".
                         </f:comment>
@@ -195,6 +211,42 @@
                                             <li><span class="hd-translator-muted">{p.requests}&times;</span> {p.page}</li>
                                         </f:for>
                                     </ul>
+                                </div>
+                            </f:for>
+                        </div>
+                    </f:if>
+
+                    <f:comment>
+                        Which language version the asking happened on. The counting rows know
+                        what was asked for and never where from, so without this a language the
+                        site already has cannot be read at all: a visitor on the english page who
+                        wants german is demand, a banner offering german on a german page is a
+                        defect, and both used to be the same number.
+                    </f:comment>
+                    <f:if condition="{sources}">
+                        <div class="hd-translator-pages">
+                            <h2><f:translate key="deepl.analytics.sources" /></h2>
+                            <p class="hd-translator-muted"><f:translate key="deepl.analytics.sources.description" /></p>
+                            <f:for each="{sources}" as="target">
+                                <div class="hd-translator-pagegroup">
+                                    <strong>{target.name}</strong> [{target.language}]
+                                    <ul>
+                                        <f:for each="{target.rows}" as="line">
+                                            <li>
+                                                <span class="hd-translator-muted">{line.requests}&times;</span>
+                                                {line.code}
+                                                <span class="hd-translator-muted">{line.share}&nbsp;%</span>
+                                                <f:if condition="{line.isSelf}">
+                                                    <span class="hd-translator-warning"><f:translate key="deepl.analytics.sources.self" /></span>
+                                                </f:if>
+                                            </li>
+                                        </f:for>
+                                    </ul>
+                                    <f:if condition="{target.existing}">
+                                        <p class="hd-translator-muted">
+                                            <f:translate key="deepl.analytics.sources.existing" arguments="{0: target.existing}" />
+                                        </p>
+                                    </f:if>
                                 </div>
                             </f:for>
                         </div>

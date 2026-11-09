@@ -315,6 +315,39 @@ frontend or in a project using it - and only the path is kept, never the query, 
 visitor typed into a search never reaches the table. It counts requests, not people: a page
 is not a visitor, and pairing the two would multiply the rows by the size of the site.
 
+..  _sources:
+
+Where the asking comes from
+---------------------------
+
+A language the site already has reads as demand and may be anything but. Somebody on the
+english page who asks for german wants a german page; a banner offering german on a page that
+is already german is a defect that inflates the same number. The counting rows know what was
+asked for and never where from, so the two used to be one figure.
+
+The language version a request came from is now resolved from the referer the browser already
+sends - nothing changes in the frontend and nothing in a project using it - by matching it
+against the bases of the site configuration. The longest matching base wins, so ``/de-de/``
+beats the root language of the same site. The host is matched first and dropped on a second
+pass, because a staging or ddev copy answers on a host the site configuration does not name and
+would otherwise attribute nothing at all. Only the resolved language is stored, never the url.
+
+The :guilabel:`Demand` screen lists, per language that was asked for, which language versions
+the asking happened on, and calls out two cases:
+
+**The page was already in this language.** Nobody asks for that on purpose, so the figure is a
+defect report about the banner rather than a measurement. It also gets a tile of its own beside
+the other insights, in a warning colour, so it is not read as demand.
+
+**It was asked for although it exists as real pages.** Those visitors could have been sent to
+the page instead of to a translation, which is a question about navigation or a missing
+redirect, not about building a language.
+
+What is stored is :sql:`tx_hdtranslator_ai_request_source` - one row per language pair per day,
+no visitor, so it counts requests and is bounded by construction: a day holds at most as many
+rows as there are language pairs, whatever the traffic. The rows follow
+:confval:`aiRequestStatisticsRetention` like the counting rows they belong to.
+
 ..  _banner:
 
 Who was offered a translation, and who agreed

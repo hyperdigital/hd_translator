@@ -96,6 +96,7 @@ class DeeplApiEid
         if ($event === self::EVENT_USED) {
             $statistics->record($request, $targetLanguage);
             $statistics->recordPage($request, $targetLanguage);
+            $statistics->recordSource($request, $targetLanguage);
         } elseif (in_array($event, AiRequestStatisticsService::BANNER_EVENTS, true)) {
             $statistics->recordBannerEvent($request, $targetLanguage, $event);
         } else {
@@ -170,6 +171,9 @@ class DeeplApiEid
         $statistics = GeneralUtility::makeInstance(AiRequestStatisticsService::class);
         $statistics->record($request, $targetLanguage);
         $statistics->recordPage($request, $targetLanguage);
+        // which language version the asking happened on, so a language the site already has can
+        // be told apart from a banner offering a page the language it already is
+        $statistics->recordSource($request, $targetLanguage);
 
         try {
             $translations = $deeplApiService->translateTexts($texts, $targetLanguage);
