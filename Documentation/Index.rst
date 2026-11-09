@@ -492,7 +492,7 @@ History after the detail is gone
 --------------------------------
 
 Below the demand chart, a second chart stacks the **visitor-days per month** of every
-language. It had been computed and handed to the screen since 2.6.0 without any template
+language. It had been computed and handed to the screen since 3.3.0 without any template
 ever drawing it - one query per visit that nobody saw. Hovering or focusing a month names
 every language in it.
 
