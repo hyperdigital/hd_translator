@@ -315,6 +315,43 @@ frontend or in a project using it - and only the path is kept, never the query, 
 visitor typed into a search never reaches the table. It counts requests, not people: a page
 is not a visitor, and pairing the two would multiply the rows by the size of the site.
 
+..  _overlay:
+
+How a language got the visitors it got
+--------------------------------------
+
+:guilabel:`How it got them` splits one language in the daily chart. The demand line does not
+move; it gains a boundary inside it and a second half below the axis:
+
+**Filled, inside the line**: the visitors the banner brought - the people who asked for a
+translation *and* agreed to the banner. This can never overflow the line, because it is a part
+of it: the demand rows and the banner rows carry the **same** day-salted visitor hash for the
+same person, so this is a set operation over one key rather than two numbers being compared.
+
+**The rest of the line**: everybody else who asked - a language switcher, a remembered choice,
+a direct link, or somebody who ignored the banner and translated anyway.
+
+**Below the axis**: the people the banner was shown to who never asked for a translation that
+day. They are not in the line at all, which is exactly why they hang below it instead of being
+stacked on top. Somebody who agreed and then left before the translation started counts here,
+which is the honest reading of what happened.
+
+..  note::
+    How many people were offered a translation says nothing about how many asked for one -
+    either number can be the larger, and both happen on real sites. That is why the two are on
+    opposite sides of the axis and only their overlap is drawn inside the line. Both halves share
+    one scale, so their heights can be compared directly.
+
+A day the banner reported nothing about is drawn without any split at all, and the readout says
+so. A day with no banner rows is not a day on which the banner brought nobody, and drawing the
+two the same way would turn "nobody measured" into "the banner is useless".
+
+The split talks about one language at a time - six languages with three bands each would be a
+wall of colour. Pointing at a language, in the legend or in a table row, switches to it;
+switching the view on without pointing at anything picks the language with the most to say. It
+is drawn in the :guilabel:`Lines` mode only, because the fill carries a different meaning in the
+stacked ones.
+
 ..  _sources:
 
 Where the asking comes from

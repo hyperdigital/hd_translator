@@ -68,11 +68,22 @@
                             <f:translate key="deepl.analytics.smooth" />
                         </button>
 
+                        <f:comment>
+                            Where a language got its visitors. Only in the lines mode, because
+                            the fill carries a different meaning in the stacked ones.
+                        </f:comment>
+                        <button type="button" class="btn btn-default btn-sm" data-chart-banner aria-pressed="false">
+                            <f:translate key="deepl.analytics.overlay" />
+                        </button>
+
                         <button type="button" class="btn btn-default btn-sm" data-chart-unzoom hidden="hidden">
                             <f:translate key="deepl.analytics.unzoom" />
                         </button>
 
                         <span class="hd-translator-muted"><f:translate key="deepl.analytics.chart.help" /></span>
+                        <f:if condition="{bannerKnown}">
+                            <span class="hd-translator-muted"><f:translate key="deepl.analytics.overlay.help" /></span>
+                        </f:if>
                     </div>
 
                     <figure class="hd-translator-chart-figure">
@@ -86,7 +97,11 @@
                         <div id="hd-translator-chart" class="hd-translator-chart"
                              data-label-total="{f:translate(key: 'deepl.analytics.chart.total')}"
                              data-label-peak="{f:translate(key: 'deepl.analytics.chart.peak')}"
-                             data-label-chart="{f:translate(key: 'deepl.analytics.chart.aria')}"></div>
+                             data-label-chart="{f:translate(key: 'deepl.analytics.chart.aria')}"
+                             data-label-via="{f:translate(key: 'deepl.analytics.overlay.via')}"
+                             data-label-other="{f:translate(key: 'deepl.analytics.overlay.other')}"
+                             data-label-lost="{f:translate(key: 'deepl.analytics.overlay.lost')}"
+                             data-label-unknown="{f:translate(key: 'deepl.analytics.overlay.unknown')}"></div>
                         <div id="hd-translator-chart-legend" class="hd-translator-chart-legend"></div>
                     </figure>
 

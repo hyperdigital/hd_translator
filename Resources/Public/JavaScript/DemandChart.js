@@ -134,6 +134,10 @@
             smooth: false,
             hidden: new Set(),
             spot: null,
+            // the overlay needs a language even when the pointer is elsewhere, so it keeps one
+            // of its own; hovering still wins
+            pin: null,
+            overlay: false,
             from: 0,
             to: data.days.length - 1,
             read: null,
@@ -142,6 +146,50 @@
         let geometry = null;
 
         const visible = () => languages.filter((language) => !state.hidden.has(language));
+
+        /**
+         * The language the overlay talks about: the one being pointed at, the one it pinned when
+         * it was switched on, or the only one left visible.
+         */
+        const focused = () => {
+            const shown = visible();
+            if (state.spot && shown.includes(state.spot)) return state.spot;
+            if (shown.length === 1) return shown[0];
+            if (state.pin && shown.includes(state.pin)) return state.pin;
+            return null;
+        };
+
+        const split = (language) => (data.banner || {})[language] || null;
+
+        /** Whether the split can be drawn at all: lines mode, switched on, and a language to show. */
+        const overlayOf = () => {
+            if (!state.overlay || state.mode !== 'lines') return null;
+            const language = focused();
+            if (!language) return null;
+            const parts = split(language);
+            return parts ? { language, parts } : null;
+        };
+
+        /**
+         * The runs of days the banner reported on. A day it said nothing about is not a day with
+         * nought visitors, and drawing the two the same way would turn "nobody measured" into
+         * "the banner brought nobody".
+         */
+        const knownRuns = (known, first, last) => {
+            const runs = [];
+            let start = null;
+            for (let index = first; index <= last; index++) {
+                if (known[index]) {
+                    if (start === null) start = index;
+                } else if (start !== null) {
+                    runs.push([start, index - 1]);
+                    start = null;
+                }
+            }
+            if (start !== null) runs.push([start, last]);
+
+            return runs;
+        };
 
         /**
          * A centred seven day mean. Over ninety days and more the daily noise is louder than the
@@ -162,9 +210,33 @@
             });
         };
 
+        /**
+         * A filled band between two value functions over a run of days. A run of one day has no
+         * width to fill, so it gets a sliver instead of nothing.
+         */
+        const band = (from, to, top, bottom, x, y) => {
+            if (from === to) {
+                const half = Math.max((x(1) - x(0)) / 2, 1);
+                return `M ${x(from) - half},${y(bottom(from))} L ${x(from) - half},${y(top(from))}`
+                    + ` L ${x(from) + half},${y(top(from))} L ${x(from) + half},${y(bottom(from))} Z`;
+            }
+
+            const upper = [];
+            const lower = [];
+            for (let index = from; index <= to; index++) {
+                upper.push(`${x(index)},${y(top(index))}`);
+                lower.push(`${x(index)},${y(bottom(index))}`);
+            }
+
+            return `M ${upper.join(' L ')} L ${lower.reverse().join(' L ')} Z`;
+        };
+
         const draw = () => {
+            const overlay = overlayOf();
             const width = Math.max(root.clientWidth || 720, 240);
-            const height = 280;
+            // the split hangs a second half below the axis, and squeezing both into the height
+            // of one leaves the lines flat enough to say nothing
+            const height = overlay ? 380 : 280;
             svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
             svg.setAttribute('height', String(height));
             clear(svg);
@@ -183,6 +255,15 @@
                 totals.push(shown.reduce((sum, language) => sum + valuesOf(language)[index], 0));
             }
 
+            // the lost half hangs below the axis, so the domain reaches into the negative and
+            // both halves keep one step, one scale and therefore comparable heights
+            let floor = 0;
+            if (overlay) {
+                for (let index = first; index <= last; index++) {
+                    if (overlay.parts.known[index]) floor = Math.max(floor, overlay.parts.lost[index]);
+                }
+            }
+
             let max;
             let step;
             let axisLabel;
@@ -198,19 +279,23 @@
                 max = Math.ceil(peak / step) * step;
                 axisLabel = (value) => num.format(value);
             }
-            const y = (value) => plot.top + innerHeight - (value / max) * innerHeight;
 
-            // recessive grid, one line per step
-            for (let value = 0; value <= max + 1e-9; value += step) {
+            const bottom = floor > 0 ? Math.ceil(floor / step) * step : 0;
+            const domain = max + bottom;
+            const y = (value) => plot.top + ((max - value) / domain) * innerHeight;
+
+            // recessive grid, one line per step, in both directions where there is a below
+            for (let value = -bottom; value <= max + 1e-9; value += step) {
                 svg.appendChild(el('line', {
                     x1: plot.left, x2: plot.left + innerWidth, y1: y(value), y2: y(value),
-                    class: 'hd-translator-chart-grid',
+                    class: 'hd-translator-chart-grid' + (value === 0 && bottom > 0 ? ' is-zero' : ''),
                 }));
                 const label = el('text', {
                     x: plot.left - 8, y: y(value) + 4,
                     class: 'hd-translator-chart-axis', 'text-anchor': 'end',
                 });
-                label.textContent = axisLabel(value);
+                // the half below the axis counts people too, so it is labelled without the sign
+                label.textContent = axisLabel(Math.abs(value));
                 svg.appendChild(label);
             }
 
@@ -240,6 +325,27 @@
                             d: `M ${x(first)},${y(0)} L ${points.join(' L ')} L ${x(last)},${y(0)} Z`,
                             class: 'hd-translator-chart-area', fill: colourOf(language), 'fill-opacity': .14,
                         }));
+                    }
+
+                    // how this language got its visitors, drawn inside the area it already has:
+                    // the part the banner brought is a subset of the line by construction, so it
+                    // can never overflow it
+                    if (overlay && overlay.language === language) {
+                        const parts = overlay.parts;
+
+                        knownRuns(parts.known, first, last).forEach(([from, to]) => {
+                            svg.appendChild(el('path', {
+                                d: band(from, to, (index) => parts.banner[index], () => 0, x, y),
+                                class: 'hd-translator-chart-area', fill: colourOf(language), 'fill-opacity': .45,
+                            }));
+
+                            // the ones it was offered to for nothing are not in the line at all,
+                            // so they hang below the axis instead of being stacked on top of it
+                            svg.appendChild(el('path', {
+                                d: band(from, to, () => 0, (index) => -parts.lost[index], x, y),
+                                class: 'hd-translator-chart-area hd-translator-chart-lost',
+                            }));
+                        });
                     }
 
                     svg.appendChild(el('polyline', {
@@ -325,6 +431,7 @@
                 class: 'hd-translator-chart-crosshair',
                 x1: 0, x2: 0, y1: plot.top, y2: plot.top + innerHeight,
             });
+            void domain;
             crosshair.style.display = 'none';
             svg.appendChild(crosshair);
 
@@ -343,7 +450,7 @@
                 `${data.days[first]} – ${data.days[last]}`,
             ].join('. '));
 
-            geometry = { width, innerWidth, x, y, crosshair, dots, brush, shown, first, last, totals };
+            geometry = { width, innerWidth, x, y, crosshair, dots, brush, shown, first, last, totals, overlay };
             if (state.read !== null) readout(state.read, null);
             if (state.drag) paintBrush();
         };
@@ -402,6 +509,31 @@
                     row(colourOf(language), value_, language, state.spot === language ? 'is-hot' : '', state.mode !== 'lines')
                 );
             });
+
+            // how the focused language got that day, when the split is being drawn
+            if (geometry.overlay) {
+                const parts = geometry.overlay.parts;
+                const language = geometry.overlay.language;
+
+                if (parts.known[index]) {
+                    const asked = valuesOf(language)[index];
+                    tooltip.node.appendChild(row(
+                        colourOf(language), num.format(parts.banner[index]),
+                        text.labelVia || 'via the banner', 'hd-translator-chart-tooltip-total'
+                    ));
+                    tooltip.node.appendChild(row(
+                        null, num.format(Math.max(Math.round(asked) - parts.banner[index], 0)),
+                        text.labelOther || 'other ways'
+                    ));
+                    tooltip.node.appendChild(row(
+                        null, num.format(parts.lost[index]), text.labelLost || 'offered, not used'
+                    ));
+                } else {
+                    tooltip.node.appendChild(row(
+                        null, '\u2013', text.labelUnknown || 'nothing reported', 'hd-translator-chart-tooltip-total'
+                    ));
+                }
+            }
 
             // the total, which is the one number the chart itself cannot show in "lines"
             if (state.mode !== 'share' && geometry.shown.length > 1) {
@@ -540,10 +672,50 @@
             button.addEventListener('click', () => {
                 state.mode = button.dataset.chartMode;
                 modes.forEach((other) => marked(other, other === button));
+                // the fill means something else in the stacked modes, so the split stays out
+                onlyInLines();
                 hide();
                 draw();
             });
         });
+
+        const overlayButton = document.querySelector('[data-chart-banner]');
+        if (overlayButton) {
+            marked(overlayButton, false);
+
+            overlayButton.addEventListener('click', () => {
+                state.overlay = !state.overlay;
+                marked(overlayButton, state.overlay);
+
+                // switched on with nothing pointed at, it pins the language that has the most to
+                // say, so the first thing the reader sees is the answer rather than an invitation
+                if (state.overlay && !focused()) {
+                    let best = null;
+                    let most = -1;
+                    visible().forEach((language) => {
+                        const parts = split(language);
+                        if (!parts) return;
+                        let sum = 0;
+                        for (let index = state.from; index <= state.to; index++) {
+                            sum += parts.banner[index] + parts.lost[index];
+                        }
+                        if (sum > most) { most = sum; best = language; }
+                    });
+                    state.pin = best;
+                } else if (!state.overlay) {
+                    state.pin = null;
+                }
+
+                hide();
+                draw();
+            });
+        }
+
+        const onlyInLines = () => {
+            if (!overlayButton) return;
+            overlayButton.disabled = state.mode !== 'lines';
+            overlayButton.setAttribute('aria-disabled', state.mode !== 'lines' ? 'true' : 'false');
+        };
 
         const smooth = document.querySelector('[data-chart-smooth]');
         if (smooth) {
@@ -607,6 +779,7 @@
             window.addEventListener('resize', () => { hide(); draw(); });
         }
 
+        onlyInLines();
         draw();
 
         return {
