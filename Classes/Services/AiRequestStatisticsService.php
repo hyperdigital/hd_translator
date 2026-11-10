@@ -440,12 +440,7 @@ class AiRequestStatisticsService
             $counted[(string)$row['target_language']][(int)$row['day']] = (int)$row['visitors'];
         }
 
-        $now = $GLOBALS['EXEC_TIME'] ?? time();
-        $calendar = [];
-        for ($back = $days - 1; $back >= 0; $back--) {
-            $timestamp = strtotime('-' . $back . ' days', $now);
-            $calendar[] = (int)date('Ymd', $timestamp !== false ? $timestamp : $now);
-        }
+        $calendar = $this->calendarOf($days);
 
         $series = [];
         foreach ($counted as $language => $perDay) {
@@ -462,6 +457,153 @@ class AiRequestStatisticsService
             ),
             'series' => $series,
         ];
+    }
+
+    /**
+     * The days of a window, oldest first, as Ymd integers.
+     *
+     * Both series are drawn on the same axis, so they have to agree on the calendar down to the
+     * day - hence one place that builds it.
+     */
+    protected function calendarOf(int $days): array
+    {
+        $now = $GLOBALS['EXEC_TIME'] ?? time();
+        $calendar = [];
+        for ($back = $days - 1; $back >= 0; $back--) {
+            $timestamp = strtotime('-' . $back . ' days', $now);
+            $calendar[] = (int)date('Ymd', $timestamp !== false ? $timestamp : $now);
+        }
+
+        return $calendar;
+    }
+
+    /**
+     * How a language got the visitors it got, per day: the ones the banner brought, and the ones
+     * it was offered to for nothing.
+     *
+     * The demand rows and the banner rows carry the **same** visitor hash for the same person on
+     * the same day, so these are set operations on one key, not two numbers being compared. That
+     * matters: how many people were offered a translation says nothing about how many asked for
+     * one - either number can be the larger - but how many of *these* people did both is exact.
+     *
+     * Three figures per language and day:
+     *
+     * - **banner**: asked for a translation *and* agreed to the banner. A part of the daily
+     *   series by construction, so it can be drawn inside it without ever overflowing.
+     * - **lost**: was shown the banner and never asked for a translation that day. These people
+     *   are not in the daily series at all, which is why the screen mirrors them below the axis
+     *   instead of stacking them on top. Somebody who agreed and then left before the
+     *   translation started counts here, which is the honest reading of what happened.
+     * - **known**: whether the banner reported anything at all that day. Without it a day before
+     *   the site package was wired up reads as "the banner brought nobody", which is a very
+     *   different statement from "nobody measured".
+     *
+     * @return array<string, array{banner: int[], lost: int[], known: int[]}>
+     */
+    public function getBannerSplitSeries(int $days): array
+    {
+        $days = max(min($days, 365), 2);
+        $calendar = $this->calendarOf($days);
+        $from = $this->firstDayOf($days);
+
+        $viaBanner = $this->countJoined($from, self::BANNER_ACCEPTED);
+        $reached = $this->countJoined($from, self::BANNER_SHOWN);
+        $offered = $this->countBannerVisitorsPerDay($from);
+
+        $series = [];
+        foreach ($offered as $language => $perDay) {
+            $banner = [];
+            $lost = [];
+            $known = [];
+
+            foreach ($calendar as $day) {
+                $shown = (int)($perDay[$day] ?? 0);
+                $banner[] = (int)($viaBanner[$language][$day] ?? 0);
+                // shown minus the ones who went on to ask for a translation, whether they used
+                // the banner to do it or found their own way
+                $lost[] = max($shown - (int)($reached[$language][$day] ?? 0), 0);
+                $known[] = isset($perDay[$day]) ? 1 : 0;
+            }
+
+            $series[$language] = ['banner' => $banner, 'lost' => $lost, 'known' => $known];
+        }
+
+        return $series;
+    }
+
+    /**
+     * Visitors who are in the demand rows **and** in the banner rows with the given event, per
+     * language and day. A join over the primary key of both tables.
+     *
+     * @return array<string, array<int, int>>
+     */
+    protected function countJoined(int $from, string $event): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                'r.' . $queryBuilder->quoteIdentifier('target_language') . ' AS target_language',
+                'r.' . $queryBuilder->quoteIdentifier('day') . ' AS day',
+                'COUNT(DISTINCT r.' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
+            )
+            ->from(self::TABLE, 'r')
+            ->innerJoin(
+                'r',
+                self::TABLE_BANNER,
+                'b',
+                (string)$queryBuilder->expr()->and(
+                    $queryBuilder->expr()->eq('b.target_language', 'r.' . $queryBuilder->quoteIdentifier('target_language')),
+                    $queryBuilder->expr()->eq('b.day', 'r.' . $queryBuilder->quoteIdentifier('day')),
+                    $queryBuilder->expr()->eq('b.visitor', 'r.' . $queryBuilder->quoteIdentifier('visitor')),
+                    $queryBuilder->expr()->eq('b.event', $queryBuilder->createNamedParameter($event))
+                )
+            )
+            ->where(
+                $queryBuilder->expr()->gte('r.day', $queryBuilder->createNamedParameter($from, Connection::PARAM_INT))
+            )
+            ->groupBy('r.target_language', 'r.day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']][(int)$row['day']] = (int)$row['visitors'];
+        }
+
+        return $return;
+    }
+
+    /**
+     * Visitors the banner was shown to, per language and day.
+     *
+     * @return array<string, array<int, int>>
+     */
+    protected function countBannerVisitorsPerDay(int $from): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_BANNER);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('target_language'),
+                $queryBuilder->quoteIdentifier('day'),
+                'COUNT(DISTINCT ' . $queryBuilder->quoteIdentifier('visitor') . ') AS visitors'
+            )
+            ->from(self::TABLE_BANNER)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($from, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('event', $queryBuilder->createNamedParameter(self::BANNER_SHOWN))
+            )
+            ->groupBy('target_language', 'day')
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        $return = [];
+        foreach ($rows as $row) {
+            $return[(string)$row['target_language']][(int)$row['day']] = (int)$row['visitors'];
+        }
+
+        return $return;
     }
 
     /**

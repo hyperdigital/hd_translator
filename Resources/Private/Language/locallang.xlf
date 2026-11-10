@@ -693,6 +693,24 @@
             <trans-unit id="deepl.analytics.banner.funnel.agreed.note">
                 <source>%s %% of the visitors who were offered one</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.overlay">
+                <source>How it got them</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.overlay.help">
+                <source>"How it got them" splits one language into the visitors the banner brought and the ones who found their own way, and hangs the ones it was offered to for nothing below the axis. Point at a language to switch to it.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.overlay.via">
+                <source>via the banner</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.overlay.other">
+                <source>other ways</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.overlay.lost">
+                <source>offered, not used</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.overlay.unknown">
+                <source>the banner reported nothing that day</source>
+            </trans-unit>
             <trans-unit id="deepl.analytics.sources">
                 <source>Where the asking comes from</source>
             </trans-unit>

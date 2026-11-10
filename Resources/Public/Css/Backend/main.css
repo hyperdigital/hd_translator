@@ -785,6 +785,19 @@ button.is-busy {
     stroke-width: 3;
 }
 
+/* the axis itself, once there is something hanging below it */
+.hd-translator-chart-grid.is-zero {
+    opacity: 1;
+    stroke: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+/* Offered and not used. Neutral on purpose: these people are not demand, and giving them a
+   language colour would invite reading them as such. */
+.hd-translator-chart-lost {
+    fill: var(--hdt-series-0, #76757066);
+    fill-opacity: .55;
+}
+
 /* the dot says where the crosshair is reading, which a dashed line alone does not */
 .hd-translator-chart-dot {
     stroke: var(--hdt-chart-surface);

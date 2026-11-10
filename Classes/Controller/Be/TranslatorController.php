@@ -2271,8 +2271,11 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
             'apiKey' => $this->deeplApiKey,
             'range' => $range,
             'ranges' => [7, 30, 90, 365],
+            // the split travels with the series it belongs to, so the two can never disagree
+            // about which day is which
             'chart' => json_encode(
-                $statisticsService->getDailySeries($range) + ['order' => $palette],
+                $statisticsService->getDailySeries($range)
+                    + ['order' => $palette, 'banner' => $statisticsService->getBannerSplitSeries($range)],
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             ),
             'weekdays' => $statisticsService->getWeekdayProfile($range),
