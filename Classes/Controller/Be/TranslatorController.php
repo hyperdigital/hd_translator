@@ -1681,6 +1681,51 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
     }
 
     /**
+     * The languages a site really has: the one its root page is written in, plus every
+     * translation of that page that is neither deleted nor hidden.
+     *
+     * A site language is a declaration in a yaml file, not a page. One installation declares
+     * french and japanese and has not a single page in either - both answer 404 - and a screen
+     * that reads the configuration alone calls them real pages.
+     *
+     * @return array<int, int> language ids
+     */
+    protected function languagesOfRootPage(int $rootPageId): array
+    {
+        $languages = [0];
+
+        if ($rootPageId <= 0) {
+            return $languages;
+        }
+
+        try {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
+            // the restrictions decide by the backend user's workspace and more; what counts here
+            // is only whether the page is there and switched on
+            $queryBuilder->getRestrictions()->removeAll();
+
+            $rows = $queryBuilder
+                ->select('sys_language_uid')
+                ->from('pages')
+                ->where(
+                    $queryBuilder->expr()->eq('l10n_parent', $queryBuilder->createNamedParameter($rootPageId, Connection::PARAM_INT)),
+                    $queryBuilder->expr()->eq('deleted', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT)),
+                    $queryBuilder->expr()->eq('hidden', $queryBuilder->createNamedParameter(0, Connection::PARAM_INT))
+                )
+                ->executeQuery()
+                ->fetchFirstColumn();
+
+            foreach ($rows as $language) {
+                $languages[] = (int)$language;
+            }
+        } catch (\Throwable $e) {
+            // a screen that cannot ask the database should not start inventing answers
+        }
+
+        return $languages;
+    }
+
+    /**
      * Template: Be/Translator/DeeplAnalytics
      * Description: Which languages people actually ask for, sortable, so the one worth building
      * as real pages can be picked out.
@@ -1736,10 +1781,19 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         // where the asking came from, which is what tells demand from a misfiring banner
         $sourceBreakdown = $statisticsService->getSourceBreakdown($range);
 
-        // languages that already exist as a real language of a site need no deciding about
+        // Languages that already exist as a real language of a site need no deciding about -
+        // but declared is not built. A language can sit in the site configuration with not one
+        // page translated into it, and calling that "real pages" answers the screen's own
+        // question backwards: it says "already there" about a language whose url is a 404.
         $configured = [];
         foreach (GeneralUtility::makeInstance(SiteFinder::class)->getAllSites() as $site) {
+            $live = $this->languagesOfRootPage($site->getRootPageId());
+
             foreach ($site->getAllLanguages() as $siteLanguage) {
+                if (!in_array($siteLanguage->getLanguageId(), $live, true)) {
+                    continue;
+                }
+
                 $configured[strtoupper(substr((string)$siteLanguage->getLocale()->getLanguageCode(), 0, 2))] = true;
             }
         }

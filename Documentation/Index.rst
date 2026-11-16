@@ -252,7 +252,10 @@ that answers which languages visitors actually request, so the one worth buildin
 real pages can be picked out. A chart draws the unique visitors per day over the last
 7, 30, 90 or 365 days. The table below it carries the same numbers, sorted by any
 column, together with a sparkline of the range, how many translations exist and whether
-the language is already a real language of a site.
+the language is already a real language of a site. That last one asks the page tree, not
+the site configuration: a language can be declared in :file:`config.yaml` with not one page
+translated into it, and calling that a real page version answers the screen's own question
+backwards.
 
 The chart answers three questions, one per mode:
 
