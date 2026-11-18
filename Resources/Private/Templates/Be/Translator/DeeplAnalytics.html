@@ -168,50 +168,12 @@
 						</f:comment>
 						<script type="application/json" id="hd-translator-screen-data">{screen -> f:format.raw()}</script>
 						<f:comment>
-							The strings the new blocks build at runtime. A script cannot reach the
-							label files, and eighteen data attributes on one div is not an answer.
+							The words the blocks built in the browser speak. Translated in the
+							controller: an inline f:translate in each value of a literal object here
+							is never resolved, because fluid reads the outer brace as one expression.
 						</f:comment>
-						<script type="application/json" id="hd-translator-labels">{
-							"worthOne": "{f:translate(key: 'deepl.analytics.worth.one')}",
-							"worthMany": "{f:translate(key: 'deepl.analytics.worth.many')}",
-							"worthEffect": "{f:translate(key: 'deepl.analytics.worth.effect')}",
-							"unit": "{f:translate(key: 'deepl.analytics.worth.unit')}",
-							"build": "{f:translate(key: 'deepl.analytics.verdict.build')}",
-							"watch": "{f:translate(key: 'deepl.analytics.verdict.watch')}",
-							"noise": "{f:translate(key: 'deepl.analytics.verdict.noise')}",
-							"check": "{f:translate(key: 'deepl.analytics.verdict.check')}",
-							"have": "{f:translate(key: 'deepl.analytics.verdict.have')}",
-							"alarm": "{f:translate(key: 'deepl.analytics.alarm')}",
-							"pagesOverall": "{f:translate(key: 'deepl.analytics.pages.overall')}",
-							"pagesOf": "{f:translate(key: 'deepl.analytics.pages.of')}",
-							"funnelOf": "{f:translate(key: 'deepl.analytics.funnel.of')}",
-							"funnelNone": "{f:translate(key: 'deepl.analytics.funnel.none')}",
-							"visitors": "{f:translate(key: 'deepl.analytics.visitors')}"
-						}</script>
+						<script type="application/json" id="hd-translator-labels">{labels -> f:format.raw()}</script>
 						<f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
-
-						<f:comment>
-							Every language at once, each on its own scale, each a button: this is what
-							replaces reading thirty-two lines out of one chart.
-						</f:comment>
-						<div class="hd-translator-all" id="hd-translator-all" hidden="hidden">
-							<h2><f:translate key="deepl.analytics.all" /></h2>
-							<div class="hd-translator-filters" data-cells-filters>
-								<button type="button" class="btn btn-primary btn-sm" data-cells-filter="all" aria-pressed="true">
-									<f:translate key="deepl.analytics.filter.all" />
-								</button>
-								<button type="button" class="btn btn-default btn-sm" data-cells-filter="candidates" aria-pressed="false">
-									<f:translate key="deepl.analytics.filter.candidates" />
-								</button>
-								<button type="button" class="btn btn-default btn-sm" data-cells-filter="growing" aria-pressed="false">
-									<f:translate key="deepl.analytics.filter.growing" />
-								</button>
-								<button type="button" class="btn btn-default btn-sm" data-cells-filter="banner" aria-pressed="false">
-									<f:translate key="deepl.analytics.filter.banner" />
-								</button>
-							</div>
-							<div class="hd-translator-cells" data-cells></div>
-						</div>
 
 						<f:comment>
 							Displays, the people behind them and the ones who agreed. Three numbers side by

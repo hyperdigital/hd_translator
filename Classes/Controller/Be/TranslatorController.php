@@ -16,6 +16,7 @@ use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Imaging\IconSize;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -2375,6 +2376,34 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                     'pagesOverall' => $statisticsService->getTopPagesOverall($range, 8),
                     'weekdays' => $statisticsService->getWeekdayProfile($range),
                 ],
+                JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
+            // The words the blocks built in the browser speak. They were a literal json object
+            // in the template with an inline f:translate in each value, and Fluid reads the
+            // outer brace of such an object as one expression of its own: it could not resolve
+            // it, so it printed the expressions themselves onto the screen. Translated here,
+            // the template carries one variable like every other blob on this page does.
+            'labels' => json_encode(
+                array_map(
+                    static fn(string $key): string => (string)LocalizationUtility::translate($key, 'hd_translator'),
+                    [
+                        'worthOne' => 'deepl.analytics.worth.one',
+                        'worthMany' => 'deepl.analytics.worth.many',
+                        'worthEffect' => 'deepl.analytics.worth.effect',
+                        'unit' => 'deepl.analytics.worth.unit',
+                        'build' => 'deepl.analytics.verdict.build',
+                        'watch' => 'deepl.analytics.verdict.watch',
+                        'noise' => 'deepl.analytics.verdict.noise',
+                        'check' => 'deepl.analytics.verdict.check',
+                        'have' => 'deepl.analytics.verdict.have',
+                        'alarm' => 'deepl.analytics.alarm',
+                        'pagesOverall' => 'deepl.analytics.pages.overall',
+                        'pagesOf' => 'deepl.analytics.pages.of',
+                        'funnelOf' => 'deepl.analytics.funnel.of',
+                        'funnelNone' => 'deepl.analytics.funnel.none',
+                        'visitors' => 'deepl.analytics.visitors',
+                    ]
+                ),
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             ),
             'retentionDays' => $statisticsService->getRetentionDays(),
