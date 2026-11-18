@@ -167,26 +167,11 @@
                     </f:comment>
                     <script type="application/json" id="hd-translator-screen-data">{screen -> f:format.raw()}</script>
                     <f:comment>
-                        The strings the new blocks build at runtime. A script cannot reach the
-                        label files, and eighteen data attributes on one div is not an answer.
+                        The words the blocks built in the browser speak. Translated in the
+                        controller: an inline f:translate in each value of a literal object here
+                        is never resolved, because fluid reads the outer brace as one expression.
                     </f:comment>
-                    <script type="application/json" id="hd-translator-labels">{
-                        "worthOne": "{f:translate(key: 'deepl.analytics.worth.one')}",
-                        "worthMany": "{f:translate(key: 'deepl.analytics.worth.many')}",
-                        "worthEffect": "{f:translate(key: 'deepl.analytics.worth.effect')}",
-                        "unit": "{f:translate(key: 'deepl.analytics.worth.unit')}",
-                        "build": "{f:translate(key: 'deepl.analytics.verdict.build')}",
-                        "watch": "{f:translate(key: 'deepl.analytics.verdict.watch')}",
-                        "noise": "{f:translate(key: 'deepl.analytics.verdict.noise')}",
-                        "check": "{f:translate(key: 'deepl.analytics.verdict.check')}",
-                        "have": "{f:translate(key: 'deepl.analytics.verdict.have')}",
-                        "alarm": "{f:translate(key: 'deepl.analytics.alarm')}",
-                        "pagesOverall": "{f:translate(key: 'deepl.analytics.pages.overall')}",
-                        "pagesOf": "{f:translate(key: 'deepl.analytics.pages.of')}",
-                        "funnelOf": "{f:translate(key: 'deepl.analytics.funnel.of')}",
-                        "funnelNone": "{f:translate(key: 'deepl.analytics.funnel.none')}",
-                        "visitors": "{f:translate(key: 'deepl.analytics.visitors')}"
-                    }</script>
+                    <script type="application/json" id="hd-translator-labels">{labels -> f:format.raw()}</script>
                     <f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
 
                     <f:comment>
