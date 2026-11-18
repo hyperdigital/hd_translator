@@ -384,6 +384,90 @@
             <trans-unit id="deepl.analytics.banner.funnel.agreed.note">
                 <source>%s %% of the visitors who were offered one</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.worth.above">
+                <source>Worth building above</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.worth.unit">
+                <source>visitors a month</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.worth.one">
+                <source>language worth building</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.worth.many">
+                <source>languages worth building</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.worth.effect">
+                <source>%s clear it, %s are close</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.verdict.build">
+                <source>build it</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.verdict.watch">
+                <source>watch</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.verdict.noise">
+                <source>noise</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.verdict.check">
+                <source>check the frontend</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.verdict.have">
+                <source>has pages</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.alarm">
+                <source>requests asked for the language the page already was, most of them for %s. The banner is offering a translation where there is nothing to translate.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.series">
+                <source>How many series</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.series.top">
+                <source>Top 5</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.series.all">
+                <source>All</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.scale">
+                <source>Scale</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.scale.linear">
+                <source>Linear</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.scale.log">
+                <source>Log</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.clear">
+                <source>&#215; all languages</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.all">
+                <source>All languages</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.filter.all">
+                <source>All</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.filter.candidates">
+                <source>No real pages</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.filter.growing">
+                <source>Growing</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.filter.banner">
+                <source>Banner reports</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.pages.overall">
+                <source>Pages that carry the demand, all languages together</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.pages.of">
+                <source>%s: where they asked</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.funnel.of">
+                <source>%s: from a banner to a translation</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.funnel.none">
+                <source>The banner does not report for this language yet.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.visitors">
+                <source>visitors</source>
+            </trans-unit>
             <trans-unit id="deepl.analytics.overlay">
                 <source>How it got them</source>
             </trans-unit>

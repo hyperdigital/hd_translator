@@ -1020,6 +1020,40 @@ class AiRequestStatisticsService
     }
 
     /**
+     * The pages that drove the most translation requests, across every language at once.
+     *
+     * The per-language lists answer "where do the french ask from"; this one answers "which
+     * pages carry the demand at all", which is the question somebody deciding what to translate
+     * by hand actually has.
+     *
+     * @return array<int, array{page: string, requests: int}>
+     */
+    public function getTopPagesOverall(int $days = 30, int $limit = 8): array
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::TABLE_PAGE);
+
+        $rows = $queryBuilder
+            ->selectLiteral(
+                $queryBuilder->quoteIdentifier('page'),
+                'SUM(' . $queryBuilder->quoteIdentifier('requests') . ') AS requests'
+            )
+            ->from(self::TABLE_PAGE)
+            ->where(
+                $queryBuilder->expr()->gte('day', $queryBuilder->createNamedParameter($this->firstDayOf($days), Connection::PARAM_INT))
+            )
+            ->groupBy('page')
+            ->orderBy('requests', 'DESC')
+            ->setMaxResults(max($limit, 1))
+            ->executeQuery()
+            ->fetchAllAssociative();
+
+        return array_map(
+            static fn(array $row): array => ['page' => (string)$row['page'], 'requests' => (int)$row['requests']],
+            $rows
+        );
+    }
+
+    /**
      * How the demand sits across the week. Read from the day column rather than asked of the
      * database, so it does not depend on which date functions the platform has.
      *

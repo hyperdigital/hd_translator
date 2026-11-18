@@ -108,6 +108,21 @@
 
     /* ====================================================================== the daily chart */
 
+    /**
+     * Everything the screen knows about every language, and the words to say it in. The chart is
+     * one view of this; the blocks around it are the others, and picking a language has to
+     * re-answer all of them rather than only the picture.
+     */
+    const screenData = read('hd-translator-screen-data');
+    const labels = read('hd-translator-labels') || {};
+
+    /** A label with its %s filled in, in order: the label files write placeholders, not numbers. */
+    const says = (key, ...values) => {
+        let index = 0;
+
+        return String(labels[key] || '').replace(/%s/g, () => String(values[index++] ?? ''));
+    };
+
     const daily = (() => {
         const root = document.getElementById('hd-translator-chart');
         const data = read('hd-translator-chart-data');
@@ -138,6 +153,11 @@
             // of its own; hovering still wins
             pin: null,
             overlay: false,
+            // one language picked anywhere on the screen; every block then talks about it alone
+            only: null,
+            // thirty-two lines is not a chart; five of them plus the rest as one band is
+            series: 'top',
+            scale: 'linear',
             from: 0,
             to: data.days.length - 1,
             read: null,
@@ -145,7 +165,32 @@
         };
         let geometry = null;
 
-        const visible = () => languages.filter((language) => !state.hidden.has(language));
+        // what the legend governs, which is not the same as what the chart draws
+        const enabled = () => languages.filter((language) => !state.hidden.has(language));
+
+        /** The last seven days decide the order: a series that died a week ago leads no list. */
+        const recentOf = (language) => data.series[language].slice(-7).reduce((a, b) => a + b, 0);
+        const byRecent = (a, b) => recentOf(b) - recentOf(a);
+
+        /**
+         * What the chart actually draws. One picked language is the whole chart; otherwise the
+         * five that moved most in the last week, because thirty-two lines answer nothing.
+         */
+        const visible = () => {
+            if (state.only && !state.hidden.has(state.only)) return [state.only];
+            const on = enabled();
+            if (state.series !== 'top' || on.length <= 5) return on;
+
+            return on.slice().sort(byRecent).slice(0, 5);
+        };
+
+        /** The ones the top five leaves out, drawn as one band so they are not simply gone. */
+        const restOf = () => {
+            if (state.only || state.series !== 'top') return [];
+            const on = enabled();
+
+            return on.length > 5 ? on.slice().sort(byRecent).slice(5) : [];
+        };
 
         /**
          * The language the overlay talks about: the one being pointed at, the one it pinned when
@@ -282,10 +327,25 @@
 
             const bottom = floor > 0 ? Math.ceil(floor / step) * step : 0;
             const domain = max + bottom;
-            const y = (value) => plot.top + ((max - value) / domain) * innerHeight;
+
+            // A log axis only in the plain line mode, and only with nothing hanging below it:
+            // stacking or mirroring on a log scale would draw areas no arithmetic holds for.
+            // It is what lets seventy a day and four a day be read in the same picture.
+            const log = state.scale === 'log' && state.mode === 'lines' && bottom === 0;
+            const decade = Math.log10(Math.max(max, 10));
+            const y = log
+                ? (value) => plot.top + innerHeight - (Math.log10(Math.max(value, 1)) / decade) * innerHeight
+                : (value) => plot.top + ((max - value) / domain) * innerHeight;
+
+            const ladder = [];
+            if (log) {
+                for (let value = 1; value <= Math.max(max, 10) + 1e-9; value *= 10) ladder.push(value);
+            } else {
+                for (let value = -bottom; value <= max + 1e-9; value += step) ladder.push(value);
+            }
 
             // recessive grid, one line per step, in both directions where there is a below
-            for (let value = -bottom; value <= max + 1e-9; value += step) {
+            for (const value of ladder) {
                 svg.appendChild(el('line', {
                     x1: plot.left, x2: plot.left + innerWidth, y1: y(value), y2: y(value),
                     class: 'hd-translator-chart-grid' + (value === 0 && bottom > 0 ? ' is-zero' : ''),
@@ -309,6 +369,21 @@
                 });
                 label.textContent = data.days[index].slice(5);
                 svg.appendChild(label);
+            }
+
+            // the languages the top five leaves out, as one band below the lines: a reader who
+            // sees five of thirty-two has to be told how much is not in the picture
+            const rest = restOf();
+            if (rest.length && state.mode === 'lines') {
+                const points = [];
+                for (let index = first; index <= last; index++) {
+                    const sum = rest.reduce((total, language) => total + valuesOf(language)[index], 0);
+                    points.push(`${x(index)},${y(sum)}`);
+                }
+                svg.appendChild(el('path', {
+                    d: `M ${x(first)},${y(0)} L ${points.join(' L ')} L ${x(last)},${y(0)} Z`,
+                    class: 'hd-translator-chart-rest',
+                }));
             }
 
             const dimmed = (language) => state.spot && state.spot !== language;
@@ -717,6 +792,34 @@
             overlayButton.setAttribute('aria-disabled', state.mode !== 'lines' ? 'true' : 'false');
         };
 
+        document.querySelectorAll('[data-chart-series]').forEach((button) => {
+            marked(button, button.dataset.chartSeries === state.series);
+            button.addEventListener('click', () => {
+                state.series = button.dataset.chartSeries;
+                document.querySelectorAll('[data-chart-series]')
+                    .forEach((other) => marked(other, other === button));
+                hide();
+                draw();
+            });
+        });
+
+        document.querySelectorAll('[data-chart-scale]').forEach((button) => {
+            marked(button, button.dataset.chartScale === state.scale);
+            button.addEventListener('click', () => {
+                state.scale = button.dataset.chartScale;
+                document.querySelectorAll('[data-chart-scale]')
+                    .forEach((other) => marked(other, other === button));
+                hide();
+                draw();
+            });
+        });
+
+        const clearPick = document.querySelector('[data-chart-clear]');
+        if (clearPick) {
+            clearPick.hidden = true;
+            clearPick.addEventListener('click', () => api.select(null));
+        }
+
         const smooth = document.querySelector('[data-chart-smooth]');
         if (smooth) {
             marked(smooth, false);
@@ -727,6 +830,41 @@
                 draw();
             });
         }
+
+        /* ------------------------------------------------------------------------- the api */
+
+        const keys = new Map();
+        const listeners = [];
+
+        const api = {
+            series: data.series,
+            days: data.days,
+            order: data.order || languages,
+            colourOf,
+            spotlight(language) {
+                state.spot = language && !state.hidden.has(language) ? language : null;
+                draw();
+            },
+            /**
+             * One language picked for the whole screen, null for all of them again. The chart is
+             * only the loudest of the blocks that answer to this; the rest listen below.
+             */
+            select(language) {
+                state.only = language && data.series[language] ? language : null;
+                if (state.only) state.hidden.delete(state.only);
+                state.pin = state.only;
+                if (clearPick) clearPick.hidden = !state.only;
+                keys.forEach((button, code) => {
+                    button.classList.toggle('is-picked', state.only === code);
+                    button.classList.toggle('is-aside', Boolean(state.only) && state.only !== code);
+                });
+                hide();
+                draw();
+                listeners.forEach((listener) => listener(state.only));
+            },
+            selected: () => state.only,
+            onSelect(listener) { listeners.push(listener); },
+        };
 
         /* ---------------------------------------------------------------------- the legend */
 
@@ -747,9 +885,16 @@
                 name.textContent = language;
                 button.appendChild(name);
 
-                button.addEventListener('click', () => {
+                button.addEventListener('click', (event) => {
+                    // a plain click picks the language for the whole screen; with the modifier it
+                    // does what it always did and hides the series
+                    if (!event.altKey && screenData) {
+                        api.select(state.only === language ? null : language);
+                        return;
+                    }
+
                     if (state.hidden.has(language)) state.hidden.delete(language);
-                    else if (visible().length > 1) state.hidden.add(language);
+                    else if (enabled().length > 1) state.hidden.add(language);
                     else return; // the last visible series stays, an empty chart says nothing
 
                     const off = state.hidden.has(language);
@@ -769,6 +914,7 @@
                 button.addEventListener('focus', () => spotlight(true));
                 button.addEventListener('blur', () => spotlight(false));
 
+                keys.set(language, button);
                 legend.appendChild(button);
             });
         }
@@ -782,15 +928,7 @@
         onlyInLines();
         draw();
 
-        return {
-            series: data.series,
-            days: data.days,
-            colourOf,
-            spotlight(language) {
-                state.spot = language && !state.hidden.has(language) ? language : null;
-                draw();
-            },
-        };
+        return api;
     })();
 
     /* ================================================================= the monthly history */
@@ -973,6 +1111,394 @@
             node.addEventListener('focusin', () => daily.spotlight(language));
             node.addEventListener('focusout', () => daily.spotlight(null));
         });
+    })();
+
+    /* ========================================================================== the screen */
+
+    /**
+     * The blocks around the chart, and the one thing they have in common: a language picked
+     * anywhere re-answers all of them. Before this, the screen was eleven blocks each answering
+     * its own question at the whole site, and the reader had to join them up by hand.
+     */
+    (() => {
+        if (!screenData || !daily) return;
+
+        const facts = screenData.languages || {};
+        const codes = Object.keys(facts);
+        if (!codes.length) return;
+
+        const monthOf = (code) => Number(facts[code].month) || 0;
+        const byMonth = (a, b) => monthOf(b) - monthOf(a);
+        const colour = (code) => daily.colourOf(code);
+
+        /** A small filled line, the shape the table rows already use, built for one language. */
+        const spark = (code, width = 120, height = 30) => {
+            const svg = el('svg', {
+                class: 'hd-translator-spark', viewBox: `0 0 ${width} ${height}`,
+                'aria-hidden': 'true', focusable: 'false', preserveAspectRatio: 'none',
+            });
+            const values = daily.series[code];
+            if (!values || values.length < 2) return svg;
+
+            const max = Math.max(1, ...values);
+            const points = values.map((value, index) => {
+                const x = (index / (values.length - 1)) * (width - 2) + 1;
+
+                return `${x},${height - 2 - (value / max) * (height - 4)}`;
+            });
+
+            svg.appendChild(el('path', {
+                d: `M 1,${height - 1} L ${points.join(' L ')} L ${width - 1},${height - 1} Z`,
+                fill: colour(code), 'fill-opacity': .15, stroke: 'none',
+            }));
+            svg.appendChild(el('polyline', {
+                points: points.join(' '), fill: 'none', stroke: colour(code),
+                'stroke-width': 1.5, 'stroke-linejoin': 'round',
+            }));
+
+            return svg;
+        };
+
+        /**
+         * What to do about a language, in two words. The threshold tells "build it" from "watch";
+         * a language that already has pages needs no deciding, and one asking for itself is a
+         * defect in the frontend rather than demand.
+         */
+        const verdict = (code, threshold) => {
+            const fact = facts[code];
+            if (fact.real) return { key: 'have', word: labels.have, tone: 'is-have' };
+            if (fact.self > 0 && fact.self >= monthOf(code) / 2) {
+                return { key: 'check', word: labels.check, tone: 'is-check' };
+            }
+            if (monthOf(code) >= threshold) return { key: 'build', word: labels.build, tone: 'is-build' };
+            if (monthOf(code) >= threshold / 2) return { key: 'watch', word: labels.watch, tone: 'is-watch' };
+
+            return { key: 'noise', word: labels.noise, tone: 'is-noise' };
+        };
+
+        const trendText = (fact) => `${fact.trend > 0 ? '+' : ''}${num.format(fact.trend)} %`;
+
+        /* --------------------------------------------------------------------- the answer */
+
+        const answer = document.getElementById('hd-translator-answer');
+        const slider = document.getElementById('hd-translator-threshold');
+        let threshold = slider ? Number(slider.value) : 150;
+
+        const drawAnswer = () => {
+            if (!answer) return;
+
+            const worth = codes.filter((code) => verdict(code, threshold).key === 'build').sort(byMonth);
+            const close = codes.filter((code) => verdict(code, threshold).key === 'watch');
+
+            answer.hidden = false;
+            answer.querySelector('[data-answer-count]').textContent = num.format(worth.length);
+            answer.querySelector('[data-answer-label]').textContent =
+                worth.length === 1 ? labels.worthOne : labels.worthMany;
+            answer.querySelector('[data-answer-effect]').textContent =
+                says('worthEffect', num.format(worth.length), num.format(close.length));
+
+            const picks = answer.querySelector('[data-answer-picks]');
+            clear(picks);
+            worth.slice(0, 6).forEach((code) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'hd-translator-pick';
+                button.classList.toggle('is-picked', daily.selected() === code);
+
+                const key = document.createElement('span');
+                key.className = 'hd-translator-chart-key';
+                key.style.background = colour(code);
+                button.appendChild(key);
+
+                const name = document.createElement('span');
+                name.className = 'hd-translator-pick-name';
+                name.textContent = `${facts[code].name} [${code}]`;
+                button.appendChild(name);
+
+                const value = document.createElement('b');
+                value.textContent = num.format(monthOf(code));
+                button.appendChild(value);
+
+                button.addEventListener('click', () => daily.select(daily.selected() === code ? null : code));
+                button.addEventListener('pointerenter', () => daily.spotlight(code));
+                button.addEventListener('pointerleave', () => daily.spotlight(null));
+                picks.appendChild(button);
+            });
+        };
+
+        /* ---------------------------------------------------------------------- the alarm */
+
+        const alarm = document.getElementById('hd-translator-alarm');
+        if (alarm) {
+            const self = codes.reduce((sum, code) => sum + (Number(facts[code].self) || 0), 0);
+            if (self > 0) {
+                const worst = codes.slice().sort((a, b) => (facts[b].self || 0) - (facts[a].self || 0))[0];
+
+                alarm.hidden = false;
+                alarm.querySelector('[data-alarm-count]').textContent = num.format(self);
+                alarm.querySelector('[data-alarm-text]').textContent =
+                    says('alarm', `${facts[worst].name} [${worst}]`);
+            }
+        }
+
+        /* ---------------------------------------------------------------------- the cells */
+
+        const all = document.getElementById('hd-translator-all');
+        const grid = all ? all.querySelector('[data-cells]') : null;
+        let filter = 'all';
+
+        const passes = (code) => {
+            const fact = facts[code];
+            if (filter === 'candidates') return !fact.real;
+            if (filter === 'growing') return fact.trend !== null && fact.trend > 0;
+            if (filter === 'banner') return Boolean(fact.reports);
+
+            return true;
+        };
+
+        const drawCells = () => {
+            if (!grid) return;
+
+            all.hidden = false;
+            clear(grid);
+
+            codes.filter(passes).sort(byMonth).forEach((code) => {
+                const fact = facts[code];
+                const call = verdict(code, threshold);
+                const picked = daily.selected() === code;
+
+                const cell = document.createElement('button');
+                cell.type = 'button';
+                cell.className = `hd-translator-cell ${call.tone}`;
+                cell.style.setProperty('--hdt-cell', colour(code));
+                cell.classList.toggle('is-picked', picked);
+                cell.setAttribute('aria-pressed', picked ? 'true' : 'false');
+
+                const head = document.createElement('span');
+                head.className = 'hd-translator-cell-head';
+                const short = document.createElement('b');
+                short.textContent = code;
+                head.appendChild(short);
+                const named = document.createElement('span');
+                named.className = 'hd-translator-cell-name';
+                named.textContent = fact.name;
+                head.appendChild(named);
+                cell.appendChild(head);
+
+                const value = document.createElement('span');
+                value.className = 'hd-translator-cell-value';
+                value.textContent = num.format(monthOf(code));
+                const unit = document.createElement('small');
+                unit.textContent = ` ${labels.visitors || ''}`;
+                value.appendChild(unit);
+                cell.appendChild(value);
+
+                cell.appendChild(spark(code));
+
+                const foot = document.createElement('span');
+                foot.className = 'hd-translator-cell-foot';
+                const chip = document.createElement('span');
+                chip.className = 'hd-translator-chip';
+                chip.textContent = call.word || '';
+                foot.appendChild(chip);
+
+                const trend = document.createElement('span');
+                trend.className = 'hd-translator-cell-trend';
+                if (fact.trend !== null && fact.trend !== undefined) {
+                    if (fact.trend > 0) trend.classList.add('is-up');
+                    else if (fact.trend < 0) trend.classList.add('is-down');
+                    trend.textContent = trendText(fact);
+                }
+                foot.appendChild(trend);
+                cell.appendChild(foot);
+
+                cell.addEventListener('click', () => daily.select(picked ? null : code));
+                cell.addEventListener('pointerenter', () => daily.spotlight(code));
+                cell.addEventListener('pointerleave', () => daily.spotlight(null));
+                grid.appendChild(cell);
+            });
+        };
+
+        if (slider) {
+            const out = answer ? answer.querySelector('[data-answer-out]') : null;
+            if (out) out.textContent = num.format(threshold);
+
+            slider.addEventListener('input', () => {
+                threshold = Number(slider.value);
+                if (out) out.textContent = num.format(threshold);
+                drawAnswer();
+                drawCells();
+            });
+        }
+
+        document.querySelectorAll('[data-cells-filter]').forEach((button) => {
+            button.addEventListener('click', () => {
+                filter = button.dataset.cellsFilter;
+                document.querySelectorAll('[data-cells-filter]').forEach((other) => {
+                    const on = other === button;
+                    other.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    other.classList.toggle('btn-primary', on);
+                    other.classList.toggle('btn-default', !on);
+                });
+                drawCells();
+            });
+        });
+
+        /* --------------------------------------------------------------------- the funnel */
+
+        const funnel = document.getElementById('hd-translator-funnel');
+        const funnelWhole = funnel ? funnel.innerHTML : '';
+        // The stage names live in the label files, which a script cannot reach. They are already
+        // on the screen, so they are read off it rather than passed in a second time.
+        const stageNames = funnel
+            ? [...funnel.querySelectorAll('.hd-translator-funnel-label')].map((node) => node.textContent.trim())
+            : [];
+
+        const drawFunnel = (code) => {
+            if (!funnel) return;
+
+            if (!code) {
+                funnel.innerHTML = funnelWhole;
+
+                return;
+            }
+
+            const fact = facts[code];
+            clear(funnel);
+
+            const title = document.createElement('h2');
+            title.textContent = says('funnelOf', `${fact.name} [${code}]`);
+            funnel.appendChild(title);
+
+            if (!fact.reports) {
+                const none = document.createElement('p');
+                none.className = 'hd-translator-muted';
+                none.textContent = labels.funnelNone || '';
+                funnel.appendChild(none);
+
+                return;
+            }
+
+            const stages = [
+                { value: Number(fact.displays) || 0, slot: 1 },
+                { value: Number(fact.shown) || 0, slot: 3 },
+                { value: Number(fact.accepted) || 0, slot: 4 },
+            ];
+            const widest = Math.max(1, ...stages.map((stage) => stage.value));
+
+            stages.forEach((stage, index) => {
+                const line = document.createElement('div');
+                line.className = 'hd-translator-funnel-stage';
+
+                const label = document.createElement('div');
+                label.className = 'hd-translator-funnel-label';
+                label.textContent = stageNames[index] || '';
+                line.appendChild(label);
+
+                const track = document.createElement('div');
+                track.className = 'hd-translator-funnel-track';
+                const bar = document.createElement('div');
+                bar.className = 'hd-translator-funnel-bar';
+                bar.style.inlineSize = `${Math.round((stage.value / widest) * 100)}%`;
+                bar.style.background = `var(--hdt-series-${stage.slot})`;
+                track.appendChild(bar);
+                line.appendChild(track);
+
+                const value = document.createElement('div');
+                value.className = 'hd-translator-funnel-value';
+                value.textContent = num.format(stage.value);
+                line.appendChild(value);
+
+                const note = document.createElement('div');
+                note.className = 'hd-translator-funnel-note';
+                // the one number the last stage adds, where the banner reported enough for it
+                if (index === 2 && fact.rate !== null && fact.rate !== undefined) {
+                    note.textContent = `${num.format(fact.rate)} %`;
+                }
+                line.appendChild(note);
+
+                funnel.appendChild(line);
+            });
+        };
+
+        /* ---------------------------------------------------------------------- the pages */
+
+        const pagesTitle = document.querySelector('[data-pages-title]');
+        const pagesTitleWhole = pagesTitle ? pagesTitle.textContent : '';
+        const overall = document.querySelector('[data-pages-overall]');
+        const groups = [...document.querySelectorAll('[data-pages-language]')];
+        const pagesOverall = screenData.pagesOverall || [];
+
+        if (overall && pagesOverall.length) {
+            const head = document.createElement('p');
+            head.className = 'hd-translator-muted';
+            head.textContent = labels.pagesOverall || '';
+            overall.appendChild(head);
+
+            const widest = Math.max(1, ...pagesOverall.map((entry) => Number(entry.requests) || 0));
+            pagesOverall.forEach((entry) => {
+                const line = document.createElement('div');
+                line.className = 'hd-translator-pageline';
+
+                const bar = document.createElement('span');
+                bar.className = 'hd-translator-pageline-bar';
+                bar.style.inlineSize = `${Math.round(((Number(entry.requests) || 0) / widest) * 100)}%`;
+                line.appendChild(bar);
+
+                const name = document.createElement('span');
+                name.className = 'hd-translator-pageline-name';
+                name.textContent = entry.page;
+                line.appendChild(name);
+
+                const value = document.createElement('b');
+                value.textContent = num.format(Number(entry.requests) || 0);
+                line.appendChild(value);
+
+                overall.appendChild(line);
+            });
+            overall.hidden = false;
+        }
+
+        const drawPages = (code) => {
+            if (overall) overall.hidden = Boolean(code) || !pagesOverall.length;
+            if (pagesTitle) {
+                pagesTitle.textContent = code ? says('pagesOf', `${facts[code].name} [${code}]`) : pagesTitleWhole;
+            }
+            groups.forEach((group) => {
+                group.hidden = Boolean(code) && group.dataset.pagesLanguage !== code;
+            });
+        };
+
+        /* ------------------------------------------------------------------ the selection */
+
+        const rows = [...document.querySelectorAll('[data-hdt-language]')];
+
+        daily.onSelect((code) => {
+            drawAnswer();
+            drawCells();
+            drawFunnel(code);
+            drawPages(code);
+
+            rows.forEach((node) => {
+                node.classList.toggle('is-picked', node.dataset.hdtLanguage === code);
+                node.classList.toggle('is-aside', Boolean(code) && node.dataset.hdtLanguage !== code);
+            });
+        });
+
+        // the table rows are another way into the same selection, and pointing at one already
+        // lifts its line in the chart above
+        rows.forEach((node) => {
+            node.addEventListener('click', (event) => {
+                if (event.target.closest('a, button, input')) return;
+                const code = node.dataset.hdtLanguage;
+                if (!daily.series[code]) return;
+                daily.select(daily.selected() === code ? null : code);
+            });
+        });
+
+        drawAnswer();
+        drawCells();
+        drawPages(null);
     })();
 
     /* ============================================================================= the CSV */
