@@ -27,6 +27,35 @@
 				<f:if condition="{rows}">
 					<f:then>
 						<f:comment>
+							The answer the screen exists to give, before the evidence for it. The list
+							itself is built in the browser, because the threshold under it moves.
+						</f:comment>
+						<div class="hd-translator-answer" id="hd-translator-answer" hidden="hidden">
+							<div class="hd-translator-answer-top">
+								<div class="hd-translator-headline">
+									<b data-answer-count>0</b>
+									<span data-answer-label></span>
+								</div>
+								<div class="hd-translator-picks" data-answer-picks></div>
+							</div>
+							<div class="hd-translator-threshold">
+								<label for="hd-translator-threshold"><f:translate key="deepl.analytics.worth.above" /></label>
+								<input type="range" id="hd-translator-threshold" min="25" max="1000" step="25" value="150">
+								<output for="hd-translator-threshold" data-answer-out>150</output>
+								<span data-answer-effect></span>
+							</div>
+						</div>
+
+						<f:comment>
+							A language inflating its own number, named. The count was already on the
+							screen; which language it belongs to was not.
+						</f:comment>
+						<div class="hd-translator-alarm" id="hd-translator-alarm" hidden="hidden">
+							<b data-alarm-count></b>
+							<span data-alarm-text></span>
+						</div>
+
+						<f:comment>
 							Date range first, in one row above the chart: it is the filter every
 							reader reaches for.
 						</f:comment>
@@ -63,6 +92,32 @@
 										<f:translate key="deepl.analytics.mode.share" />
 									</button>
 								</div>
+
+								<f:comment>
+									Thirty-two lines is not a chart. Five of them plus the rest as one band
+									is, and a log scale is what lets 70 a day and 4 a day be compared.
+								</f:comment>
+								<div class="btn-group" role="group" aria-label="{f:translate(key: 'deepl.analytics.series')}">
+									<button type="button" class="btn btn-primary btn-sm" data-chart-series="top" aria-pressed="true">
+										<f:translate key="deepl.analytics.series.top" />
+									</button>
+									<button type="button" class="btn btn-default btn-sm" data-chart-series="all" aria-pressed="false">
+										<f:translate key="deepl.analytics.series.all" />
+									</button>
+								</div>
+
+								<div class="btn-group" role="group" aria-label="{f:translate(key: 'deepl.analytics.scale')}">
+									<button type="button" class="btn btn-primary btn-sm" data-chart-scale="linear" aria-pressed="true">
+										<f:translate key="deepl.analytics.scale.linear" />
+									</button>
+									<button type="button" class="btn btn-default btn-sm" data-chart-scale="log" aria-pressed="false">
+										<f:translate key="deepl.analytics.scale.log" />
+									</button>
+								</div>
+
+								<button type="button" class="btn btn-default btn-sm" data-chart-clear hidden="hidden">
+									<f:translate key="deepl.analytics.clear" />
+								</button>
 
 								<button type="button" class="btn btn-default btn-sm" data-chart-smooth aria-pressed="false">
 									<f:translate key="deepl.analytics.smooth" />
@@ -107,7 +162,56 @@
 						</figure>
 
 						<script type="application/json" id="hd-translator-chart-data">{chart -> f:format.raw()}</script>
+						<f:comment>
+							Everything the screen knows about one language, so picking one can
+							re-answer every block instead of only the chart.
+						</f:comment>
+						<script type="application/json" id="hd-translator-screen-data">{screen -> f:format.raw()}</script>
+						<f:comment>
+							The strings the new blocks build at runtime. A script cannot reach the
+							label files, and eighteen data attributes on one div is not an answer.
+						</f:comment>
+						<script type="application/json" id="hd-translator-labels">{
+							"worthOne": "{f:translate(key: 'deepl.analytics.worth.one')}",
+							"worthMany": "{f:translate(key: 'deepl.analytics.worth.many')}",
+							"worthEffect": "{f:translate(key: 'deepl.analytics.worth.effect')}",
+							"unit": "{f:translate(key: 'deepl.analytics.worth.unit')}",
+							"build": "{f:translate(key: 'deepl.analytics.verdict.build')}",
+							"watch": "{f:translate(key: 'deepl.analytics.verdict.watch')}",
+							"noise": "{f:translate(key: 'deepl.analytics.verdict.noise')}",
+							"check": "{f:translate(key: 'deepl.analytics.verdict.check')}",
+							"have": "{f:translate(key: 'deepl.analytics.verdict.have')}",
+							"alarm": "{f:translate(key: 'deepl.analytics.alarm')}",
+							"pagesOverall": "{f:translate(key: 'deepl.analytics.pages.overall')}",
+							"pagesOf": "{f:translate(key: 'deepl.analytics.pages.of')}",
+							"funnelOf": "{f:translate(key: 'deepl.analytics.funnel.of')}",
+							"funnelNone": "{f:translate(key: 'deepl.analytics.funnel.none')}",
+							"visitors": "{f:translate(key: 'deepl.analytics.visitors')}"
+						}</script>
 						<f:asset.script identifier="hd_translator_demand_chart" src="EXT:hd_translator/Resources/Public/JavaScript/DemandChart.js" />
+
+						<f:comment>
+							Every language at once, each on its own scale, each a button: this is what
+							replaces reading thirty-two lines out of one chart.
+						</f:comment>
+						<div class="hd-translator-all" id="hd-translator-all" hidden="hidden">
+							<h2><f:translate key="deepl.analytics.all" /></h2>
+							<div class="hd-translator-filters" data-cells-filters>
+								<button type="button" class="btn btn-primary btn-sm" data-cells-filter="all" aria-pressed="true">
+									<f:translate key="deepl.analytics.filter.all" />
+								</button>
+								<button type="button" class="btn btn-default btn-sm" data-cells-filter="candidates" aria-pressed="false">
+									<f:translate key="deepl.analytics.filter.candidates" />
+								</button>
+								<button type="button" class="btn btn-default btn-sm" data-cells-filter="growing" aria-pressed="false">
+									<f:translate key="deepl.analytics.filter.growing" />
+								</button>
+								<button type="button" class="btn btn-default btn-sm" data-cells-filter="banner" aria-pressed="false">
+									<f:translate key="deepl.analytics.filter.banner" />
+								</button>
+							</div>
+							<div class="hd-translator-cells" data-cells></div>
+						</div>
 
 						<f:comment>
 							Displays, the people behind them and the ones who agreed. Three numbers side by
@@ -116,7 +220,7 @@
 							does not report shows nothing here rather than a misleading nought.
 						</f:comment>
 						<f:if condition="{bannerFunnel}">
-							<div class="hd-translator-funnel">
+							<div class="hd-translator-funnel" id="hd-translator-funnel">
 								<h2><f:translate key="deepl.analytics.banner.funnel" arguments="{0: range}" /></h2>
 								<f:for each="{bannerFunnel}" as="stage">
 									<div class="hd-translator-funnel-stage">
@@ -213,10 +317,15 @@
 
 						<f:if condition="{topPages}">
 							<div class="hd-translator-pages">
-								<h2><f:translate key="deepl.analytics.pages" /></h2>
+								<h2 data-pages-title><f:translate key="deepl.analytics.pages" /></h2>
 								<p class="hd-translator-muted"><f:translate key="deepl.analytics.pages.description" /></p>
+								<f:comment>
+									Which pages carry the demand at all, across every language. The
+									per-language lists below answer a different question.
+								</f:comment>
+								<div class="hd-translator-overall" data-pages-overall hidden="hidden"></div>
 								<f:for each="{topPages}" as="pages" key="language">
-									<div class="hd-translator-pagegroup">
+									<div class="hd-translator-pagegroup" data-pages-language="{language}">
 										<strong>{language}</strong>
 										<ul>
 											<f:for each="{pages}" as="p">
@@ -240,7 +349,7 @@
 								<h2><f:translate key="deepl.analytics.sources" /></h2>
 								<p class="hd-translator-muted"><f:translate key="deepl.analytics.sources.description" /></p>
 								<f:for each="{sources}" as="target">
-									<div class="hd-translator-pagegroup">
+									<div class="hd-translator-pagegroup" data-pages-language="{target.language}">
 										<strong>{target.name}</strong> <span class="hd-translator-source-cell">[{target.language}]</span>
 										<ul>
 											<f:for each="{target.rows}" as="line">

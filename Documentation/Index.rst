@@ -339,6 +339,29 @@ the site configuration: a language can be declared in :file:`config.yaml` with n
 translated into it, and calling that a real page version answers the screen's own question
 backwards.
 
+The answer comes first
+~~~~~~~~~~~~~~~~~~~~~~
+
+At the top the screen says how many languages are worth building, names them, and says how
+many more are close. The threshold that verdict rests on is a slider: move it and the count,
+the names and the verdict on every language below change with it. There is no right value for
+it, which is why it is the reader's rather than ours.
+
+A language picked anywhere - in that answer, in the legend, in the grid of all languages or in
+a table row - becomes the whole screen: the chart draws it alone, the banner funnel is rebuilt
+for it, and the page lists keep only its pages. The funnel used to be site-wide, which said
+nothing about the language somebody was deciding on. :guilabel:`× all languages` puts the
+screen back.
+
+Below the chart every language gets a cell of its own: the month, its own sparkline on its own
+scale, the trend and what to do about it in two words. Filters narrow it to the ones with no
+real pages, the ones growing, or the ones the banner reports on. A language that already has
+pages, or whose number is noise, recedes rather than disappearing.
+
+Where a language asks for *itself* - the banner offering German on a German page - the screen
+names it. The count has been there since 3.6.0; which language it is, is what somebody needs to
+go and fix the frontend.
+
 The chart answers three questions, one per mode:
 
 :guilabel:`Lines`
@@ -352,6 +375,13 @@ The chart answers three questions, one per mode:
     The same stack to a hundred percent - how the demand is divided, whatever the traffic
     did.
 
+:guilabel:`Top 5` draws the five languages that moved most in the last week and puts
+everything else below them as one band, so what is left out is still on the screen as a
+quantity rather than simply gone; :guilabel:`All` brings every language back. :guilabel:`Log`
+makes seventy visitors a day and four a day readable in one picture, which is the comparison
+the screen exists for. It is offered in :guilabel:`Lines` only: a stacked area on a log scale
+would draw sums no arithmetic holds for.
+
 :guilabel:`7 day average` replaces each day by the mean of the week around it. Over ninety
 days and more the daily noise is louder than the trend the reader came for; the raw series
 is one click away.
@@ -360,8 +390,8 @@ Dragging across the plot zooms into that range and :guilabel:`Reset zoom` appear
 range buttons reload the screen, everything else is immediate. Hovering reads every
 series at that day at once, marks each one with a dot and adds the total. Pointing at a
 language - in the legend or in a table row - lifts its line and dims the rest, which is
-the only way to follow one of six lines that cross. Clicking a legend key still hides a
-language.
+the only way to follow one of six lines that cross. Clicking a legend key picks that language for the
+whole screen; :kbd:`Alt` and a click hides the series instead, the way it always did.
 
 Without a mouse: the chart takes focus, the arrow keys move the readout, :kbd:`Home` and
 :kbd:`End` jump to the ends and :kbd:`Esc` clears it. Every value in the chart is in the

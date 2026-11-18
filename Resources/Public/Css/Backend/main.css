@@ -758,8 +758,11 @@ button.is-busy {
 
 /* ------------------------------------------------------- charts, added in 2.8.0 */
 
-/* Bootstrap gives .btn a display, which beats the hidden attribute's own rule: the reset
-   button would be there before anything was ever zoomed. */
+/* Bootstrap gives .btn a display, and the blocks below give themselves one, and an author
+   rule beats the hidden attribute's rule in the browser's own sheet whatever its specificity.
+   Without this the reset button is there before anything was zoomed and the answer card is
+   there before it has an answer. */
+.hd-translator [hidden],
 .hd-translator-toolbar [hidden] {
     display: none;
 }
@@ -944,4 +947,320 @@ button.is-busy {
     margin-block-end: .5rem;
     font-family: monospace;
     font-size: .8em;
+}
+
+/* =================================================================== the answer first
+
+   The screen used to open with a chart and close with a verdict the reader had to form
+   themselves. These blocks put the verdict at the top, make it answer to a threshold the
+   reader can move, and make every language a button that re-answers the rest of the screen.
+   --------------------------------------------------------------------------------------- */
+
+.hd-translator-answer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-block-end: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--typo3-component-border-color, #d7d7d7);
+    border-inline-start: 4px solid var(--hdt-series-3);
+    border-radius: 4px;
+    background: var(--hdt-chart-surface);
+}
+
+.hd-translator-answer-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem 1.25rem;
+}
+
+.hd-translator-headline {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+}
+
+.hd-translator-headline b {
+    font-size: 2.4rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.hd-translator-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+/* a language worth building, as a button: the list is the answer and the way into it */
+.hd-translator-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .25rem .5rem;
+    border: 1px solid var(--typo3-component-border-color, #d7d7d7);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: .85em;
+    cursor: pointer;
+}
+
+.hd-translator-pick b {
+    font-variant-numeric: tabular-nums;
+}
+
+.hd-translator-pick:hover,
+.hd-translator-pick:focus-visible {
+    border-color: currentColor;
+}
+
+.hd-translator-pick.is-picked {
+    border-color: currentColor;
+    box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* The threshold is the one number the whole verdict rests on, and it used to be ours rather
+   than the reader's. Moving it re-counts the answer and re-labels every language. */
+.hd-translator-threshold {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .85em;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+.hd-translator-threshold input[type="range"] {
+    inline-size: 9rem;
+}
+
+.hd-translator-threshold output {
+    min-inline-size: 3.5ch;
+    color: var(--typo3-text-color-base, #000);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+/* a defect report, not a measurement: the banner offering a language the page already is */
+.hd-translator-alarm {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    margin-block-end: 1rem;
+    padding: .7rem 1rem;
+    border: 1px solid var(--hdt-warning);
+    border-radius: 4px;
+    color: var(--hdt-warning);
+}
+
+.hd-translator-alarm b {
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+/* -------------------------------------------------------------- every language at once */
+
+.hd-translator-all {
+    margin-block: 1.5rem;
+}
+
+.hd-translator-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-block-end: .75rem;
+}
+
+.hd-translator-cells {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: .6rem;
+}
+
+/* One language, on its own scale, as a button. Thirty-two of these say in one screen what
+   thirty-two lines in one chart never could. */
+.hd-translator-cell {
+    display: grid;
+    gap: .3rem;
+    padding: .6rem .7rem;
+    border: 1px solid var(--typo3-component-border-color, #d7d7d7);
+    border-block-start: 3px solid var(--hdt-cell, var(--hdt-series-1));
+    border-radius: 4px;
+    background: var(--hdt-chart-surface);
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.hd-translator-cell:hover,
+.hd-translator-cell:focus-visible {
+    border-color: currentColor;
+}
+
+.hd-translator-cell.is-picked {
+    box-shadow: inset 0 0 0 2px var(--hdt-cell, var(--hdt-series-1));
+}
+
+.hd-translator-cell-head {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    overflow: hidden;
+}
+
+.hd-translator-cell-head b {
+    font-variant-numeric: tabular-nums;
+}
+
+.hd-translator-cell-name {
+    overflow: hidden;
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .8em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hd-translator-cell-value {
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.hd-translator-cell-value small {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .55em;
+}
+
+.hd-translator-cell .hd-translator-spark {
+    inline-size: 100%;
+    block-size: 30px;
+}
+
+.hd-translator-cell-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .4rem;
+}
+
+.hd-translator-cell-trend {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+    font-size: .8em;
+    font-variant-numeric: tabular-nums;
+}
+
+.hd-translator-cell-trend.is-up {
+    color: var(--hdt-series-3);
+}
+
+.hd-translator-cell-trend.is-down {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+/* what to do about this language, in two words */
+.hd-translator-chip {
+    padding: .05rem .4rem;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: .7em;
+    text-transform: lowercase;
+}
+
+.hd-translator-cell.is-build .hd-translator-chip {
+    color: var(--hdt-series-3);
+}
+
+.hd-translator-cell.is-check .hd-translator-chip {
+    color: var(--hdt-warning);
+}
+
+.hd-translator-cell.is-watch .hd-translator-chip,
+.hd-translator-cell.is-noise .hd-translator-chip,
+.hd-translator-cell.is-have .hd-translator-chip {
+    color: var(--typo3-text-color-variant, #7c7c7c);
+}
+
+/* a language that already has pages is not a decision to make, so it recedes */
+.hd-translator-cell.is-have,
+.hd-translator-cell.is-noise {
+    opacity: .72;
+}
+
+/* ------------------------------------------------------------------- what a pick does */
+
+/* The picked language is the screen; the others stay readable but step back. Without this
+   the reader has to remember which language the blocks below are now talking about. */
+.hd-translator-chart-legend-item.is-picked {
+    box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.hd-translator-chart-legend-item.is-aside,
+.hd-translator .hd-translator-sortable tr.is-aside {
+    opacity: .5;
+}
+
+.hd-translator .hd-translator-sortable tr.is-picked > td,
+.hd-translator .hd-translator-sortable tr.is-picked > th {
+    background: var(--hdt-track);
+}
+
+.hd-translator .hd-translator-sortable tbody tr {
+    cursor: pointer;
+}
+
+/* the languages the top five leaves out, as one band: five of thirty-two needs saying */
+.hd-translator-chart-rest {
+    fill: var(--hdt-series-0);
+    stroke: none;
+}
+
+/* ------------------------------------------------- the pages that carry the demand */
+
+.hd-translator-overall {
+    margin-block-end: 1rem;
+}
+
+.hd-translator-pageline {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .2rem .4rem;
+    font-size: .9em;
+}
+
+.hd-translator-pageline-bar {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    background: var(--hdt-track);
+    border-radius: 2px;
+}
+
+.hd-translator-pageline-name {
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hd-translator-pageline b {
+    position: relative;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+    .hd-translator-answer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .hd-translator-cells {
+        grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    }
 }

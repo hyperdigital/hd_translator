@@ -2320,9 +2320,63 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         $palette = array_keys($statistics);
         sort($palette);
 
+        // Everything the screen needs about one language, in one place. The screen is read by
+        // picking a language and asking four questions about it, so the questions travel
+        // together rather than being scattered over five blocks that cannot talk to each other.
+        $facts = [];
+        foreach ($rows as $row) {
+            $code = (string)$row['language'];
+            $slot = array_search($code, $palette, true);
+
+            $facts[$code] = [
+                'name' => $row['name'],
+                'month' => $row['month'],
+                'total' => $row['total'],
+                'trend' => $row['trend'],
+                'real' => $row['configured'],
+                'chars' => $row['characters'],
+                'translations' => $row['translations'],
+                'displays' => $row['bannerDisplays'],
+                'shown' => $row['bannerShown'],
+                'accepted' => $row['bannerAccepted'],
+                'rate' => $row['bannerRateKnown'] ? $row['bannerRate'] : null,
+                'reports' => $row['bannerShown'] > 0 || $row['bannerDisplays'] > 0,
+                'self' => 0,
+                // colour follows the language, the same slot the chart uses
+                'slot' => $slot !== false && $slot < 8 ? $slot + 1 : 0,
+            ];
+        }
+
+        // the language a request was made from, folded back onto the language it was made for:
+        // this is what names the one that is inflating itself
+        foreach ($sources as $source) {
+            $code = (string)$source['language'];
+            if (isset($facts[$code])) {
+                $facts[$code]['self'] = $source['self'];
+                $facts[$code]['fromElsewhere'] = $source['total'] - $source['self'];
+            }
+        }
+
+        $pagesByLanguage = [];
+        foreach ($statisticsService->getTopPages($range, 6) as $code => $pages) {
+            $pagesByLanguage[(string)$code] = $pages;
+        }
+
         $this->moduleTemplate->assignMultiple([
+            // one blob for the whole screen: picking a language has to re-answer every block,
+            // and a block that reads its own fluid variable cannot be re-answered
             'rows' => $rows,
             'statisticsEnabled' => $statisticsService->isEnabled(),
+            'screen' => json_encode(
+                [
+                    'range' => $range,
+                    'languages' => $facts,
+                    'pages' => $pagesByLanguage,
+                    'pagesOverall' => $statisticsService->getTopPagesOverall($range, 8),
+                    'weekdays' => $statisticsService->getWeekdayProfile($range),
+                ],
+                JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
             'retentionDays' => $statisticsService->getRetentionDays(),
             'apiKey' => $this->deeplApiKey,
             'range' => $range,
