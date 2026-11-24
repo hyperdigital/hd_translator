@@ -643,6 +643,92 @@ class AiRequestStatisticsService
      * It used to happen only when somebody opened the overview, so on an installation where
      * nobody ever does the table grew without end.
      */
+    /**
+     * Every table that keeps rows about one target language, with the name the screen uses for
+     * what each one counts. The delete below walks this list, so a seventh table added later
+     * joins it by being named here rather than by being remembered.
+     *
+     * @return array<string, string> table => what a row of it is
+     */
+    public function tablesOfLanguage(): array
+    {
+        return [
+            self::TABLE => 'requests',
+            self::TABLE_MONTH => 'months',
+            self::TABLE_PAGE => 'pages',
+            self::TABLE_BANNER => 'banner',
+            self::TABLE_BANNER_COUNT => 'bannerCount',
+            self::TABLE_SOURCE => 'sources',
+        ];
+    }
+
+    /**
+     * How many rows each table holds for one language. The screen says this before it deletes
+     * anything: "delete this language" is not a number, and the number is what tells somebody
+     * whether they are about to lose an artefact of a broken banner or a year of real demand.
+     *
+     * @return array{total: int, rows: array<string, int>}
+     */
+    public function countForLanguage(string $language): array
+    {
+        $rows = [];
+        $total = 0;
+
+        foreach ($this->tablesOfLanguage() as $table => $name) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
+            $count = (int)$queryBuilder
+                ->count('*')
+                ->from($table)
+                ->where(
+                    $queryBuilder->expr()->eq(
+                        'target_language',
+                        $queryBuilder->createNamedParameter($language)
+                    )
+                )
+                ->executeQuery()
+                ->fetchOne();
+
+            $rows[$name] = $count;
+            $total += $count;
+        }
+
+        return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * Forget one target language: every row, in every table, for good. There is no softer
+     * version of this to offer, because the counting rows never recorded where a request came
+     * from - the source is a table of its own - so "delete only the ones the banner should
+     * never have asked for" cannot be answered from what is stored.
+     *
+     * Rows where this language is the *source* of a request for another language stay: those
+     * belong to the language that was asked for, and say where it was asked from.
+     *
+     * @return int how many rows were dropped
+     */
+    public function forgetLanguage(string $language): int
+    {
+        if ($language === '') {
+            return 0;
+        }
+
+        $dropped = 0;
+        foreach (array_keys($this->tablesOfLanguage()) as $table) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
+            $dropped += (int)$queryBuilder
+                ->delete($table)
+                ->where(
+                    $queryBuilder->expr()->eq(
+                        'target_language',
+                        $queryBuilder->createNamedParameter($language)
+                    )
+                )
+                ->executeStatement();
+        }
+
+        return $dropped;
+    }
+
     public function pruneOncePerDay(): void
     {
         try {
