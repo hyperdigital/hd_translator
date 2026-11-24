@@ -37,6 +37,8 @@ return [
                 'coverage',
                 'deeplTranslationsList',
                 'deeplAnalytics',
+                'deeplForgetLanguage',
+                'deeplForgetLanguageConfirm',
                 'deeplSyncLanguages',
                 'deeplTranslationLanguage',
                 'deeplShowTranslationsOfOriginal',

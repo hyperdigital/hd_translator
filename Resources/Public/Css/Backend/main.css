@@ -1270,3 +1270,44 @@ button.is-busy {
         grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
     }
 }
+
+/* --------------------------------------------- what deleting a language would cost */
+
+.hd-translator-forget {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 2rem;
+    margin-block: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--typo3-component-border-color, #d7d7d7);
+    border-inline-start: 4px solid var(--hdt-warning);
+    border-radius: 4px;
+}
+
+.hd-translator-forget-total {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+}
+
+.hd-translator-forget-total b {
+    font-size: 2.2rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.hd-translator-forget-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: .15rem 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hd-translator-forget-list li {
+    display: flex;
+    gap: .4rem;
+    font-variant-numeric: tabular-nums;
+}

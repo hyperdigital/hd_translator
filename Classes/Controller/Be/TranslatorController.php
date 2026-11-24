@@ -2407,6 +2407,9 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
             ),
             'retentionDays' => $statisticsService->getRetentionDays(),
+            // deleting statistics is irreversible, so the way to it is not even offered to a
+            // backend user who may read this screen but not empty it
+            'isAdmin' => ($GLOBALS['BE_USER'] ?? null) && $GLOBALS['BE_USER']->isAdmin(),
             'apiKey' => $this->deeplApiKey,
             'range' => $range,
             'ranges' => [7, 30, 90, 365],
@@ -2438,6 +2441,81 @@ class TranslatorController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionContr
         ]);
 
         return $this->moduleTemplate->renderResponse('Be/Translator/DeeplAnalytics');
+    }
+
+    /**
+     * What deleting one language would cost, before anything is deleted. A language on this
+     * screen can be a year of real demand or the artefact of a banner that offered a
+     * translation where there was nothing to translate, and the two look the same until the
+     * numbers are named.
+     */
+    public function deeplForgetLanguageAction(string $language = '', int $range = 30)
+    {
+        $this->indexMenu();
+
+        if (!$this->mayForget($language)) {
+            return $this->redirect('deeplAnalytics', null, null, $this->withPageContext(['range' => $range]));
+        }
+
+        $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
+        $counted = $statisticsService->countForLanguage($language);
+
+        $this->moduleTemplate->assignMultiple([
+            'language' => $language,
+            'range' => $range,
+            'counted' => $counted,
+            'nothing' => $counted['total'] === 0,
+        ]);
+
+        return $this->moduleTemplate->renderResponse('Be/Translator/DeeplForgetLanguage');
+    }
+
+    /**
+     * Delete every row of one target language. Reached by a form, not by a link: a link that
+     * deletes is a link a browser may follow on its own.
+     */
+    public function deeplForgetLanguageConfirmAction(string $language = '', int $range = 30)
+    {
+        if (!$this->mayForget($language)) {
+            return $this->redirect('deeplAnalytics', null, null, $this->withPageContext(['range' => $range]));
+        }
+
+        $statisticsService = GeneralUtility::makeInstance(\Hyperdigital\HdTranslator\Services\AiRequestStatisticsService::class);
+        $dropped = $statisticsService->forgetLanguage($language);
+
+        $this->addFlashMessage(
+            sprintf(
+                (string)\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('deepl.analytics.forget.done.description', 'hd_translator'),
+                $dropped,
+                $language
+            ),
+            (string)\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('deepl.analytics.forget.done', 'hd_translator')
+        );
+
+        return $this->redirect('deeplAnalytics', null, null, $this->withPageContext(['range' => $range]));
+    }
+
+    /**
+     * Deleting statistics is irreversible and belongs to nobody but an administrator. A
+     * backend user who may read the screen may not empty it.
+     */
+    protected function mayForget(string $language): bool
+    {
+        if ($language === '') {
+            return false;
+        }
+
+        if (!($GLOBALS['BE_USER'] ?? null) || !$GLOBALS['BE_USER']->isAdmin()) {
+            $this->addFlashMessage(
+                (string)\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('deepl.analytics.forget.denied.description', 'hd_translator'),
+                (string)\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('deepl.analytics.forget.denied', 'hd_translator'),
+                \TYPO3\CMS\Core\Type\ContextualFeedbackSeverity::ERROR
+            );
+
+            return false;
+        }
+
+        return true;
     }
 
     public function deeplTranslationsListAction()

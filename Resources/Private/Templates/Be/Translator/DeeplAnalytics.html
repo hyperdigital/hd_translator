@@ -370,6 +370,12 @@
 										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.index.table.translation_count" /></th>
 										<th data-sort="number" class="hd-translator-nowrap"><f:translate key="deepl.analytics.characters" /></th>
 										<th data-sort="text"><f:translate key="deepl.analytics.asPages" /></th>
+										<f:comment>
+											The way out of the table: a language whose rows are an artefact rather
+											than demand can be dropped from the statistics here. Administrators
+											only - deleting them cannot be undone.
+										</f:comment>
+										<f:if condition="{isAdmin}"><th></th></f:if>
 									</tr>
 								</thead>
 								<tbody>
@@ -423,6 +429,16 @@
 													<f:else><span class="hd-translator-muted"><f:translate key="deepl.analytics.asPages.no" /></span></f:else>
 												</f:if>
 											</td>
+											<f:if condition="{isAdmin}">
+												<td>
+													<f:link.action action="deeplForgetLanguage"
+													               arguments="{language: row.language, range: range}"
+													               class="btn btn-default btn-sm"
+													               title="{f:translate(key: 'deepl.analytics.forget.link')}">
+														<core:icon identifier="actions-delete" size="small" />
+													</f:link.action>
+												</td>
+											</f:if>
 										</tr>
 									</f:for>
 								</tbody>

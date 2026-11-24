@@ -774,6 +774,60 @@
             <trans-unit id="deepl.analytics.funnel.none">
                 <source>The banner does not report for this language yet.</source>
             </trans-unit>
+            <trans-unit id="deepl.analytics.forget.link">
+                <source>Delete the records of this language</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.headline">
+                <source>Delete the records of %s</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.description">
+                <source>Every row this installation keeps about %s is about to be deleted. Rows where this language is where a request came *from* stay: those belong to the language that was asked for.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.rows">
+                <source>rows in all</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.requests">
+                <source>visitor days - the demand itself</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.months">
+                <source>months of history</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.pages">
+                <source>pages it was asked for on</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.banner">
+                <source>visitors the banner reported</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.bannerCount">
+                <source>banner display counts</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.table.sources">
+                <source>where the asking came from</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.warning">
+                <source>This cannot be undone. The language reappears on the screen as soon as somebody asks for it again, but what is deleted here is gone.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.do">
+                <source>Delete every record of %s</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.back">
+                <source>Back to the demand</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.nothing">
+                <source>Nothing is stored about %s.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.done">
+                <source>Deleted</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.done.description">
+                <source>%s rows about %s were deleted.</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.denied">
+                <source>Not deleted</source>
+            </trans-unit>
+            <trans-unit id="deepl.analytics.forget.denied.description">
+                <source>Deleting the statistics of a language is reserved for administrators.</source>
+            </trans-unit>
             <trans-unit id="deepl.analytics.visitors">
                 <source>visitors</source>
             </trans-unit>

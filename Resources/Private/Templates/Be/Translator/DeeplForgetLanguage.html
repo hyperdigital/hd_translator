@@ -1,0 +1,88 @@
+<html
+		xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+		xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers"
+		data-namespace-typo3-fluid="true">
+<f:layout name="Module" />
+
+<f:section name="Content">
+	<div class="hd-translator">
+		<f:render partial="Module/Header" arguments="{
+			title: '{f:translate(key: \'deepl.analytics.forget.headline\', arguments: {0: language})}'
+		}" />
+
+		<f:comment>
+			What is about to be lost, counted, before it is lost. "Delete this language" is not
+			a number, and the number is the whole of the decision: an artefact of a misfiring
+			banner and a year of real demand look exactly alike until the rows are named.
+		</f:comment>
+		<f:if condition="{nothing}">
+			<f:then>
+				<f:render partial="Module/Callout" arguments="{
+					state: 'info',
+					message: '{f:translate(key: \'deepl.analytics.forget.nothing\', arguments: {0: language})}'
+				}" />
+			</f:then>
+			<f:else>
+				<p><f:translate key="deepl.analytics.forget.description" arguments="{0: language}" /></p>
+
+				<div class="hd-translator-forget">
+					<div class="hd-translator-forget-total">
+						<b><f:format.number decimals="0" thousandsSeparator=" ">{counted.total}</f:format.number></b>
+						<span><f:translate key="deepl.analytics.forget.rows" /></span>
+					</div>
+					<ul class="hd-translator-forget-list">
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.requests}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.requests" /></span>
+						</li>
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.months}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.months" /></span>
+						</li>
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.pages}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.pages" /></span>
+						</li>
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.banner}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.banner" /></span>
+						</li>
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.bannerCount}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.bannerCount" /></span>
+						</li>
+						<li>
+							<f:format.number decimals="0" thousandsSeparator=" ">{counted.rows.sources}</f:format.number>
+							<span class="hd-translator-muted"><f:translate key="deepl.analytics.forget.table.sources" /></span>
+						</li>
+					</ul>
+				</div>
+
+				<f:render partial="Module/Callout" arguments="{
+					state: 'warning',
+					icon: 'actions-exclamation-triangle',
+					message: '{f:translate(key: \'deepl.analytics.forget.warning\')}'
+				}" />
+
+				<f:comment>
+					A form rather than a link: a link that deletes is a link a browser, a
+					prefetcher or a crawler may follow without anybody deciding anything.
+				</f:comment>
+				<f:form action="deeplForgetLanguageConfirm" arguments="{language: language, range: range}">
+					<button type="submit" class="btn btn-danger">
+						<core:icon identifier="actions-delete" size="small" />
+						<f:translate key="deepl.analytics.forget.do" arguments="{0: language}" />
+					</button>
+				</f:form>
+			</f:else>
+		</f:if>
+
+		<p>
+			<f:link.action action="deeplAnalytics" arguments="{range: range}" class="btn btn-default">
+				<core:icon identifier="actions-arrow-left" size="small" />
+				<f:translate key="deepl.analytics.forget.back" />
+			</f:link.action>
+		</p>
+	</div>
+</f:section>
+</html>
