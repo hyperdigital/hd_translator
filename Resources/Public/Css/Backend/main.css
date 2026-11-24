@@ -556,7 +556,11 @@ button.is-busy {
 .hd-translator-chart-svg {
     display: block;
     inline-size: 100%;
-    overflow: visible;
+    /* The plot is the box. Everything this chart paints belongs inside the viewBox, and when
+       arithmetic put a shape outside it instead - a band drawn on a scale that did not cover
+       it - the shape lay over the toolbar above the chart and swallowed its clicks. A chart
+       cannot be allowed to reach out of its own figure. */
+    overflow: hidden;
     /* dragging across the plot picks a range; without this it picks the axis labels instead */
     user-select: none;
     -webkit-user-select: none;
@@ -1216,6 +1220,8 @@ button.is-busy {
 .hd-translator-chart-rest {
     fill: var(--hdt-series-0);
     stroke: none;
+    /* it is a backdrop, not a target: the readout and the drag belong to the plot under it */
+    pointer-events: none;
 }
 
 /* ------------------------------------------------- the pages that carry the demand */

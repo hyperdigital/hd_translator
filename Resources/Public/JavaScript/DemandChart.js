@@ -168,20 +168,26 @@
         // what the legend governs, which is not the same as what the chart draws
         const enabled = () => languages.filter((language) => !state.hidden.has(language));
 
-        /** The last seven days decide the order: a series that died a week ago leads no list. */
-        const recentOf = (language) => data.series[language].slice(-7).reduce((a, b) => a + b, 0);
-        const byRecent = (a, b) => recentOf(b) - recentOf(a);
+        /**
+         * The range the chart draws decides the order. It used to be the last seven days, and
+         * the band below the lines then held whatever that week happened to leave out: one
+         * language that was huge three weeks ago and quiet since put a spike into the band five
+         * times the height of every line above it. The five and the rest are one picture, so
+         * they are ranked on one window.
+         */
+        const demandOf = (language) => data.series[language].reduce((a, b) => a + b, 0);
+        const byDemand = (a, b) => demandOf(b) - demandOf(a);
 
         /**
          * What the chart actually draws. One picked language is the whole chart; otherwise the
-         * five that moved most in the last week, because thirty-two lines answer nothing.
+         * five biggest of the range, because thirty-two lines answer nothing.
          */
         const visible = () => {
             if (state.only && !state.hidden.has(state.only)) return [state.only];
             const on = enabled();
             if (state.series !== 'top' || on.length <= 5) return on;
 
-            return on.slice().sort(byRecent).slice(0, 5);
+            return on.slice().sort(byDemand).slice(0, 5);
         };
 
         /** The ones the top five leaves out, drawn as one band so they are not simply gone. */
@@ -189,7 +195,7 @@
             if (state.only || state.series !== 'top') return [];
             const on = enabled();
 
-            return on.length > 5 ? on.slice().sort(byRecent).slice(5) : [];
+            return on.length > 5 ? on.slice().sort(byDemand).slice(5) : [];
         };
 
         /**
@@ -300,6 +306,18 @@
                 totals.push(shown.reduce((sum, language) => sum + valuesOf(language)[index], 0));
             }
 
+            // The languages the top five leaves out, as one band below the lines: a reader who
+            // sees five of thirty-two has to be told how much is not in the picture. Its day
+            // totals are computed here because the scale below has to cover them - a shape
+            // drawn past the top of the plot does not stay in the plot.
+            const rest = restOf();
+            const restTotals = [];
+            if (rest.length && state.mode === 'lines') {
+                for (let index = first; index <= last; index++) {
+                    restTotals.push(rest.reduce((sum, language) => sum + valuesOf(language)[index], 0));
+                }
+            }
+
             // the lost half hangs below the axis, so the domain reaches into the negative and
             // both halves keep one step, one scale and therefore comparable heights
             let floor = 0;
@@ -319,7 +337,11 @@
             } else {
                 const peak = state.mode === 'stacked'
                     ? Math.max(1, ...totals)
-                    : Math.max(1, ...shown.flatMap((language) => valuesOf(language).slice(first, last + 1)));
+                    : Math.max(
+                        1,
+                        ...shown.flatMap((language) => valuesOf(language).slice(first, last + 1)),
+                        ...restTotals
+                    );
                 step = niceStep(peak);
                 max = Math.ceil(peak / step) * step;
                 axisLabel = (value) => num.format(value);
@@ -371,14 +393,10 @@
                 svg.appendChild(label);
             }
 
-            // the languages the top five leaves out, as one band below the lines: a reader who
-            // sees five of thirty-two has to be told how much is not in the picture
-            const rest = restOf();
-            if (rest.length && state.mode === 'lines') {
+            if (restTotals.length) {
                 const points = [];
                 for (let index = first; index <= last; index++) {
-                    const sum = rest.reduce((total, language) => total + valuesOf(language)[index], 0);
-                    points.push(`${x(index)},${y(sum)}`);
+                    points.push(`${x(index)},${y(restTotals[index - first])}`);
                 }
                 svg.appendChild(el('path', {
                     d: `M ${x(first)},${y(0)} L ${points.join(' L ')} L ${x(last)},${y(0)} Z`,
