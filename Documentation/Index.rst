@@ -293,9 +293,11 @@ The chart answers three questions, one per mode:
     The same stack to a hundred percent - how the demand is divided, whatever the traffic
     did.
 
-:guilabel:`Top 5` draws the five languages that moved most in the last week and puts
-everything else below them as one band, so what is left out is still on the screen as a
-quantity rather than simply gone; :guilabel:`All` brings every language back. :guilabel:`Log`
+:guilabel:`Top 5` draws the five biggest languages of the selected range and puts everything
+else below them as one band, so what is left out is still on the screen as a quantity rather
+than simply gone; :guilabel:`All` brings every language back. The five and the band are ranked
+on the same window, because a language that was huge three weeks ago and quiet since would
+otherwise fall into the band and tower over every line above it. :guilabel:`Log`
 makes seventy visitors a day and four a day readable in one picture, which is the comparison
 the screen exists for. It is offered in :guilabel:`Lines` only: a stacked area on a log scale
 would draw sums no arithmetic holds for.
